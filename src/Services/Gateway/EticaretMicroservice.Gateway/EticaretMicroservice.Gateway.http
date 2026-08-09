@@ -1,0 +1,6 @@
+@EticaretMicroservice.Gateway_HostAddress = http://localhost:5234
+
+GET {{EticaretMicroservice.Gateway_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

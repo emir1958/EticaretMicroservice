@@ -1,0 +1,130 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37328.6
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Services", "Services", "{67E297C3-529D-41D5-8B0E-0EC8245DC758}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Catalog", "Catalog", "{D885FCB1-19A4-44FD-B3A0-FE82BEE21630}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Clients", "Clients", "{2270C5A0-EC91-4A79-9A01-1A7E70D40CA4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Catalog.Api", "src\Services\Catalog\EticaretMicroservice.Catalog.Api\EticaretMicroservice.Catalog.Api.csproj", "{37D2C002-CF70-A6B1-B20C-0FBD09D133ED}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Identity", "Identity", "{A52C6DC6-701E-44C2-93ED-87E2E4467C72}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Identity.Api", "src\Services\Identity\EticaretMicroservice.Identity.Api\EticaretMicroservice.Identity.Api.csproj", "{9FDCA4BD-2293-042B-91E2-E91A40EB19CF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Gateway", "Gateway", "{91DF84B5-FE3A-49CE-810C-5746993DA123}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Gateway", "src\Services\Gateway\EticaretMicroservice.Gateway\EticaretMicroservice.Gateway.csproj", "{18A481E6-CA93-B82C-D2F3-A20091900BBD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basket", "Basket", "{CD35DE7C-99EF-446C-85B4-BD3039A452EE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Basket.Api", "src\Services\Basket\EticaretMicroservice.Basket.Api\EticaretMicroservice.Basket.Api.csproj", "{61ECE48E-4A09-4E6B-9EB6-377EB896F787}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Order", "Order", "{4464ED31-9E8A-4B4D-8444-9EA1162A2684}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Services.Order.Domain", "src\Services\Order\EticaretMicroservice.Services.Order.Domain\EticaretMicroservice.Services.Order.Domain.csproj", "{517405CA-0935-4586-90C5-41F240679434}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Services.Order.Application", "src\Services\Order\EticaretMicroservice.Services.Order.Application\EticaretMicroservice.Services.Order.Application.csproj", "{6B50B318-5153-4032-BC8B-57EA49187BD0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Services.Order.Infrastructure", "src\Services\Order\EticaretMicroservice.Services.Order.Infrastructure\EticaretMicroservice.Services.Order.Infrastructure.csproj", "{4389EA23-8A7F-4134-8FA0-1F79C1FF4C91}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Services.Order.WebApi", "src\Services\Order\EticaretMicroservice.Services.Order.WebApi\EticaretMicroservice.Services.Order.WebApi.csproj", "{5EB59C76-441F-408F-81BA-7B3B16C42156}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{E75CA8C0-B3E1-4A18-9863-75A5FB19A858}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Shared", "src\Shared\EticaretMicroservice.Shared\EticaretMicroservice.Shared.csproj", "{3A3251BC-D3E5-4790-A671-E4E8970BBCFA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Stock", "Stock", "{61A37586-673E-4FF5-8BBE-8D15C8CF2928}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Stock.Api", "src\Services\Stock\EticaretMicroservice.Stock.Api\EticaretMicroservice.Stock.Api.csproj", "{D29F4961-6DA1-4898-8ED5-FC84573F5759}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Payment", "Payment", "{4E7AC0E7-8D68-4764-89E6-C8EF0103C9E7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Payment.Api", "src\Services\Payment\EticaretMicroservice.Payment.Api\EticaretMicroservice.Payment.Api.csproj", "{91514255-22F3-4F2D-93D7-EBC402359E20}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{37D2C002-CF70-A6B1-B20C-0FBD09D133ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37D2C002-CF70-A6B1-B20C-0FBD09D133ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37D2C002-CF70-A6B1-B20C-0FBD09D133ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37D2C002-CF70-A6B1-B20C-0FBD09D133ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9FDCA4BD-2293-042B-91E2-E91A40EB19CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9FDCA4BD-2293-042B-91E2-E91A40EB19CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9FDCA4BD-2293-042B-91E2-E91A40EB19CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9FDCA4BD-2293-042B-91E2-E91A40EB19CF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{18A481E6-CA93-B82C-D2F3-A20091900BBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{18A481E6-CA93-B82C-D2F3-A20091900BBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{18A481E6-CA93-B82C-D2F3-A20091900BBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{18A481E6-CA93-B82C-D2F3-A20091900BBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61ECE48E-4A09-4E6B-9EB6-377EB896F787}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61ECE48E-4A09-4E6B-9EB6-377EB896F787}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61ECE48E-4A09-4E6B-9EB6-377EB896F787}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61ECE48E-4A09-4E6B-9EB6-377EB896F787}.Release|Any CPU.Build.0 = Release|Any CPU
+		{517405CA-0935-4586-90C5-41F240679434}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{517405CA-0935-4586-90C5-41F240679434}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{517405CA-0935-4586-90C5-41F240679434}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{517405CA-0935-4586-90C5-41F240679434}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B50B318-5153-4032-BC8B-57EA49187BD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B50B318-5153-4032-BC8B-57EA49187BD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B50B318-5153-4032-BC8B-57EA49187BD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B50B318-5153-4032-BC8B-57EA49187BD0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4389EA23-8A7F-4134-8FA0-1F79C1FF4C91}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4389EA23-8A7F-4134-8FA0-1F79C1FF4C91}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4389EA23-8A7F-4134-8FA0-1F79C1FF4C91}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4389EA23-8A7F-4134-8FA0-1F79C1FF4C91}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5EB59C76-441F-408F-81BA-7B3B16C42156}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5EB59C76-441F-408F-81BA-7B3B16C42156}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5EB59C76-441F-408F-81BA-7B3B16C42156}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5EB59C76-441F-408F-81BA-7B3B16C42156}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A3251BC-D3E5-4790-A671-E4E8970BBCFA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A3251BC-D3E5-4790-A671-E4E8970BBCFA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A3251BC-D3E5-4790-A671-E4E8970BBCFA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A3251BC-D3E5-4790-A671-E4E8970BBCFA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D29F4961-6DA1-4898-8ED5-FC84573F5759}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D29F4961-6DA1-4898-8ED5-FC84573F5759}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D29F4961-6DA1-4898-8ED5-FC84573F5759}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D29F4961-6DA1-4898-8ED5-FC84573F5759}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91514255-22F3-4F2D-93D7-EBC402359E20}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91514255-22F3-4F2D-93D7-EBC402359E20}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91514255-22F3-4F2D-93D7-EBC402359E20}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91514255-22F3-4F2D-93D7-EBC402359E20}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{67E297C3-529D-41D5-8B0E-0EC8245DC758} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{D885FCB1-19A4-44FD-B3A0-FE82BEE21630} = {67E297C3-529D-41D5-8B0E-0EC8245DC758}
+		{2270C5A0-EC91-4A79-9A01-1A7E70D40CA4} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{37D2C002-CF70-A6B1-B20C-0FBD09D133ED} = {D885FCB1-19A4-44FD-B3A0-FE82BEE21630}
+		{A52C6DC6-701E-44C2-93ED-87E2E4467C72} = {67E297C3-529D-41D5-8B0E-0EC8245DC758}
+		{9FDCA4BD-2293-042B-91E2-E91A40EB19CF} = {A52C6DC6-701E-44C2-93ED-87E2E4467C72}
+		{91DF84B5-FE3A-49CE-810C-5746993DA123} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{18A481E6-CA93-B82C-D2F3-A20091900BBD} = {91DF84B5-FE3A-49CE-810C-5746993DA123}
+		{CD35DE7C-99EF-446C-85B4-BD3039A452EE} = {67E297C3-529D-41D5-8B0E-0EC8245DC758}
+		{61ECE48E-4A09-4E6B-9EB6-377EB896F787} = {CD35DE7C-99EF-446C-85B4-BD3039A452EE}
+		{4464ED31-9E8A-4B4D-8444-9EA1162A2684} = {67E297C3-529D-41D5-8B0E-0EC8245DC758}
+		{517405CA-0935-4586-90C5-41F240679434} = {4464ED31-9E8A-4B4D-8444-9EA1162A2684}
+		{6B50B318-5153-4032-BC8B-57EA49187BD0} = {4464ED31-9E8A-4B4D-8444-9EA1162A2684}
+		{4389EA23-8A7F-4134-8FA0-1F79C1FF4C91} = {4464ED31-9E8A-4B4D-8444-9EA1162A2684}
+		{5EB59C76-441F-408F-81BA-7B3B16C42156} = {4464ED31-9E8A-4B4D-8444-9EA1162A2684}
+		{E75CA8C0-B3E1-4A18-9863-75A5FB19A858} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{3A3251BC-D3E5-4790-A671-E4E8970BBCFA} = {E75CA8C0-B3E1-4A18-9863-75A5FB19A858}
+		{61A37586-673E-4FF5-8BBE-8D15C8CF2928} = {67E297C3-529D-41D5-8B0E-0EC8245DC758}
+		{D29F4961-6DA1-4898-8ED5-FC84573F5759} = {61A37586-673E-4FF5-8BBE-8D15C8CF2928}
+		{4E7AC0E7-8D68-4764-89E6-C8EF0103C9E7} = {67E297C3-529D-41D5-8B0E-0EC8245DC758}
+		{91514255-22F3-4F2D-93D7-EBC402359E20} = {4E7AC0E7-8D68-4764-89E6-C8EF0103C9E7}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B005D55D-80EE-4613-95DB-8BDCE1777FED}
+	EndGlobalSection
+EndGlobal
