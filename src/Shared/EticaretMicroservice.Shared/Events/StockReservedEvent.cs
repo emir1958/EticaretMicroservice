@@ -12,6 +12,7 @@ namespace EticaretMicroservice.Shared.Events
         public string BuyerId { get; init; }
         public decimal TotalPrice { get; init; }
         public PaymentMessage Payment { get; init; } = new();
+        public List<OrderItemMessage> OrderItems { get; init; } = new(); // 👈 Eksikse ekleyin
     }
 
 }

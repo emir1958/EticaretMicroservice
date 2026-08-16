@@ -38,7 +38,7 @@ namespace EticaretMicroservice.Services.Order.Application.Handlers
 
             // 2. DbContext ChangeTracker'a ekle (Henüz veritabanına commit EDILEMEDİ)
             var savedOrder = await _orderRepository.AddAsync(newOrder);
-
+            await _orderRepository.SaveChangesAsync(cancellationToken);
             // 3. Event Publish Et (Outbox aktif olduğu için bu mesaj doğrudan RabbitMQ'ya değil, 
             //    DbContext'in OutboxMessage tablosuna eklenecektir)
             var orderCreatedEvent = new OrderCreatedEvent

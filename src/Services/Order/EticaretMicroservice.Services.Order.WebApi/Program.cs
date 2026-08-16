@@ -1,4 +1,5 @@
-﻿using EticaretMicroservice.Services.Order.Application.Consumers;
+﻿using EticaretMicroservice.Services.Order.Application.Hubs;
+using EticaretMicroservice.Services.Order.Application.Consumers;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Services.Order.Infrastructure.Repositories;
@@ -26,6 +27,8 @@ builder.Services.AddMediatR(cfg =>
 // 4. MassTransit, RabbitMQ & Transactional Outbox Konfigürasyonu
 builder.Services.AddMassTransit(x =>
 {
+    x.AddConsumer<PaymentCompletedEventConsumer>(); // 👈 Eklendi mi?
+    x.AddConsumer<PaymentFailedEventConsumer>();    // 👈 Eklendi mi?
     x.AddConsumer<StockFailedEventConsumer>();
     // 🔹 EF Core Outbox Kaydı
     x.AddEntityFrameworkOutbox<OrderDbContext>(o =>
@@ -54,9 +57,22 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitMqPass);
         });
 
+        // 🟢 Stok Başarısız Kuyruğu
         cfg.ReceiveEndpoint("order-stock-failed-queue", e =>
         {
             e.ConfigureConsumer<StockFailedEventConsumer>(context);
+        });
+
+        // 🟢 1. EKSİK: Ödeme Başarısız Kuyruğu (Siparişi Canceled Yapacak)
+        cfg.ReceiveEndpoint("order-payment-failed-queue", e =>
+        {
+            e.ConfigureConsumer<PaymentFailedEventConsumer>(context);
+        });
+
+        // 🟢 2. EKSİK: Ödeme Başarılı Kuyruğu (Siparişi Completed Yapacak)
+        cfg.ReceiveEndpoint("order-payment-completed-queue", e =>
+        {
+            e.ConfigureConsumer<PaymentCompletedEventConsumer>(context);
         });
     });
 });
@@ -64,7 +80,7 @@ builder.Services.AddMassTransit(x =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddSignalR();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -75,5 +91,5 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 app.MapControllers();
-
+app.MapHub<OrderHub>("/orderhub");
 app.Run();

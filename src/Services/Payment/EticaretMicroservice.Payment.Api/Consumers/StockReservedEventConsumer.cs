@@ -47,7 +47,8 @@ public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
             {
                 OrderId = message.OrderId,
                 BuyerId = message.BuyerId,
-                Message = failReason
+                Message = failReason,
+                OrderItems = message.OrderItems
             });
         }
     }

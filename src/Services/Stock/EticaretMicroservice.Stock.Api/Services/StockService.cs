@@ -6,6 +6,8 @@ namespace EticaretMicroservice.Stock.Api.Services;
 public interface IStockService
 {
     Task<bool> DecreaseStockAsync(string productId, int quantity);
+
+    Task<bool> IncreaseStockAsync(string productId, int quantity);
 }
 
 public class StockService : IStockService
@@ -37,6 +39,26 @@ public class StockService : IStockService
 
         stock.AvailableStock -= quantity;
         await _context.SaveChangesAsync();
+
+        return true;
+    }
+
+    // 🟢 Stok İade Metodu Uygulaması:
+    public async Task<bool> IncreaseStockAsync(string productId, int quantity)
+    {
+        var stock = await _context.ProductStocks.FirstOrDefaultAsync(x => x.ProductId == productId);
+
+        if (stock == null)
+        {
+            _logger.LogWarning("Stok iadesi yapılamadı. Ürün bulunamadı: {ProductId}", productId);
+            return false;
+        }
+
+        stock.AvailableStock += quantity;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Stok iade edildi -> ProductId: {ProductId}, Eklenen Miktar: {Quantity}, Yeni Stok: {Available}",
+            productId, quantity, stock.AvailableStock);
 
         return true;
     }

@@ -25,7 +25,7 @@ builder.Services.AddMassTransit(x =>
 {
     // TConsumer tipini açýkça belirterek ekliyoruz
     x.AddConsumer<OrderCreatedEventConsumer>();
-
+    x.AddConsumer<PaymentFailedEventConsumer>();
     x.SetKebabCaseEndpointNameFormatter();
 
     x.UsingRabbitMq((context, cfg) =>
