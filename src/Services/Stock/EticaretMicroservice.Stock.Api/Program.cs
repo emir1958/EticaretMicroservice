@@ -2,7 +2,9 @@ using EticaretMicroservice.Stock.Api.Consumers;
 using EticaretMicroservice.Stock.Api.Data;
 using EticaretMicroservice.Stock.Api.Models;
 using EticaretMicroservice.Stock.Api.Services;
+using HealthChecks.UI.Client;
 using MassTransit;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -57,5 +59,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 app.MapControllers();
-
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
 app.Run();

@@ -1,10 +1,13 @@
-﻿using System.Text;
-using EticaretMicroservice.Basket.Api.Services;
+﻿using EticaretMicroservice.Basket.Api.Services;
 using EticaretMicroservice.Stock.Api.Consumers;
+using EticaretMicroservice.Stock.Api.Data;
+using EticaretMicroservice.Stock.Api.Services;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -75,13 +78,17 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
-
+builder.Services.AddDbContext<StockDbContext>(options =>
+{
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"));
+});
 // 5. REDIS & BASKET SERVICE
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
 });
-
+builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IBasketService, BasketService>();
 
 // 6. MASSTRANSIT & RABBITMQ & CONSUMER REGISTRATION

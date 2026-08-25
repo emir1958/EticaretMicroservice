@@ -1,0 +1,58 @@
+﻿services:
+
+  # 1️⃣ SQL Server Sunucusu
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql_db
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=1
+    ports:
+      - "1433:1433"
+    networks:
+      - microservice-network
+
+  # 2️⃣ RabbitMQ Mesaj Kuyruğu
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_bus
+    ports:
+      - "5672:5672"    # AMQP Portu (Mikroservisler için)
+      - "15672:15672"  # Management Arayüz Portu (Web paneli)
+    networks:
+      - microservice-network
+
+  # 3️⃣ Redis (Sepet / Caching)
+  redis:
+    image: redis:latest
+    container_name: redis_cache
+    ports:
+      - "6379:6379"
+    networks:
+      - microservice-network
+
+  # 4️⃣ Order.WebApi Servisimiz
+  order.webapi:
+    image: order-webapi:v1
+    container_name: order_webapi_service
+    build:
+      context: .
+      dockerfile: src/Services/Order/EticaretMicroservice.Services.Order.WebApi/Dockerfile
+    ports:
+      - "5051:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # ⚠️ DIKKAT: Localhost yerine Docker içindeki container isimlerini kullanıyoruz!
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=1;TrustServerCertificate=True;
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    depends_on:
+      - sqlserver
+      - rabbitmq
+    networks:
+      - microservice-network
+
+networks:
+  microservice-network:
+    driver: bridge

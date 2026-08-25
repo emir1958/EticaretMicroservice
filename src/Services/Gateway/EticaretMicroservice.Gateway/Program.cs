@@ -35,6 +35,13 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader();
     });
 });
+// 🔹 Health Checks UI Dashboard Servis Kaydı
+builder.Services.AddHealthChecksUI(options =>
+{
+    options.SetEvaluationTimeInSeconds(15); // 15 saniyede bir servisleri kontrol et
+    options.MaximumHistoryEntriesPerEndpoint(60);
+})
+.AddInMemoryStorage(); // Dashboard verilerini belpekte tutar
 
 var app = builder.Build();
 
@@ -43,5 +50,8 @@ app.UseCors("AllowAll");
 app.UseRateLimiter();
 // Gelen istekleri appsettings.json'daki kurallara göre arkadaki servislere pasla
 app.MapReverseProxy();
-
+app.MapHealthChecksUI(options =>
+{
+    options.UIPath = "/health-dashboard"; // Dashboard erişim adresi
+});
 app.Run();

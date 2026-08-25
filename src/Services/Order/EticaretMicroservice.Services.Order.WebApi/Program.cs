@@ -5,6 +5,8 @@ using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Services.Order.Infrastructure.Repositories;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,6 +83,21 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
+// 🔹 Health Check Servis Kaydı (SQL Server ve RabbitMQ Bağlantı Kontrolleri)
+var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
+var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
+var rabbitPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
+
+builder.Services.AddHealthChecks()
+    .AddSqlServer(
+        connectionString: builder.Configuration.GetConnectionString("DefaultConnection")!,
+        name: "OrderDb-SQL",
+        tags: new[] { "db", "sql", "sqlserver" })
+    .AddRabbitMQ(
+        rabbitConnectionString: $"amqp://{rabbitUser}:{rabbitPass}@{rabbitHost}:5672/",
+        name: "Order-RabbitMQ",
+        tags: new[] { "messagebus", "rabbitmq" });
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -92,4 +109,10 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<OrderHub>("/orderhub");
+// 🔹 Health Check Endpoint'inin Dışa Açılması (JSON formatında HealthChecks UI uyumlu)
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
 app.Run();
