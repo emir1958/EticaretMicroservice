@@ -36,11 +36,14 @@ namespace EticaretMicroservice.Services.Order.Application.Handlers
                 newOrder.AddOrderItem(item.ProductId, item.ProductName, item.Price, item.Quantity);
             }
 
-            // 2. DbContext ChangeTracker'a ekle (Henüz veritabanına commit EDILEMEDİ)
+            // 2. DbContext ChangeTracker'a ekle (Veritabanına HENÜZ yazılmadı)
             var savedOrder = await _orderRepository.AddAsync(newOrder);
-            await _orderRepository.SaveChangesAsync(cancellationToken);
-            // 3. Event Publish Et (Outbox aktif olduğu için bu mesaj doğrudan RabbitMQ'ya değil, 
-            //    DbContext'in OutboxMessage tablosuna eklenecektir)
+
+            // 🟢 DÜZELTME: Buradaki ilk SaveChangesAsync kaldırıldı! 
+            // Sipariş ID'si Identity/Sequence ise EF bunu bellekte hazırlar, 
+            // Outbox event'i ile birlikte en sonda TEK SaveChangesAsync çağrılır.
+
+            // 3. Event Publish Et (MassTransit bunu DbContext ChangeTracker'daki OutboxMessage tablosuna ekler)
             var orderCreatedEvent = new OrderCreatedEvent
             {
                 OrderId = savedOrder.Id,
@@ -51,21 +54,14 @@ namespace EticaretMicroservice.Services.Order.Application.Handlers
                     Quantity = x.Quantity,
                     Price = x.Price
                 }).ToList(),
-                Payment = new PaymentMessage
-                {
-                    CardName = request.Payment.CardName,
-                    CardNumber = request.Payment.CardNumber,
-                    Expiration = request.Payment.Expiration,
-                    Cvc = request.Payment.Cvc
-                }
+                PaymentToken = Guid.NewGuid().ToString()
             };
 
             await _publishEndpoint.Publish(orderCreatedEvent, cancellationToken);
 
             // 4. 🔥 TEK TRANSACTION: Hem 'Orders' hem de 'OutboxMessage' tablosu 
-            //    aynı SaveChangesAsync ile SQL Server'a atomik olarak yazılır!
+            //    atomik olarak tek SaveChangesAsync ile SQL Server'a yazılır!
             await _orderRepository.SaveChangesAsync(cancellationToken);
-            // (Not: Repository'nde SaveChangesAsync yoksa _dbContext.SaveChangesAsync() çağrılmalıdır)
 
             return savedOrder.Id;
         }

@@ -1,21 +1,17 @@
-﻿using EticaretMicroservice.Basket.Api.Services;
-using EticaretMicroservice.Stock.Api.Consumers;
-using EticaretMicroservice.Stock.Api.Data;
-using EticaretMicroservice.Stock.Api.Services;
+﻿using EticaretMicroservice.Basket.Api.Consumers; // 👈 Yeni consumer eklendi
+using EticaretMicroservice.Basket.Api.Services;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Controller'lar
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// 2. SWAGGER JWT BUTONU EKLE
+// 1. SWAGGER JWT BUTONU EKLE
 builder.Services.AddSwaggerGen(options =>
 {
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -33,29 +29,23 @@ builder.Services.AddSwaggerGen(options =>
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
             Array.Empty<string>()
         }
     });
 });
 
-// 3. CORS
+// 2. CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
     });
 });
 
-// 4. JWT AUTHENTICATION
+// 3. JWT AUTHENTICATION
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["Secret"] ?? "SuperSecretKey_For_Jwt_Auth_123456789!";
 
@@ -78,24 +68,21 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
-builder.Services.AddDbContext<StockDbContext>(options =>
-{
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"));
-});
-// 5. REDIS & BASKET SERVICE
+
+// 🔴 DİKKAT: StockDbContext ve IStockService BURADAN TAMAMEN SİLİNDİ! (Bounded Context Kuralı)
+
+// 4. REDIS & BASKET SERVICE
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
 });
-builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IBasketService, BasketService>();
 
-// 6. MASSTRANSIT & RABBITMQ & CONSUMER REGISTRATION
+// 5. MASSTRANSIT & RABBITMQ
 builder.Services.AddMassTransit(x =>
 {
-    // Consumer'ı DI container'a tanıtıyoruz
-    x.AddConsumer<OrderCreatedEventConsumer>();
+    // 🟢 Sadece kendi Basket Consumer'ımızı kaydediyoruz
+    x.AddConsumer<BasketOrderCreatedEventConsumer>();
 
     x.SetKebabCaseEndpointNameFormatter();
 
@@ -111,10 +98,9 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitMqPass);
         });
 
-        // Basket API'ye özel Queue ismi tanımlıyoruz ve Consumer'ı bağlıyoruz
         cfg.ReceiveEndpoint("basket-order-created-queue", e =>
         {
-            e.ConfigureConsumer<OrderCreatedEventConsumer>(context);
+            e.ConfigureConsumer<BasketOrderCreatedEventConsumer>(context);
         });
     });
 });
@@ -127,12 +113,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// 7. MIDDLEWARE SIRALAMASI
 app.UseCors("AllowAll");
-
-app.UseAuthentication(); // ⚠️ UseAuthorization'dan ÖNCE
+app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();

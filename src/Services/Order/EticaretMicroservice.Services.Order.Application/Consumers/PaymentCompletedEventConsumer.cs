@@ -3,6 +3,7 @@ using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Shared.Events;
 using MassTransit;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace EticaretMicroservice.Services.Order.Application.Consumers;
@@ -14,9 +15,10 @@ public class PaymentCompletedEventConsumer : IConsumer<PaymentCompletedEvent>
     private readonly IHubContext<OrderHub> _hubContext; // 🔹 SignalR Hub Context
     private readonly ILogger<PaymentCompletedEventConsumer> _logger;
 
-    public PaymentCompletedEventConsumer(IOrderRepository orderRepository, ILogger<PaymentCompletedEventConsumer> logger)
+    public PaymentCompletedEventConsumer(IOrderRepository orderRepository, IHubContext<OrderHub> hubContext, ILogger<PaymentCompletedEventConsumer> logger)
     {
         _orderRepository = orderRepository;
+        _hubContext = hubContext;
         _logger = logger;
     }
 

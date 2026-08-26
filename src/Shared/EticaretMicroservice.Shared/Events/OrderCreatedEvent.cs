@@ -9,8 +9,7 @@ namespace EticaretMicroservice.Shared.Events
         public string BuyerId { get; init; }
         public List<OrderItemMessage> OrderItems { get; init; } = new();
 
-        // 🔹 CS1061 Hatasını Çözen Yeni Eklenen Alan:
-        public PaymentMessage Payment { get; init; } = new();
+        public string PaymentToken { get; init; } = string.Empty;
     }
 
     public record OrderItemMessage
@@ -19,13 +18,5 @@ namespace EticaretMicroservice.Shared.Events
         public int Quantity { get; init; }
         public decimal Price { get; init; }
     }
-
-    // 🔹 Payment Bilgisi İçin Shared Model:
-    public record PaymentMessage
-    {
-        public string CardName { get; init; } = string.Empty;
-        public string CardNumber { get; init; } = string.Empty;
-        public string Expiration { get; init; } = string.Empty;
-        public string Cvc { get; init; } = string.Empty;
-    }
+ 
 }

@@ -1,21 +1,17 @@
-﻿using EticaretMicroservice.Payment.Api.Services;
-using EticaretMicroservice.Shared.Events;
+﻿using EticaretMicroservice.Shared.Events;
 using MassTransit;
 
 namespace EticaretMicroservice.Payment.Api.Consumers;
 
 public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
 {
-    private readonly IPaymentService _paymentService;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<StockReservedEventConsumer> _logger;
 
     public StockReservedEventConsumer(
-        IPaymentService paymentService,
         IPublishEndpoint publishEndpoint,
         ILogger<StockReservedEventConsumer> logger)
     {
-        _paymentService = paymentService;
         _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
@@ -23,10 +19,11 @@ public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
     public async Task Consume(ConsumeContext<StockReservedEvent> context)
     {
         var message = context.Message;
-        _logger.LogInformation("Payment.API: StockReservedEvent alındı. OrderId: {OrderId}, Tutar: {Price} TL", message.OrderId, message.TotalPrice);
+        _logger.LogInformation("Payment.API: StockReservedEvent alındı. OrderId: {OrderId}, Tutar: {Price} TL, Token: {Token}",
+            message.OrderId, message.TotalPrice, message.PaymentToken);
 
-        // 🟢 Gerçekçi Banka / Kart Doğrulaması Çalıştırılıyor
-        var (isSuccess, failReason) = _paymentService.ProcessPayment(message.Payment, message.TotalPrice);
+        // 🟢 GÜVENLİK DÜZELTMESİ: Ödeme token üzerinden simüle ediliyor
+        bool isSuccess = !string.IsNullOrEmpty(message.PaymentToken);
 
         if (isSuccess)
         {
@@ -40,14 +37,13 @@ public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
         }
         else
         {
-            _logger.LogWarning("Ödeme REDDEDİLDİ! OrderId: {OrderId}, Nedeni: {Reason}", message.OrderId, failReason);
+            _logger.LogWarning("Ödeme REDDEDİLDİ! OrderId: {OrderId}", message.OrderId);
 
-            // 🔴 Ödeme Başarısız -> Hem Order (Sipariş İptal) hem Stock (Stok İade) için Event fırlatılıyor!
             await _publishEndpoint.Publish(new PaymentFailedEvent
             {
                 OrderId = message.OrderId,
                 BuyerId = message.BuyerId,
-                Message = failReason,
+                Message = "Geçersiz Ödeme Tokenı.",
                 OrderItems = message.OrderItems
             });
         }

@@ -55,7 +55,8 @@ public class OrderCreatedEventConsumer : IConsumer<OrderCreatedEvent>
                 OrderId = message.OrderId,
                 BuyerId = message.BuyerId,
                 TotalPrice = message.OrderItems.Sum(x => x.Price * x.Quantity),
-                Payment = message.Payment // (Gelecek kart bilgisi)
+                PaymentToken = message.PaymentToken,
+                OrderItems = message.OrderItems
             });
         }
         else

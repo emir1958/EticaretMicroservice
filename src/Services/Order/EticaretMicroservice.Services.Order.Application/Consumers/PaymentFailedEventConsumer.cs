@@ -13,9 +13,10 @@ public class PaymentFailedEventConsumer : IConsumer<PaymentFailedEvent>
     private readonly IHubContext<OrderHub> _hubContext; // 🔹 SignalR Hub Context
     private readonly ILogger<PaymentFailedEventConsumer> _logger;
 
-    public PaymentFailedEventConsumer(IOrderRepository orderRepository, ILogger<PaymentFailedEventConsumer> logger)
+    public PaymentFailedEventConsumer(IOrderRepository orderRepository, IHubContext<OrderHub> hubContext, ILogger<PaymentFailedEventConsumer> logger)
     {
         _orderRepository = orderRepository;
+        _hubContext = hubContext;
         _logger = logger;
     }
 
