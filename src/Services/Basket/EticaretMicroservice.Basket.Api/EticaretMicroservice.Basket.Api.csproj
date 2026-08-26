@@ -16,7 +16,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Shared\EticaretMicroservice.Shared\EticaretMicroservice.Shared.csproj" />
-    <ProjectReference Include="..\..\Stock\EticaretMicroservice.Stock.Api\EticaretMicroservice.Stock.Api.csproj" />
   </ItemGroup>
 
 </Project>

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace EticaretMicroservice.Shared.Events
 {
-    public record OrderCreatedEvent
+    public record OrderCreatedEvent : IntegrationEvent
     {
         public int OrderId { get; init; }
         public string BuyerId { get; init; }

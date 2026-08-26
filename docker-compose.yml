@@ -6,23 +6,32 @@
     container_name: mssql_db
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=1
+      - SA_PASSWORD=Password12*!
     ports:
       - "1433:1433"
     networks:
       - microservice-network
 
-  # 2️⃣ RabbitMQ Mesaj Kuyruğu
+  # 2️⃣ MongoDB (Catalog API için)
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb_db
+    ports:
+      - "27017:27017"
+    networks:
+      - microservice-network
+
+  # 3️⃣ RabbitMQ Mesaj Kuyruğu
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq_bus
     ports:
-      - "5672:5672"    # AMQP Portu (Mikroservisler için)
-      - "15672:15672"  # Management Arayüz Portu (Web paneli)
+      - "5672:5672"
+      - "15672:15672"
     networks:
       - microservice-network
 
-  # 3️⃣ Redis (Sepet / Caching)
+  # 4️⃣ Redis Cache (Basket API için)
   redis:
     image: redis:latest
     container_name: redis_cache
@@ -31,9 +40,55 @@
     networks:
       - microservice-network
 
-  # 4️⃣ Order.WebApi Servisimiz
+  # 5️⃣ Identity.Api
+  identity.api:
+    container_name: identity_api_service
+    build:
+      context: .
+      dockerfile: src/Services/Identity/EticaretMicroservice.Identity.Api/Dockerfile
+    ports:
+      - "5243:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    networks:
+      - microservice-network
+
+  # 6️⃣ Catalog.Api
+  catalog.api:
+    container_name: catalog_api_service
+    build:
+      context: .
+      dockerfile: src/Services/Catalog/EticaretMicroservice.Catalog.Api/Dockerfile
+    ports:
+      - "5113:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DatabaseSettings__ConnectionString=mongodb://mongodb:27017
+    depends_on:
+      - mongodb
+    networks:
+      - microservice-network
+
+  # 7️⃣ Basket.Api
+  basket.api:
+    container_name: basket_api_service
+    build:
+      context: .
+      dockerfile: src/Services/Basket/EticaretMicroservice.Basket.Api/Dockerfile
+    ports:
+      - "5290:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Redis=redis:6379
+      - RabbitMQ__Host=rabbitmq
+    depends_on:
+      - redis
+      - rabbitmq
+    networks:
+      - microservice-network
+
+  # 8️⃣ Order.WebApi
   order.webapi:
-    image: order-webapi:v1
     container_name: order_webapi_service
     build:
       context: .
@@ -42,14 +97,65 @@
       - "5051:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      # ⚠️ DIKKAT: Localhost yerine Docker içindeki container isimlerini kullanıyoruz!
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=1;TrustServerCertificate=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
-      - RabbitMQ__Username=guest
-      - RabbitMQ__Password=guest
     depends_on:
       - sqlserver
       - rabbitmq
+    networks:
+      - microservice-network
+
+  # 9️⃣ Stock.Api
+  stock.api:
+    container_name: stock_api_service
+    build:
+      context: .
+      dockerfile: src/Services/Stock/EticaretMicroservice.Stock.Api/Dockerfile
+    ports:
+      - "5027:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=StockDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
+      - RabbitMQ__Host=rabbitmq
+    depends_on:
+      - sqlserver
+      - rabbitmq
+    networks:
+      - microservice-network
+
+  # 🔟 Payment.Api
+  payment.api:
+    container_name: payment_api_service
+    build:
+      context: .
+      dockerfile: src/Services/Payment/EticaretMicroservice.Payment.Api/Dockerfile
+    ports:
+      - "5295:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - RabbitMQ__Host=rabbitmq
+    depends_on:
+      - rabbitmq
+    networks:
+      - microservice-network
+
+# 1️⃣1️⃣ Gateway
+  eticaretmicroservice.gateway:
+    container_name: yarp_gateway_service
+    build:
+      context: .
+      dockerfile: src/Services/Gateway/EticaretMicroservice.Gateway/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - identity.api
+      - catalog.api
+      - basket.api
+      - order.webapi
+      - stock.api
+      - payment.api
     networks:
       - microservice-network
 

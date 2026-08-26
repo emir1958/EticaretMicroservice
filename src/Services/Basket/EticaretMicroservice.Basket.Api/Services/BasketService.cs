@@ -25,8 +25,16 @@ public class BasketService : IBasketService
     public async Task<CustomerBasket> UpdateBasketAsync(CustomerBasket basket)
     {
         var basketJson = JsonSerializer.Serialize(basket);
-        // Sepeti Redis'e kaydediyoruz (Key: UserId, Value: JSON Sepet Verisi)
-        await _redisCache.SetStringAsync(basket.UserId, basketJson);
+
+        // 🟢 REDIS TTL AYARI: Sepet verisine 30 günlük yaşam süresi tanımlıyoruz.
+        // Böylece aktif olmayan sepetler Redis belleğinde sonsuza kadar yer kaplamaz.
+        var options = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(30)
+        };
+
+        // Sepeti Redis'e kaydediyoruz (Key: UserId, Value: JSON Sepet Verisi, Options: TTL)
+        await _redisCache.SetStringAsync(basket.UserId, basketJson, options);
 
         return basket;
     }

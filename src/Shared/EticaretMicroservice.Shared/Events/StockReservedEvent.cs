@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace EticaretMicroservice.Shared.Events
 {
-    public record StockReservedEvent
+    public record StockReservedEvent : IntegrationEvent
     {
         public int OrderId { get; init; }
         public string BuyerId { get; init; }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using EticaretMicroservice.Shared.Extensions; 
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,34 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 1. SWAGGER'A JWT BARRER BUTONU EKLE (İsteğe Bağlı ama Çok Kullanışlı) ---
-builder.Services.AddSwaggerGen(options =>
-{
-    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Description = "JWT Token değerini 'Bearer {token}' şeklinde girin."
-    });
-
-    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
-    {
-        {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-            {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
-                {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
-});
+builder.Services.AddSharedSwagger();
 
 // --- 2. CORS POLİTİKASI ---
 builder.Services.AddCors(options =>
@@ -51,30 +25,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// --- 3. JWT AUTHENTICATION SERVİSİNİ EKLE ---
-// ⚠️ Buradaki Secret Key / Issuer / Audience bilgileri Identity.Api ile BİREBİR aynı olmalıdır!
-var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["Secret"] ?? "SuperSecretKey_For_Jwt_Auth_123456789!";
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.RequireHttpsMetadata = false;
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-        ValidateIssuer = false,   // Identity.Api'de Issuer kontrolü yapıyorsan burayı true yapıp değer atayabilirsin
-        ValidateAudience = false, // Audience kontrolü varsa true yapıp eşitleyebilirsin
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
-    };
-});
+builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
 builder.Services.Configure<DatabaseSettings>(builder.Configuration.GetSection("DatabaseSettings"));
 builder.Services.AddSingleton<IDatabaseSettings>(sp =>

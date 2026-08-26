@@ -2,6 +2,8 @@
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 1. RATE LIMITER KONFİGÜRASYONU
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("fixed-policy", opt =>
@@ -22,7 +24,8 @@ builder.Services.AddRateLimiter(options =>
             cancellationToken);
     };
 });
-// 1. YARP ve CORS Servislerini Ekle
+
+// 2. YARP VE CORS SERVİSLERİ
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
@@ -35,23 +38,46 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader();
     });
 });
-// 🔹 Health Checks UI Dashboard Servis Kaydı
+
+// 3. HEALTH CHECKS UI DASHBOARD
 builder.Services.AddHealthChecksUI(options =>
 {
-    options.SetEvaluationTimeInSeconds(15); // 15 saniyede bir servisleri kontrol et
+    options.SetEvaluationTimeInSeconds(15);
     options.MaximumHistoryEntriesPerEndpoint(60);
 })
-.AddInMemoryStorage(); // Dashboard verilerini belpekte tutar
+.AddInMemoryStorage();
 
 var app = builder.Build();
 
-// 2. Middleware sıralaması
+// 4. MIDDLEWARE PIPELINE
+
+// 🟢 CORRELATION ID MIDDLEWARE (En başa ekliyoruz ki tüm istekler ID alabilsin)
+app.Use(async (context, next) =>
+{
+    const string correlationIdHeaderKey = "X-Correlation-ID";
+
+    // 1. İstekte header yoksa veya boşsa yeni bir Guid üret
+    if (!context.Request.Headers.TryGetValue(correlationIdHeaderKey, out var correlationId) || string.IsNullOrWhiteSpace(correlationId))
+    {
+        correlationId = Guid.NewGuid().ToString();
+        context.Request.Headers[correlationIdHeaderKey] = correlationId;
+    }
+
+    // 2. Yanıt (Response) header'ına da ekleyelim ki istemci takip edebilsin
+    context.Response.Headers[correlationIdHeaderKey] = correlationId;
+
+    await next();
+});
+
 app.UseCors("AllowAll");
 app.UseRateLimiter();
-// Gelen istekleri appsettings.json'daki kurallara göre arkadaki servislere pasla
+
+// 5. ENDPOINT MAPPING
 app.MapReverseProxy();
+
 app.MapHealthChecksUI(options =>
 {
-    options.UIPath = "/health-dashboard"; // Dashboard erişim adresi
+    options.UIPath = "/health-dashboard";
 });
+
 app.Run();

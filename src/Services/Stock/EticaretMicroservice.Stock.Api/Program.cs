@@ -1,16 +1,21 @@
-﻿using EticaretMicroservice.Stock.Api.Consumers;
+﻿using EticaretMicroservice.Shared.Extensions;
+using EticaretMicroservice.Stock.Api.Consumers;
 using EticaretMicroservice.Stock.Api.Data;
 using EticaretMicroservice.Stock.Api.Services;
 using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+builder.Services.AddSharedSwagger();
+builder.Services.AddSharedJwtAuthentication(builder.Configuration);
+
 
 // 1. DbContext Kaydı
 builder.Services.AddDbContext<StockDbContext>(options =>
@@ -55,17 +60,8 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitMqPass);
         });
 
-        // 🟢 1. Kuyruk: Sipariş Oluşunca Stok Düşme Kuyruğu
-        cfg.ReceiveEndpoint("stock-order-created-queue", e =>
-        {
-            e.ConfigureConsumer<OrderCreatedEventConsumer>(context);
-        });
-
-        // 🟢 2. DÜZELTME: Ödeme Başarısız Olunca Stok İade Kuyruğu
-        cfg.ReceiveEndpoint("stock-payment-failed-queue", e =>
-        {
-            e.ConfigureConsumer<PaymentFailedEventConsumer>(context);
-        });
+        // 🟢 Retry politikası uygulayarak endpoint'leri otomatik bağlar
+        cfg.ConfigureSharedRetry(context);
     });
 });
 
@@ -76,7 +72,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

@@ -1,9 +1,11 @@
 ﻿using EticaretMicroservice.Stock.Api.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace EticaretMicroservice.Stock.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/stocks")]
 public class StocksController : ControllerBase

@@ -1,12 +1,17 @@
-﻿using EticaretMicroservice.Services.Order.Application.Hubs;
-using EticaretMicroservice.Services.Order.Application.Consumers;
+﻿using EticaretMicroservice.Services.Order.Application.Consumers;
+using EticaretMicroservice.Services.Order.Application.Hubs;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Services.Order.Infrastructure.Repositories;
-using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using HealthChecks.UI.Client;
+using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
+using EticaretMicroservice.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,7 +86,12 @@ builder.Services.AddMassTransit(x =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// 🟢 HTTP Context üzerinden CorrelationId okuyabilmek için eklendi
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSharedSwagger();
+builder.Services.AddSharedJwtAuthentication(builder.Configuration);
+
+
 builder.Services.AddSignalR();
 // 🔹 Health Check Servis Kaydı (SQL Server ve RabbitMQ Bağlantı Kontrolleri)
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
@@ -105,7 +115,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.UseCors("AllowAll");
+app.UseAuthentication(); // ⚠️ UseAuthorization'dan ÖNCE
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<OrderHub>("/orderhub");

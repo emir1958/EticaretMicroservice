@@ -1,11 +1,13 @@
 ﻿using EticaretMicroservice.Services.Order.Application.Commands;
 using EticaretMicroservice.Services.Order.Application.Queries;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EticaretMicroservice.Services.Order.WebApi.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class OrdersController : ControllerBase
