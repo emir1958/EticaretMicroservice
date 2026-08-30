@@ -1,12 +1,14 @@
 ﻿using EticaretMicroservice.Payment.Api.Consumers;
 using EticaretMicroservice.Payment.Api.Services;
-using MassTransit;
+using EticaretMicroservice.Shared.Extensions;
 using HealthChecks.UI.Client;
+using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Payment.Api");
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IPaymentService, FakePaymentService>();

@@ -1,16 +1,34 @@
 ﻿services:
 
+  # 🟢 OpenTelemetry Aspire Dashboard
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:8.0
+    container_name: aspire_dashboard
+    ports:
+      - "18888:18888" # Web UI (Kullanıcı Paneli)
+      - "4317:4317"   # OTLP gRPC Portu (Trace verilerinin aktığı yer)
+    environment:
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+    networks:
+      - microservice-network
+
   # 1️⃣ SQL Server Sunucusu
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: mssql_db
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=Password12*!
+      - "SA_PASSWORD=Password12*!"
     ports:
-      - "1433:1433"
+      - "1435:1433"
     networks:
       - microservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Password12*!' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # 2️⃣ MongoDB (Catalog API için)
   mongodb:
@@ -20,6 +38,11 @@
       - "27017:27017"
     networks:
       - microservice-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # 3️⃣ RabbitMQ Mesaj Kuyruğu
   rabbitmq:
@@ -30,6 +53,12 @@
       - "15672:15672"
     networks:
       - microservice-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # 4️⃣ Redis Cache (Basket API için)
   redis:
@@ -39,8 +68,13 @@
       - "6379:6379"
     networks:
       - microservice-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # 5️⃣ Identity.Api
+  # 5️⃣ # 5️⃣ Identity.Api
   identity.api:
     container_name: identity_api_service
     build:
@@ -50,6 +84,13 @@
       - "5243:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=IdentityDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      aspire-dashboard:
+        condition: service_started
     networks:
       - microservice-network
 
@@ -64,8 +105,12 @@
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - DatabaseSettings__ConnectionString=mongodb://mongodb:27017
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317 # 👈 Ekledi
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
+      aspire-dashboard:
+        condition: service_started
     networks:
       - microservice-network
 
@@ -81,9 +126,14 @@
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__Redis=redis:6379
       - RabbitMQ__Host=rabbitmq
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317 # 👈 Ekledi
     depends_on:
-      - redis
-      - rabbitmq
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      aspire-dashboard:
+        condition: service_started
     networks:
       - microservice-network
 
@@ -99,9 +149,14 @@
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
     depends_on:
-      - sqlserver
-      - rabbitmq
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      aspire-dashboard:
+        condition: service_started
     networks:
       - microservice-network
 
@@ -117,9 +172,14 @@
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=StockDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
     depends_on:
-      - sqlserver
-      - rabbitmq
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      aspire-dashboard:
+        condition: service_started
     networks:
       - microservice-network
 
@@ -134,12 +194,16 @@
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - RabbitMQ__Host=rabbitmq
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317 # 👈 Ekledi
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      aspire-dashboard:
+        condition: service_started # 👈 Ekledi
     networks:
       - microservice-network
 
-# 1️⃣1️⃣ Gateway
+  # 1️⃣1️⃣ Gateway
   eticaretmicroservice.gateway:
     container_name: yarp_gateway_service
     build:
@@ -149,6 +213,7 @@
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
     depends_on:
       - identity.api
       - catalog.api
@@ -156,6 +221,7 @@
       - order.webapi
       - stock.api
       - payment.api
+      - aspire-dashboard
     networks:
       - microservice-network
 

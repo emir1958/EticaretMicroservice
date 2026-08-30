@@ -6,16 +6,25 @@ using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
+builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Stock.Api");
 builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
+// 🟢 CORS Servis Kaydı
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 // 1. DbContext Kaydı
 builder.Services.AddDbContext<StockDbContext>(options =>
@@ -26,7 +35,7 @@ builder.Services.AddDbContext<StockDbContext>(options =>
 // 2. Service Kaydı
 builder.Services.AddScoped<IStockService, StockService>();
 
-// 🟢 DÜZELTME: HealthCheck Servis Kaydı (SQL Server ve RabbitMQ Kontrolleri)
+// 3. HealthCheck Servis Kaydı
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
 var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
 var rabbitPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
@@ -41,7 +50,7 @@ builder.Services.AddHealthChecks()
         name: "Stock-RabbitMQ",
         tags: new[] { "messagebus", "rabbitmq" });
 
-// 3. MassTransit & Consumer Kaydı
+// 4. MassTransit & Consumer Kaydı
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<OrderCreatedEventConsumer>();
@@ -60,7 +69,6 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitMqPass);
         });
 
-        // 🟢 Retry politikası uygulayarak endpoint'leri otomatik bağlar
         cfg.ConfigureSharedRetry(context);
     });
 });
@@ -72,6 +80,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -81,5 +91,12 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     Predicate = _ => true,
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
+
+// 🟢 Otomatik Migration (StockDb veritabanı yoksa oluşturulur ve tablolar güncellenir)
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<StockDbContext>();
+    dbContext.Database.Migrate();
+}
 
 app.Run();

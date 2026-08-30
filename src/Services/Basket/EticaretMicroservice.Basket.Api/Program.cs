@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
+builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Basket.Api");
 builder.Services.AddSharedSwagger();
 
 // 2. CORS

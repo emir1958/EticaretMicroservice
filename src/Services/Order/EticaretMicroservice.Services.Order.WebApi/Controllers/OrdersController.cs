@@ -1,45 +1,54 @@
-﻿using EticaretMicroservice.Services.Order.Application.Commands;
-using EticaretMicroservice.Services.Order.Application.Queries;
+﻿using System.Security.Claims;
+using EticaretMicroservice.Services.Order.Application.Commands;
+using EticaretMicroservice.Services.Order.Application.Queries; // 👈 Query namespace'i eklendi
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace EticaretMicroservice.Services.Order.WebApi.Controllers
+namespace EticaretMicroservice.Services.Order.WebApi.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class OrdersController : ControllerBase
 {
-    [Authorize]
-    [Route("api/[controller]")]
-    [ApiController]
-    public class OrdersController : ControllerBase
+    private readonly IMediator _mediator;
+
+    public OrdersController(IMediator mediator)
     {
-        private readonly IMediator _mediator;
+        _mediator = mediator;
+    }
 
-        public OrdersController(IMediator mediator)
+    [HttpPost]
+    public async Task<IActionResult> CreateOrder([FromBody] CreateOrderCommand command)
+    {
+        var userIdFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                             ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrEmpty(userIdFromToken))
         {
-            _mediator = mediator;
+            return Unauthorized(new { message = "Geçersiz token veya kullanıcı kimliği bulunamadı." });
         }
 
-        /// <summary>
-        /// Kullanıcıya ait siparişleri getirir (Query)
-        /// GET api/orders/user/123
-        /// </summary>
-        [HttpGet("user/{userId}")]
-        public async Task<IActionResult> GetOrdersByUserId(string userId)
+        command.BuyerId = userIdFromToken;
+
+        var orderId = await _mediator.Send(command);
+        return Ok(new { OrderId = orderId });
+    }
+
+    [HttpGet("user")]
+    public async Task<IActionResult> GetOrdersByUser()
+    {
+        var userIdFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                             ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrEmpty(userIdFromToken))
         {
-            var query = new GetOrdersByUserIdQuery(userId);
-            var response = await _mediator.Send(query);
-            return Ok(response);
+            return Unauthorized(new { message = "Geçersiz token veya kullanıcı kimliği bulunamadı." });
         }
 
-        /// <summary>
-        /// Yeni bir sipariş oluşturur (Command)
-        /// POST api/orders
-        /// </summary>
-        [HttpPost]
-        public async Task<IActionResult> CreateOrder([FromBody] CreateOrderCommand command)
-        {
-            var orderId = await _mediator.Send(command);
-            return Ok(new { OrderId = orderId, Message = "Sipariş başarıyla oluşturuldu." });
-        }
+        // 🟢 MediatR sorgusu bağlandı (IDOR korumalı sipariş geçmişi)
+        var result = await _mediator.Send(new GetOrdersByUserIdQuery(userIdFromToken));
+        return Ok(result);
     }
 }

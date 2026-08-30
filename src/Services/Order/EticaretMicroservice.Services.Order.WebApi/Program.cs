@@ -7,10 +7,6 @@ using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Text;
 using EticaretMicroservice.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,19 +30,15 @@ builder.Services.AddMediatR(cfg =>
 // 4. MassTransit, RabbitMQ & Transactional Outbox Konfigürasyonu
 builder.Services.AddMassTransit(x =>
 {
-    x.AddConsumer<PaymentCompletedEventConsumer>(); // 👈 Eklendi mi?
-    x.AddConsumer<PaymentFailedEventConsumer>();    // 👈 Eklendi mi?
+    x.AddConsumer<PaymentCompletedEventConsumer>();
+    x.AddConsumer<PaymentFailedEventConsumer>();
     x.AddConsumer<StockFailedEventConsumer>();
+
     // 🔹 EF Core Outbox Kaydı
     x.AddEntityFrameworkOutbox<OrderDbContext>(o =>
     {
-        // Veritabanı sağlayıcısı olarak SQL Server seçiyoruz
         o.UseSqlServer();
-
-        // Bus seviyesinde Outbox kullanımını aktif ediyoruz
         o.UseBusOutbox();
-
-        // (Opsiyonel) Çift mesaj engelleme penceresi
         o.DuplicateDetectionWindow = TimeSpan.FromMinutes(5);
     });
 
@@ -64,19 +56,16 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitMqPass);
         });
 
-        // 🟢 Stok Başarısız Kuyruğu
         cfg.ReceiveEndpoint("order-stock-failed-queue", e =>
         {
             e.ConfigureConsumer<StockFailedEventConsumer>(context);
         });
 
-        // 🟢 1. EKSİK: Ödeme Başarısız Kuyruğu (Siparişi Canceled Yapacak)
         cfg.ReceiveEndpoint("order-payment-failed-queue", e =>
         {
             e.ConfigureConsumer<PaymentFailedEventConsumer>(context);
         });
 
-        // 🟢 2. EKSİK: Ödeme Başarılı Kuyruğu (Siparişi Completed Yapacak)
         cfg.ReceiveEndpoint("order-payment-completed-queue", e =>
         {
             e.ConfigureConsumer<PaymentCompletedEventConsumer>(context);
@@ -84,16 +73,28 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
+builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Order.WebApi");
+
+// 🟢 CORS Servis Kaydı Eklendi (App.UseCors için gerekli)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-// 🟢 HTTP Context üzerinden CorrelationId okuyabilmek için eklendi
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
-
 builder.Services.AddSignalR();
-// 🔹 Health Check Servis Kaydı (SQL Server ve RabbitMQ Bağlantı Kontrolleri)
+
+// 🔹 Health Check Servis Kaydı
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
 var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
 var rabbitPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
@@ -115,15 +116,23 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
 app.UseCors("AllowAll");
-app.UseAuthentication(); // ⚠️ UseAuthorization'dan ÖNCE
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<OrderHub>("/orderhub");
-// 🔹 Health Check Endpoint'inin Dışa Açılması (JSON formatında HealthChecks UI uyumlu)
+
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = _ => true,
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    dbContext.Database.Migrate();
+}
+
 app.Run();

@@ -6,7 +6,6 @@ namespace EticaretMicroservice.Stock.Api.Services;
 public interface IStockService
 {
     Task<bool> DecreaseStockAsync(string productId, int quantity);
-
     Task<bool> IncreaseStockAsync(string productId, int quantity);
 }
 
@@ -14,6 +13,7 @@ public class StockService : IStockService
 {
     private readonly StockDbContext _context;
     private readonly ILogger<StockService> _logger;
+
     public StockService(StockDbContext context, ILogger<StockService> logger)
     {
         _context = context;
@@ -38,12 +38,24 @@ public class StockService : IStockService
         }
 
         stock.AvailableStock -= quantity;
-        await _context.SaveChangesAsync();
 
-        return true;
+        try
+        {
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // 🟢 ÇAKIŞMA YAKALANDI: Başka bir işlem bu stok satırını aynı anda güncelledi!
+            _logger.LogError(ex, "Stok düşüm çakışması (Concurrency Conflict)! ProductId: {ProductId}", productId);
+
+            // EF ChangeTracker'ı temizliyoruz
+            _context.Entry(stock).State = EntityState.Detached;
+            return false;
+        }
     }
 
-    // 🟢 Stok İade Metodu Uygulaması:
+    // 🟢 Stok İade Metodu (Concurrency Korumalı)
     public async Task<bool> IncreaseStockAsync(string productId, int quantity)
     {
         var stock = await _context.ProductStocks.FirstOrDefaultAsync(x => x.ProductId == productId);
@@ -55,11 +67,21 @@ public class StockService : IStockService
         }
 
         stock.AvailableStock += quantity;
-        await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Stok iade edildi -> ProductId: {ProductId}, Eklenen Miktar: {Quantity}, Yeni Stok: {Available}",
-            productId, quantity, stock.AvailableStock);
+        try
+        {
+            await _context.SaveChangesAsync();
 
-        return true;
+            _logger.LogInformation("Stok iade edildi -> ProductId: {ProductId}, Eklenen Miktar: {Quantity}, Yeni Stok: {Available}",
+                productId, quantity, stock.AvailableStock);
+
+            return true;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogError(ex, "Stok iade çakışması (Concurrency Conflict)! ProductId: {ProductId}", productId);
+            _context.Entry(stock).State = EntityState.Detached;
+            return false;
+        }
     }
 }

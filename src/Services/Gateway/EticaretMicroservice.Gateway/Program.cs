@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.RateLimiting;
+﻿using EticaretMicroservice.Shared.Extensions;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,7 +39,7 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader();
     });
 });
-
+builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Gateway.Api");
 // 3. HEALTH CHECKS UI DASHBOARD
 builder.Services.AddHealthChecksUI(options =>
 {

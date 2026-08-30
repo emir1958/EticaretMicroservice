@@ -15,6 +15,7 @@ public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
         IPublishEndpoint publishEndpoint,
         ILogger<StockReservedEventConsumer> logger)
     {
+        _paymentService = paymentService;
         _publishEndpoint = publishEndpoint;
         _logger = logger;
     }

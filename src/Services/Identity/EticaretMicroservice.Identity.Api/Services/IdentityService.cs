@@ -3,44 +3,50 @@ using System.Security.Claims;
 using System.Text;
 using EticaretMicroservice.Identity.Api.Dtos;
 using EticaretMicroservice.Identity.Api.Models;
+using EticaretMicroservice.Identity.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 namespace EticaretMicroservice.Identity.Api.Services
 {
     public class IdentityService : IIdentityService
     {
-        private static readonly List<User> Users = new();
+        private readonly AppIdentityDbContext _context;
         private readonly IConfiguration _configuration;
 
-        public IdentityService(IConfiguration configuration)
+        public IdentityService(AppIdentityDbContext context, IConfiguration configuration)
         {
+            _context = context;
             _configuration = configuration;
         }
 
         public async Task<bool> RegisterAsync(RegisterDto registerDto)
         {
-            if (Users.Any(u => u.Email.Equals(registerDto.Email, StringComparison.OrdinalIgnoreCase)))
+            bool userExists = await _context.Users.AnyAsync(u => u.Email.ToLower() == registerDto.Email.ToLower());
+            if (userExists)
                 return false;
 
-            string hashedForm = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
+            string hashedPassword = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
             string assignedRole = registerDto.Email.ToLower().Contains("admin") ? "Admin" : "User";
 
             var newUser = new User
             {
-                Id = Guid.NewGuid().ToString(), // 🔹 Sabit ID Ataması Yapıldı
+                Id = Guid.NewGuid().ToString(),
                 Username = registerDto.Username,
                 Email = registerDto.Email,
-                PasswordHash = hashedForm,
+                PasswordHash = hashedPassword,
                 Role = assignedRole
             };
 
-            Users.Add(newUser);
-            return await Task.FromResult(true);
+            await _context.Users.AddAsync(newUser);
+            await _context.SaveChangesAsync();
+
+            return true;
         }
 
         public async Task<string?> LoginAsync(LoginDto loginDto)
         {
-            var user = Users.FirstOrDefault(u => u.Email.Equals(loginDto.Email, StringComparison.OrdinalIgnoreCase));
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == loginDto.Email.ToLower());
             if (user == null) return null;
 
             bool isPasswordValid = BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash);
@@ -52,7 +58,6 @@ namespace EticaretMicroservice.Identity.Api.Services
         private string GenerateJwtToken(User user)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-
             var secretKey = _configuration["JwtSettings:Secret"] ?? "BuCokGizliVeUzunBirAnahtarCumlesidir12345!";
             var key = Encoding.ASCII.GetBytes(secretKey);
 

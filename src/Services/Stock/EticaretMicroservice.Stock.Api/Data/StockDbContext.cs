@@ -8,7 +8,7 @@ namespace EticaretMicroservice.Stock.Api.Data
     public class StockDbContext : DbContext
     {
         public StockDbContext(DbContextOptions options) : base(options) { }
-
+        public DbSet<ProcessedMessage> ProcessedMessages { get; set; }
         public DbSet<ProductStock> ProductStocks { get; set; }
         // Opsiyonel: Veritabanı ilk oluştuğunda test için örnek veriler ekleyelim
         protected override void OnModelCreating(ModelBuilder modelBuilder)

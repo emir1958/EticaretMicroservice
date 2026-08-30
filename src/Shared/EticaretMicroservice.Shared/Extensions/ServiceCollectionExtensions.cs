@@ -4,6 +4,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using System.Text;
 
 namespace EticaretMicroservice.Shared.Extensions;
@@ -78,5 +80,28 @@ public static class ServiceCollectionExtensions
         });
 
         cfg.ConfigureEndpoints(context);
+    }
+    public static IServiceCollection AddSharedOpenTelemetry(this IServiceCollection services, IConfiguration configuration, string serviceName)
+    {
+        var otlpEndpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://localhost:4317";
+
+        services.AddOpenTelemetry()
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName))
+                    .AddAspNetCoreInstrumentation(opts =>
+                    {
+                        opts.RecordException = true;
+                    })
+                    .AddHttpClientInstrumentation()
+                    .AddSource("MassTransit") // 🟢 MassTransit event izlemelerini (publish/consume) yakalar
+                    .AddOtlpExporter(options =>
+                    {
+                        options.Endpoint = new Uri(otlpEndpoint);
+                    });
+            });
+
+        return services;
     }
 }
