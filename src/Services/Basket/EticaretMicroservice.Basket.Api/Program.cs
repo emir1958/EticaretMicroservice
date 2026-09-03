@@ -38,7 +38,7 @@ builder.Services.AddScoped<IBasketService, BasketService>();
 builder.Services.AddMassTransit(x =>
 {
     // 🟢 Sadece kendi Basket Consumer'ımızı kaydediyoruz
-    x.AddConsumer<BasketOrderCreatedEventConsumer>();
+    x.AddConsumer<BasketPaymentCompletedEventConsumer>();
 
     x.SetKebabCaseEndpointNameFormatter();
 
@@ -56,7 +56,7 @@ builder.Services.AddMassTransit(x =>
 
         cfg.ReceiveEndpoint("basket-order-created-queue", e =>
         {
-            e.ConfigureConsumer<BasketOrderCreatedEventConsumer>(context);
+            e.ConfigureConsumer<BasketPaymentCompletedEventConsumer>(context);
         });
     });
 });

@@ -13,40 +13,58 @@ namespace EticaretMicroservice.Identity.Api.Services
     {
         private readonly AppIdentityDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<IdentityService> _logger;
 
-        public IdentityService(AppIdentityDbContext context, IConfiguration configuration)
+        public IdentityService(
+            AppIdentityDbContext context,
+            IConfiguration configuration,
+            ILogger<IdentityService> logger)
         {
             _context = context;
             _configuration = configuration;
+            _logger = logger;
         }
 
         public async Task<bool> RegisterAsync(RegisterDto registerDto)
         {
-            bool userExists = await _context.Users.AnyAsync(u => u.Email.ToLower() == registerDto.Email.ToLower());
+            var normalizedEmail = registerDto.Email.Trim().ToLowerInvariant();
+
+            bool userExists = await _context.Users.AnyAsync(u => u.Email.ToLower() == normalizedEmail);
             if (userExists)
                 return false;
 
             string hashedPassword = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
-            string assignedRole = registerDto.Email.ToLower().Contains("admin") ? "Admin" : "User";
 
+            // 🟢 GÜVENLİK DÜZELTMESİ: E-postadan rol türetme kaldırıldı. 
+            // Dışarıdan kayıt olan tüm kullanıcılar varsayılan olarak "User" rolünü alır.
             var newUser = new User
             {
                 Id = Guid.NewGuid().ToString(),
-                Username = registerDto.Username,
-                Email = registerDto.Email,
+                Username = registerDto.Username.Trim(),
+                Email = normalizedEmail,
                 PasswordHash = hashedPassword,
-                Role = assignedRole
+                Role = "User"
             };
 
-            await _context.Users.AddAsync(newUser);
-            await _context.SaveChangesAsync();
-
-            return true;
+            try
+            {
+                await _context.Users.AddAsync(newUser);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException ex)
+            {
+                // Eşzamanlı isteklerde Unique Index ihlal edilirse güvenli dönüş
+                _logger.LogWarning(ex, "Mükerrer e-posta kaydı engellendi: {Email}", normalizedEmail);
+                return false;
+            }
         }
 
         public async Task<string?> LoginAsync(LoginDto loginDto)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == loginDto.Email.ToLower());
+            var normalizedEmail = loginDto.Email.Trim().ToLowerInvariant();
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
             if (user == null) return null;
 
             bool isPasswordValid = BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash);
@@ -58,20 +76,31 @@ namespace EticaretMicroservice.Identity.Api.Services
         private string GenerateJwtToken(User user)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var secretKey = _configuration["JwtSettings:Secret"] ?? "BuCokGizliVeUzunBirAnahtarCumlesidir12345!";
+
+            // Shared kütüphanesindeki fallback anahtarla tam uyumlu secret
+            var secretKey = _configuration["JwtSettings:Secret"]
+                            ?? _configuration["Jwt:Secret"]
+                            ?? "SuperSecretKey_For_Jwt_Auth_EticaretMicroservice_2026_Secure_Key!";
+
             var key = Encoding.ASCII.GetBytes(secretKey);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Email, user.Email),
+                new Claim(ClaimTypes.Role, user.Role),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id ?? Guid.NewGuid().ToString()),
-                    new Claim(ClaimTypes.Name, user.Username ?? string.Empty),
-                    new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
-                    new Claim(ClaimTypes.Role, user.Role ?? "User")
-                }),
+                Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddDays(7),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(key),
+                    SecurityAlgorithms.HmacSha256Signature)
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);

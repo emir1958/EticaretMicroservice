@@ -1,4 +1,5 @@
-﻿using EticaretMicroservice.Payment.Api.Services;
+﻿using System.Collections.Concurrent;
+using EticaretMicroservice.Payment.Api.Services;
 using EticaretMicroservice.Shared.Events;
 using MassTransit;
 
@@ -6,9 +7,12 @@ namespace EticaretMicroservice.Payment.Api.Consumers;
 
 public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
 {
-    private readonly IPaymentService _paymentService; 
+    private readonly IPaymentService _paymentService;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<StockReservedEventConsumer> _logger;
+
+    // Idempotency: İşlenmiş OrderId kayıtları
+    private static readonly ConcurrentDictionary<int, bool> ProcessedOrders = new();
 
     public StockReservedEventConsumer(
         IPaymentService paymentService,
@@ -23,31 +27,46 @@ public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
     public async Task Consume(ConsumeContext<StockReservedEvent> context)
     {
         var message = context.Message;
-        _logger.LogInformation("Payment.API: StockReservedEvent alındı. OrderId: {OrderId}, Tutar: {Price} TL, Token: {Token}",
-            message.OrderId, message.TotalPrice, message.PaymentToken);
 
-        // 🟢 Ödeme servisi çağrılarak işlem ve banka mantığı simüle ediliyor
+        // 1. Idempotency Kontrolü
+        if (ProcessedOrders.ContainsKey(message.OrderId))
+        {
+            _logger.LogWarning("[CorrelationId: {CorrelationId}] OrderId {OrderId} için ödeme daha önce işlenmiş, mükerrer çekim engellendi.",
+                message.CorrelationId, message.OrderId);
+            return;
+        }
+
+        _logger.LogInformation("[CorrelationId: {CorrelationId}] Payment.API: StockReservedEvent alındı. OrderId: {OrderId}, Tutar: {Price} TL",
+            message.CorrelationId, message.OrderId, message.TotalPrice);
+
+        // 2. Ödeme İşlemi
         var (isSuccess, failReason) = _paymentService.ProcessPayment(message.PaymentToken, message.TotalPrice);
 
         if (isSuccess)
         {
-            _logger.LogInformation("Ödeme BANKADAN ONAYLANDI! OrderId: {OrderId}", message.OrderId);
+            ProcessedOrders.TryAdd(message.OrderId, true);
+
+            _logger.LogInformation("[CorrelationId: {CorrelationId}] Ödeme ONAYLANDI! OrderId: {OrderId}",
+                message.CorrelationId, message.OrderId);
 
             await _publishEndpoint.Publish(new PaymentCompletedEvent
             {
+                CorrelationId = message.CorrelationId,
                 OrderId = message.OrderId,
                 BuyerId = message.BuyerId
             });
         }
         else
         {
-            _logger.LogWarning("Ödeme REDDEDİLDİ! OrderId: {OrderId}", message.OrderId);
+            _logger.LogWarning("[CorrelationId: {CorrelationId}] Ödeme REDDEDİLDİ! OrderId: {OrderId}. Sebep: {Reason}",
+                message.CorrelationId, message.OrderId, failReason);
 
             await _publishEndpoint.Publish(new PaymentFailedEvent
             {
+                CorrelationId = message.CorrelationId,
                 OrderId = message.OrderId,
                 BuyerId = message.BuyerId,
-                Message = "Geçersiz Ödeme Tokenı.",
+                Message = failReason ?? "Ödeme işlemi başarısız oldu.",
                 OrderItems = message.OrderItems
             });
         }

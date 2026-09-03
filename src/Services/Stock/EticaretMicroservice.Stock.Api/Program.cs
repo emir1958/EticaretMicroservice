@@ -55,6 +55,8 @@ builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<OrderCreatedEventConsumer>();
     x.AddConsumer<PaymentFailedEventConsumer>();
+    x.AddConsumer<ProductCreatedEventConsumer>(); 
+
     x.SetKebabCaseEndpointNameFormatter();
 
     x.UsingRabbitMq((context, cfg) =>

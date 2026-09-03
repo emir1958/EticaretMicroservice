@@ -6,7 +6,7 @@
     container_name: aspire_dashboard
     ports:
       - "18888:18888" # Web UI (Kullanıcı Paneli)
-      - "4317:4317"   # OTLP gRPC Portu (Trace verilerinin aktığı yer)
+      - "4317:4317"   # OTLP gRPC Portu (Trace verileri)
     environment:
       - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
     networks:
@@ -21,6 +21,8 @@
       - "SA_PASSWORD=Password12*!"
     ports:
       - "1435:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql # 👈 SQL Server verileri kalıcı hale getirildi
     networks:
       - microservice-network
     healthcheck:
@@ -32,10 +34,12 @@
 
   # 2️⃣ MongoDB (Catalog API için)
   mongodb:
-    image: mongo:latest
+    image: mongo:7.0 # 👈 Sürüm 7.0 olarak sabitlendi
     container_name: mongodb_db
     ports:
       - "27017:27017"
+    volumes:
+      - mongo_data:/data/db # 👈 MongoDB ürün koleksiyonları kalıcı hale getirildi
     networks:
       - microservice-network
     healthcheck:
@@ -46,11 +50,13 @@
 
   # 3️⃣ RabbitMQ Mesaj Kuyruğu
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13-management-alpine # 👈 Hafif ve kararlı sürüme sabitlendi
     container_name: rabbitmq_bus
     ports:
       - "5672:5672"
       - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq # 👈 Kuyruk ve mesaj tanımları kalıcı hale getirildi
     networks:
       - microservice-network
     healthcheck:
@@ -62,10 +68,12 @@
 
   # 4️⃣ Redis Cache (Basket API için)
   redis:
-    image: redis:latest
+    image: redis:7.2-alpine # 👈 Sürüm 7.2 olarak sabitlendi
     container_name: redis_cache
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data # 👈 Redis sepet anahtarları kalıcı hale getirildi
     networks:
       - microservice-network
     healthcheck:
@@ -74,7 +82,7 @@
       timeout: 5s
       retries: 5
 
-  # 5️⃣ # 5️⃣ Identity.Api
+  # 5️⃣ Identity.Api
   identity.api:
     container_name: identity_api_service
     build:
@@ -105,7 +113,7 @@
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - DatabaseSettings__ConnectionString=mongodb://mongodb:27017
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317 # 👈 Ekledi
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
     depends_on:
       mongodb:
         condition: service_healthy
@@ -126,7 +134,7 @@
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__Redis=redis:6379
       - RabbitMQ__Host=rabbitmq
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317 # 👈 Ekledi
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
     depends_on:
       redis:
         condition: service_healthy
@@ -194,16 +202,16 @@
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - RabbitMQ__Host=rabbitmq
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317 # 👈 Ekledi
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
     depends_on:
       rabbitmq:
         condition: service_healthy
       aspire-dashboard:
-        condition: service_started # 👈 Ekledi
+        condition: service_started
     networks:
       - microservice-network
 
-  # 1️⃣1️⃣ Gateway
+  # 1️⃣1️⃣ Gateway (YARP)
   eticaretmicroservice.gateway:
     container_name: yarp_gateway_service
     build:
@@ -224,6 +232,13 @@
       - aspire-dashboard
     networks:
       - microservice-network
+
+# 🟢 Kalıcı Disk Alanları (Named Volumes)
+volumes:
+  mssql_data:
+  mongo_data:
+  rabbitmq_data:
+  redis_data:
 
 networks:
   microservice-network:

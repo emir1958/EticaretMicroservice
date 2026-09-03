@@ -1,4 +1,5 @@
 ﻿using EticaretMicroservice.Services.Order.Application.Interfaces;
+using EticaretMicroservice.Services.Order.Domain.Enums;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -41,6 +42,13 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Repositories
         public async Task<Domain.Entities.Order> GetByIdAsync(int id)
         {
             return await _context.Orders.FindAsync(id);
+        }
+        public async Task<List<Domain.Entities.Order>> GetPendingOrdersOlderThanAsync(DateTime thresholdTime, CancellationToken cancellationToken = default)
+        {
+            return await _context.Orders
+                .Include(o => o.OrderItems)
+                .Where(o => o.OrderStatus == OrderStatus.Beklemede && o.CreatedDate <= thresholdTime)
+                .ToListAsync(cancellationToken);
         }
     }
 }

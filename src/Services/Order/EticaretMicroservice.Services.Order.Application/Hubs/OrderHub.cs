@@ -1,13 +1,32 @@
-﻿using Microsoft.AspNetCore.SignalR;
-using System.Text.RegularExpressions;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 
 namespace EticaretMicroservice.Services.Order.Application.Hubs;
 
+[Authorize]
 public class OrderHub : Hub
 {
-    // Frontend (React/Vue vb.) bağlantı kurduğunda client'ı kendi userId'sine özel gruba ekleyebiliriz
-    public async Task JoinOrderGroup(string buyerId)
+    // İstemciden buyerId parametresi ALMIYORUZ; doğrudan doğrulanmış token'dan okuyoruz
+    public async Task JoinOrderGroup()
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, buyerId);
+        var buyerId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? Context.User?.FindFirst("sub")?.Value;
+
+        if (!string.IsNullOrEmpty(buyerId))
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, buyerId);
+        }
+    }
+
+    public async Task LeaveOrderGroup()
+    {
+        var buyerId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? Context.User?.FindFirst("sub")?.Value;
+
+        if (!string.IsNullOrEmpty(buyerId))
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, buyerId);
+        }
     }
 }

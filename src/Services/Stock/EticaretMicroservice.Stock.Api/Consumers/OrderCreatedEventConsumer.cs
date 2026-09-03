@@ -11,7 +11,7 @@ public class OrderCreatedEventConsumer : IConsumer<OrderCreatedEvent>
 {
     private readonly IStockService _stockService;
     private readonly IPublishEndpoint _publishEndpoint;
-    private readonly StockDbContext _dbContext; // 🟢 1. DbContext Enjeksiyonu
+    private readonly StockDbContext _dbContext;
     private readonly ILogger<OrderCreatedEventConsumer> _logger;
 
     public OrderCreatedEventConsumer(
@@ -30,75 +30,83 @@ public class OrderCreatedEventConsumer : IConsumer<OrderCreatedEvent>
     {
         var message = context.Message;
 
-        // 🟢 2. IDEMPOTENCY KONTROLÜ (Bu mesaj daha önce işlendi mi?)
+        // 1. Idempotency Kontrolü
         var isAlreadyProcessed = await _dbContext.ProcessedMessages
             .AnyAsync(x => x.CorrelationId == message.CorrelationId);
 
         if (isAlreadyProcessed)
         {
-            _logger.LogWarning("[CorrelationId: {CorrelationId}] Bu mesaj daha önce işlendi, mükerrer işlem engellendi (Idempotent Bypass).", message.CorrelationId);
-            return; // Aynı mesaj 2. kez geldiği için işlemi tekrarlamadan sonlandırıyoruz.
+            _logger.LogWarning("[CorrelationId: {CorrelationId}] Bu mesaj daha önce işlendi, mükerrer işlem engellendi.", message.CorrelationId);
+            return;
         }
 
         _logger.LogInformation("[CorrelationId: {CorrelationId}] Stock.API: OrderCreatedEvent yakalandı. OrderId: {OrderId}",
             message.CorrelationId, message.OrderId);
 
-        bool isAllStockAvailable = true;
+        bool isAllStockReserved = true;
+        var reservedItems = new List<OrderItemMessage>();
 
-        // 1. Tüm kalemler için stok kontrolü ve düşümü
+        // 2. Stok Rezervasyonu (Atomik ve Geri Alınabilir Döngü)
         foreach (var item in message.OrderItems)
         {
-            var isSuccess = await _stockService.DecreaseStockAsync(item.ProductId, item.Quantity);
+            var isReserved = await _stockService.ReserveStockAsync(item.ProductId, item.Quantity);
 
-            if (isSuccess)
+            if (isReserved)
             {
-                _logger.LogInformation("[CorrelationId: {CorrelationId}] Stok düşüldü -> ProductId: {ProductId}, Miktar: {Quantity}",
+                reservedItems.Add(item);
+                _logger.LogInformation("[CorrelationId: {CorrelationId}] Stok rezerve edildi -> ProductId: {ProductId}, Miktar: {Quantity}",
                     message.CorrelationId, item.ProductId, item.Quantity);
             }
             else
             {
-                _logger.LogError("[CorrelationId: {CorrelationId}] Stok yetersiz/başarısız! ProductId: {ProductId}",
+                _logger.LogError("[CorrelationId: {CorrelationId}] Yetersiz stok veya çakışma! ProductId: {ProductId}",
                     message.CorrelationId, item.ProductId);
-                isAllStockAvailable = false;
+                isAllStockReserved = false;
                 break;
             }
         }
 
-        // 🟢 3. İŞLEM BAŞARILIYSA MESAJI İŞLENDİ OLARAK KAYDET
-        if (isAllStockAvailable)
+        // 3. Kısmi Hata Durumunda Telafi (Rollback)
+        if (!isAllStockReserved)
         {
-            _dbContext.ProcessedMessages.Add(new ProcessedMessage
-            {
-                CorrelationId = message.CorrelationId,
-                ProcessedAt = DateTime.UtcNow
-            });
-            await _dbContext.SaveChangesAsync();
+            _logger.LogWarning("[CorrelationId: {CorrelationId}] Kısmi stok hatası! Daha önce rezerve edilen {Count} kalem iade ediliyor...",
+                message.CorrelationId, reservedItems.Count);
 
-            _logger.LogInformation("[CorrelationId: {CorrelationId}] Tüm stoklar başarıyla rezerve edildi. OrderId: {OrderId}. Ödeme adımına geçiliyor...",
-                message.CorrelationId, message.OrderId);
-
-            await _publishEndpoint.Publish(new StockReservedEvent
+            foreach (var item in reservedItems)
             {
-                CorrelationId = message.CorrelationId,
-                OrderId = message.OrderId,
-                BuyerId = message.BuyerId,
-                TotalPrice = message.OrderItems.Sum(x => x.Price * x.Quantity),
-                PaymentToken = message.PaymentToken,
-                OrderItems = message.OrderItems
-            });
-        }
-        else
-        {
-            _logger.LogWarning("[CorrelationId: {CorrelationId}] Stok yetersiz olduğu için telafi süreci başlatılıyor! OrderId: {OrderId}",
-                message.CorrelationId, message.OrderId);
+                await _stockService.ReleaseStockAsync(item.ProductId, item.Quantity);
+            }
 
             await _publishEndpoint.Publish(new StockFailedEvent
             {
                 CorrelationId = message.CorrelationId,
                 OrderId = message.OrderId,
                 BuyerId = message.BuyerId,
-                Message = "Stokta yeterli ürün bulunmamaktadır."
+                Message = "Siparişteki bir veya daha fazla ürün için yeterli stok bulunamadı."
             });
+
+            return;
         }
+
+        // 4. Tüm Rezervasyonlar Başarılıysa Mesajı İşlendi Olarak Kaydet ve Devam Et
+        _dbContext.ProcessedMessages.Add(new ProcessedMessage
+        {
+            CorrelationId = message.CorrelationId,
+            ProcessedAt = DateTime.UtcNow
+        });
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("[CorrelationId: {CorrelationId}] Tüm ürünler başarıyla rezerve edildi. OrderId: {OrderId}. Ödeme adımına geçiliyor.",
+            message.CorrelationId, message.OrderId);
+
+        await _publishEndpoint.Publish(new StockReservedEvent
+        {
+            CorrelationId = message.CorrelationId,
+            OrderId = message.OrderId,
+            BuyerId = message.BuyerId,
+            TotalPrice = message.OrderItems.Sum(x => x.Price * x.Quantity),
+            PaymentToken = message.PaymentToken,
+            OrderItems = message.OrderItems
+        });
     }
 }

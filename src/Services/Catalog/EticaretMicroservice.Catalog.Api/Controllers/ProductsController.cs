@@ -1,5 +1,8 @@
-﻿using EticaretMicroservice.Catalog.Api.Models;
+﻿using EticaretMicroservice.Catalog.Api.Dtos;
+using EticaretMicroservice.Catalog.Api.Models;
 using EticaretMicroservice.Catalog.Api.Services;
+using EticaretMicroservice.Shared.Events;
+using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,13 +14,14 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
     public class ProductsController : ControllerBase
     {
         private readonly IProductService _productService;
+        private readonly IPublishEndpoint _publishEndpoint;
 
-        public ProductsController(IProductService productService)
+        public ProductsController(IProductService productService, IPublishEndpoint publishEndpoint)
         {
             _productService = productService;
+            _publishEndpoint = publishEndpoint;
         }
 
-        // 🟢 Herkes (giriş yapmış User veya Admin) tüm ürünleri görebilir
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
@@ -25,7 +29,6 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
             return Ok(products);
         }
 
-        // 🟢 Herkes (giriş yapmış User veya Admin) tek bir ürünü inceleyebilir
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(string id)
         {
@@ -36,16 +39,31 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
             return Ok(product);
         }
 
-        // 🔴 Sadece "Admin" rolündeki kullanıcılar yeni ürün ekleyebilir
         [HttpPost]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Create([FromBody] Product product)
+        public async Task<IActionResult> Create([FromBody] CreateProductDto dto)
         {
+            var product = new Product
+            {
+                Name = dto.Name,
+                Description = dto.Description,
+                Price = dto.Price
+            };
+
             var createdProduct = await _productService.CreateAsync(product);
+
+            // 🟢 ASENKRON EVENT: Stock API'ye yeni ürünün stok kaydını açması için haber veriyoruz
+            await _publishEndpoint.Publish(new ProductCreatedEvent
+            {
+                ProductId = createdProduct.Id!,
+                Name = createdProduct.Name,
+                Price = createdProduct.Price,
+                InitialStock = dto.InitialStock
+            });
+
             return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
         }
 
-        // 🔴 Sadece "Admin" rolündeki kullanıcılar ürün silebilir
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(string id)

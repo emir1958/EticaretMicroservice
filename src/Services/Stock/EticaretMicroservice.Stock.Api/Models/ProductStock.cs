@@ -1,14 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
-
-namespace EticaretMicroservice.Stock.Api.Models
+﻿namespace EticaretMicroservice.Stock.Api.Models
 {
     public class ProductStock
     {
         public int Id { get; set; }
-        public string ProductId { get; set; } // OrderItem tarafındaki ProductId ile eşleşecek
+        public string ProductId { get; set; } = string.Empty;
         public int AvailableStock { get; set; }
-
-        [Timestamp]
+        public int ReservedStock { get; set; }
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }

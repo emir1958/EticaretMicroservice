@@ -1,12 +1,14 @@
 ﻿using EticaretMicroservice.Stock.Api.Data;
+using EticaretMicroservice.Stock.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace EticaretMicroservice.Stock.Api.Services;
 
 public interface IStockService
 {
-    Task<bool> DecreaseStockAsync(string productId, int quantity);
-    Task<bool> IncreaseStockAsync(string productId, int quantity);
+    Task<bool> ReserveStockAsync(string productId, int quantity);
+    Task<bool> ReleaseStockAsync(string productId, int quantity);
+    Task<bool> CreateStockAsync(string productId, int initialStock);
 }
 
 public class StockService : IStockService
@@ -20,13 +22,14 @@ public class StockService : IStockService
         _logger = logger;
     }
 
-    public async Task<bool> DecreaseStockAsync(string productId, int quantity)
+    // 🟢 1. Stok Rezerve Etme (Hold) - Ödeme Öncesi Akış
+    public async Task<bool> ReserveStockAsync(string productId, int quantity)
     {
         var stock = await _context.ProductStocks.FirstOrDefaultAsync(x => x.ProductId == productId);
 
         if (stock == null)
         {
-            _logger.LogWarning("Ürün bulunamadı: {ProductId}", productId);
+            _logger.LogWarning("Ürün stoğu bulunamadı: {ProductId}", productId);
             return false;
         }
 
@@ -37,7 +40,9 @@ public class StockService : IStockService
             return false;
         }
 
+        // Stok rezervasyonu yapılır
         stock.AvailableStock -= quantity;
+        stock.ReservedStock += quantity;
 
         try
         {
@@ -46,17 +51,14 @@ public class StockService : IStockService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            // 🟢 ÇAKIŞMA YAKALANDI: Başka bir işlem bu stok satırını aynı anda güncelledi!
-            _logger.LogError(ex, "Stok düşüm çakışması (Concurrency Conflict)! ProductId: {ProductId}", productId);
-
-            // EF ChangeTracker'ı temizliyoruz
+            _logger.LogError(ex, "Stok rezervasyon çakışması (Concurrency Conflict)! ProductId: {ProductId}", productId);
             _context.Entry(stock).State = EntityState.Detached;
             return false;
         }
     }
 
-    // 🟢 Stok İade Metodu (Concurrency Korumalı)
-    public async Task<bool> IncreaseStockAsync(string productId, int quantity)
+    // 🟢 2. Stok Rezervasyon İadesi (Release) - Ödeme Başarısız Olunca
+    public async Task<bool> ReleaseStockAsync(string productId, int quantity)
     {
         var stock = await _context.ProductStocks.FirstOrDefaultAsync(x => x.ProductId == productId);
 
@@ -67,21 +69,40 @@ public class StockService : IStockService
         }
 
         stock.AvailableStock += quantity;
+        if (stock.ReservedStock >= quantity)
+        {
+            stock.ReservedStock -= quantity;
+        }
 
         try
         {
             await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Stok iade edildi -> ProductId: {ProductId}, Eklenen Miktar: {Quantity}, Yeni Stok: {Available}",
-                productId, quantity, stock.AvailableStock);
-
+            _logger.LogInformation("Stok rezervasyonu serbest bırakıldı -> ProductId: {ProductId}, Miktar: {Quantity}", productId, quantity);
             return true;
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogError(ex, "Stok iade çakışması (Concurrency Conflict)! ProductId: {ProductId}", productId);
+            _logger.LogError(ex, "Stok serbest bırakma çakışması (Concurrency Conflict)! ProductId: {ProductId}", productId);
             _context.Entry(stock).State = EntityState.Detached;
             return false;
         }
+    }
+
+    // 🟢 3. Yeni Ürün İçin Stok Oluşturma (Catalog API Senkronu İçin)
+    public async Task<bool> CreateStockAsync(string productId, int initialStock)
+    {
+        var exists = await _context.ProductStocks.AnyAsync(x => x.ProductId == productId);
+        if (exists) return true;
+
+        var newStock = new ProductStock
+        {
+            ProductId = productId,
+            AvailableStock = initialStock,
+            ReservedStock = 0
+        };
+
+        await _context.ProductStocks.AddAsync(newStock);
+        await _context.SaveChangesAsync();
+        return true;
     }
 }

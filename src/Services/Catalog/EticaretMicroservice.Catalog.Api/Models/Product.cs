@@ -18,7 +18,6 @@ namespace EticaretMicroservice.Catalog.Api.Models
         [BsonElement("Price")]
         public decimal Price { get; set; }
 
-        [BsonElement("Stock")]
-        public int Stock { get; set; }
+      
     }
 }

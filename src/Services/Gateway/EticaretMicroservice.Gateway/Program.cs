@@ -4,10 +4,11 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. RATE LIMITER KONFİGÜRASYONU
+// 1. RATE LIMITER KONFİGÜRASYONU (Order ve Auth/Basket için ayrı politikalar)
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("fixed-policy", opt =>
+    // Sipariş limiti (10 saniyede maks 10 istek)
+    options.AddFixedWindowLimiter("order-policy", opt =>
     {
         opt.PermitLimit = 10;
         opt.Window = TimeSpan.FromSeconds(10);
@@ -15,32 +16,43 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
     });
 
-    // 🔹 Limiti aşan isteklerde dönülecek özel yanıt
+    // Brute-force ve spam koruması (Identity Login & Basket: 1 dakikada maks 20 istek)
+    options.AddFixedWindowLimiter("auth-policy", opt =>
+    {
+        opt.PermitLimit = 20;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+
     options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         context.HttpContext.Response.ContentType = "application/json";
         await context.HttpContext.Response.WriteAsync(
-            "{\"message\": \"Çok fazla istek gönderildi. Lütfen bekleyip tekrar deneyin.\"}",
+            "{\"message\": \"Çok fazla istek gönderildi. Lütfen bir süre sonra tekrar deneyin.\"}",
             cancellationToken);
     };
 });
 
-// 2. YARP VE CORS SERVİSLERİ
+// 2. YARP PROXY
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
+// 🟢 CORS: SignalR ve UI origin kısıtlaması
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("CorsPolicy", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:5173", "http://localhost:3000") // Vite & React portları
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials(); // SignalR Hub için zorunlu
     });
 });
+
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Gateway.Api");
-// 3. HEALTH CHECKS UI DASHBOARD
+
+// 3. HEALTH CHECKS UI
 builder.Services.AddHealthChecksUI(options =>
 {
     options.SetEvaluationTimeInSeconds(15);
@@ -50,30 +62,26 @@ builder.Services.AddHealthChecksUI(options =>
 
 var app = builder.Build();
 
-// 4. MIDDLEWARE PIPELINE
-
-// 🟢 CORRELATION ID MIDDLEWARE (En başa ekliyoruz ki tüm istekler ID alabilsin)
+// 🟢 4. CORRELATION ID MIDDLEWARE (YARP'a taşınacak temiz Guid zinciri)
 app.Use(async (context, next) =>
 {
     const string correlationIdHeaderKey = "X-Correlation-ID";
 
-    // 1. İstekte header yoksa veya boşsa yeni bir Guid üret
-    if (!context.Request.Headers.TryGetValue(correlationIdHeaderKey, out var correlationId) || string.IsNullOrWhiteSpace(correlationId))
+    if (!context.Request.Headers.TryGetValue(correlationIdHeaderKey, out var correlationId) ||
+        string.IsNullOrWhiteSpace(correlationId) ||
+        !Guid.TryParse(correlationId, out _))
     {
         correlationId = Guid.NewGuid().ToString();
         context.Request.Headers[correlationIdHeaderKey] = correlationId;
     }
 
-    // 2. Yanıt (Response) header'ına da ekleyelim ki istemci takip edebilsin
     context.Response.Headers[correlationIdHeaderKey] = correlationId;
-
     await next();
 });
 
-app.UseCors("AllowAll");
+app.UseCors("CorsPolicy");
 app.UseRateLimiter();
 
-// 5. ENDPOINT MAPPING
 app.MapReverseProxy();
 
 app.MapHealthChecksUI(options =>

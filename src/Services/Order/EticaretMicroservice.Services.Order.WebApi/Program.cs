@@ -8,7 +8,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using EticaretMicroservice.Shared.Extensions;
-
+using EticaretMicroservice.Services.Order.Infrastructure.BackgroundServices;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. DbContext Konfigürasyonu (SQL Server)
@@ -93,7 +93,7 @@ builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
 builder.Services.AddSignalR();
-
+builder.Services.AddHostedService<OrderTimeoutWorker>();
 // 🔹 Health Check Servis Kaydı
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
 var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
@@ -108,6 +108,14 @@ builder.Services.AddHealthChecks()
         rabbitConnectionString: $"amqp://{rabbitUser}:{rabbitPass}@{rabbitHost}:5672/",
         name: "Order-RabbitMQ",
         tags: new[] { "messagebus", "rabbitmq" });
+
+
+var catalogUrl = builder.Configuration["ServiceUrls:Catalog"] ?? "http://catalog.api:8080";
+builder.Services.AddHttpClient<ICatalogRepository, CatalogRepository>(client =>
+{
+    client.BaseAddress = new Uri(catalogUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
 
 var app = builder.Build();
 
