@@ -3,6 +3,7 @@ using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Shared.Events;
 using MassTransit;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,7 @@ public class OrderTimeoutWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("OrderTimeoutWorker devreye girdi. Zaman aşımı kontrolü: {Interval} aralıkla çalışıyor.", CheckInterval);
+        _logger.LogInformation("OrderTimeoutWorker devreye girdi. Kontrol aralığı: {Interval}", CheckInterval);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -34,7 +35,7 @@ public class OrderTimeoutWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Zaman aşımına uğrayan siparişler kontrol edilirken bir hata meydana geldi.");
+                _logger.LogError(ex, "Zaman aşımına uğrayan siparişler taranırken beklenmedik hata oluştu.");
             }
 
             await Task.Delay(CheckInterval, stoppingToken);
@@ -54,41 +55,58 @@ public class OrderTimeoutWorker : BackgroundService
         if (pendingOrders.Count == 0)
             return;
 
-        _logger.LogWarning("{Count} adet sipariş zaman aşımına uğradı (Timeout). İptal ve stok telafi süreci başlatılıyor...", pendingOrders.Count);
+        _logger.LogWarning("{Count} adet sipariş zaman aşımı kontrolüne girdi.", pendingOrders.Count);
 
         foreach (var order in pendingOrders)
         {
-            // 1. Siparişi iptal et
-            order.SetStatusToCanceled();
-
-            // 2. Stock API'nin rezerve edilen stoğu serbest bırakması için telafi event'i yayınla
-            var compensationEvent = new PaymentFailedEvent
+            // 🟢 1. Katı Durum Kuralı Kontrolü
+            var canCancel = order.TrySetStatusToCanceled();
+            if (!canCancel)
             {
-                CorrelationId = Guid.NewGuid(),
-                OrderId = order.Id,
-                BuyerId = order.BuyerId,
-                Message = "Sipariş süresi doldu (Ödeme zaman aşımı: 15 dakika).",
-                OrderItems = order.OrderItems.Select(x => new OrderItemMessage
+                _logger.LogInformation("OrderId: {OrderId} zaten 'Beklemede' durumunda değil. Timeout iptali atlandı.", order.Id);
+                continue;
+            }
+
+            try
+            {
+                // 🟢 2. Önce DB güncellemesini dene (RowVersion burada doğrulanır)
+                await orderRepository.SaveChangesAsync(cancellationToken);
+
+                // 🟢 3. DB'ye başarıyla yazıldıysa telafi event'ini fırlat
+                var compensationEvent = new PaymentFailedEvent
                 {
-                    ProductId = x.ProductId,
-                    Quantity = x.Quantity,
-                    Price = x.Price
-                }).ToList()
-            };
+                    CorrelationId = Guid.NewGuid(),
+                    OrderId = order.Id,
+                    BuyerId = order.BuyerId,
+                    Message = "Sipariş süresi doldu (15 dakika zaman aşımı).",
+                    OrderItems = order.OrderItems.Select(x => new OrderItemMessage
+                    {
+                        ProductId = x.ProductId,
+                        Quantity = x.Quantity,
+                        Price = x.Price
+                    }).ToList()
+                };
 
-            await publishEndpoint.Publish(compensationEvent, cancellationToken);
+                await publishEndpoint.Publish(compensationEvent, cancellationToken);
 
-            // 3. SignalR ile kullanıcıya bildirim ilet
-            await hubContext.Clients.Group(order.BuyerId).SendAsync("ReceiveOrderState", new
+                await hubContext.Clients.Group(order.BuyerId).SendAsync("ReceiveOrderState", new
+                {
+                    OrderId = order.Id,
+                    Status = "Canceled",
+                    Message = "Siparişiniz zaman aşımı nedeniyle iptal edildi."
+                }, cancellationToken);
+
+                _logger.LogInformation("OrderId: {OrderId} zaman aşımı nedeniyle başarıyla iptal edildi ve stok iadesi tetiklendi.", order.Id);
+            }
+            catch (DbUpdateConcurrencyException)
             {
-                OrderId = order.Id,
-                Status = "Canceled",
-                Message = "Sipariş işlemi zaman aşımına uğradı ve iptal edildi."
-            }, cancellationToken);
-
-            _logger.LogInformation("Zaman aşımı nedeniyle sipariş iptal edildi. OrderId: {OrderId}", order.Id);
+                // 🟢 Yarış durumu yakalandı: Tam bu esnada ödeme gelmiş ve satırı güncellemiş!
+                _logger.LogWarning("OrderId: {OrderId} için Concurrency Conflict yakalandı. Ödeme işlemi zaman aşımıyla yarıştı ve ödeme kazandı. İptal işlemi geri çekildi.", order.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "OrderId: {OrderId} zaman aşımına uğratılırken hata oluştu.", order.Id);
+            }
         }
-
-        await orderRepository.SaveChangesAsync(cancellationToken);
     }
 }

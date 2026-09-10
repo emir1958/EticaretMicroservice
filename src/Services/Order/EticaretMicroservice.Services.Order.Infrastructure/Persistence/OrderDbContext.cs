@@ -1,12 +1,13 @@
 ﻿using EticaretMicroservice.Services.Order.Domain.Entities;
 using MassTransit; // 👈 Bu using tanımının eklendiğinden emin olun
+using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using MassTransit.EntityFrameworkCoreIntegration;
 using System.Threading.Tasks;
+using static Grpc.Core.Metadata;
 
 namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
 {
@@ -30,7 +31,13 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
             {
                 b.ToTable("Orders");
                 b.HasKey(o => o.Id);
+                // 🟢 RowVersion kolonu SQL Server tarafında rowversion/timestamp tipinde eşlenir
+                b.Property(o => o.RowVersion)
+                      .IsRowVersion();
 
+                // Index optimizasyonu (Kullanıcının sipariş geçmişi ve timeout sorguları için)
+                b.HasIndex(o => new { o.BuyerId, o.CreatedDate });
+                b.HasIndex(o => new { o.OrderStatus, o.CreatedDate });
                 // Value Object (Address) konfigürasyonu - Single table (OwnsOne)
                 b.OwnsOne(o => o.Address, a =>
                 {

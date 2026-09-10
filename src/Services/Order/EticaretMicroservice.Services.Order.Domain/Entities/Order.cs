@@ -19,7 +19,7 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
         private readonly List<OrderItem> _orderItems = new();
         public IReadOnlyCollection<OrderItem> OrderItems => _orderItems.AsReadOnly();
         public OrderStatus OrderStatus { get; private set; } = OrderStatus.Beklemede;
-
+        public byte[] RowVersion { get; private set; } = Array.Empty<byte>();
         private Order() { }
 
         public Order(string buyerId, Address address)
@@ -47,6 +47,27 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
 
         // Toplam Tutarlık Hesaplama
         public decimal GetTotalPrice => _orderItems.Sum(x => x.Price * x.Quantity);
+
+        public bool TrySetStatusToCanceled()
+        {
+            if (OrderStatus != OrderStatus.Beklemede)
+            {
+                return false;
+            }
+
+            OrderStatus = OrderStatus.IptalEdildi;
+            return true;
+        }
+        public bool TrySetStatusToCompleted()
+        {
+            if (OrderStatus != OrderStatus.Beklemede)
+            {
+                return false;
+            }
+
+            OrderStatus = OrderStatus.Tamamlandı;
+            return true;
+        }
         public void SetStatusToCanceled()
         {
             OrderStatus = OrderStatus.IptalEdildi;

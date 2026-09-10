@@ -10,7 +10,7 @@ namespace EticaretMicroservice.Services.Order.Application.Interfaces
     {
         Task<Domain.Entities.Order> AddAsync(Domain.Entities.Order order);
         Task<List<Domain.Entities.Order>> GetOrdersByUserIdAsync(string userId);
-        Task<int> SaveChangesAsync(CancellationToken cancellationToken = default); // 🔹 Eklenen Metod
+        Task<int> SaveChangesAsync(CancellationToken cancellationToken = default); 
         Task<Domain.Entities.Order> GetByIdAsync(int id);
         Task<List<Domain.Entities.Order>> GetPendingOrdersOlderThanAsync(DateTime thresholdTime, CancellationToken cancellationToken = default);
     }

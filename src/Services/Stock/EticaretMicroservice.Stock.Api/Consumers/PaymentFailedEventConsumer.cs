@@ -22,8 +22,7 @@ public class PaymentFailedEventConsumer : IConsumer<PaymentFailedEvent>
 
         foreach (var item in message.OrderItems)
         {
-            // Stok miktarını artırarak geri iade ediyoruz (IncreaseStockAsync servisi gereklidir)
-            await _stockService.IncreaseStockAsync(item.ProductId, item.Quantity);
+            await _stockService.ReleaseStockAsync(item.ProductId, item.Quantity);
             _logger.LogInformation("Stok iade edildi -> ProductId: {ProductId}, Miktar: {Quantity}", item.ProductId, item.Quantity);
         }
     }

@@ -8,6 +8,8 @@ public interface IStockService
 {
     Task<bool> ReserveStockAsync(string productId, int quantity);
     Task<bool> ReleaseStockAsync(string productId, int quantity);
+    Task<bool> ConfirmReservationAsync(string productId, int quantity); // 🟢 Ödeme başarılıysa rezerveyi kalıcı düşer
+    Task<bool> IncreaseStockAsync(string productId, int quantity);       // 🟢 Eski/uyumsuz çağrılar için güvenli alias
     Task<bool> CreateStockAsync(string productId, int initialStock);
 }
 
@@ -22,7 +24,7 @@ public class StockService : IStockService
         _logger = logger;
     }
 
-    // 🟢 1. Stok Rezerve Etme (Hold) - Ödeme Öncesi Akış
+    // 1. Stok Rezerve Etme (Hold) - Sipariş ilk oluştuğunda
     public async Task<bool> ReserveStockAsync(string productId, int quantity)
     {
         var stock = await _context.ProductStocks.FirstOrDefaultAsync(x => x.ProductId == productId);
@@ -40,7 +42,6 @@ public class StockService : IStockService
             return false;
         }
 
-        // Stok rezervasyonu yapılır
         stock.AvailableStock -= quantity;
         stock.ReservedStock += quantity;
 
@@ -57,7 +58,7 @@ public class StockService : IStockService
         }
     }
 
-    // 🟢 2. Stok Rezervasyon İadesi (Release) - Ödeme Başarısız Olunca
+    // 2. Stok Rezervasyon İadesi (Release) - Ödeme başarısız olduğunda veya zaman aşımında
     public async Task<bool> ReleaseStockAsync(string productId, int quantity)
     {
         var stock = await _context.ProductStocks.FirstOrDefaultAsync(x => x.ProductId == productId);
@@ -73,6 +74,10 @@ public class StockService : IStockService
         {
             stock.ReservedStock -= quantity;
         }
+        else
+        {
+            stock.ReservedStock = 0;
+        }
 
         try
         {
@@ -82,13 +87,51 @@ public class StockService : IStockService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogError(ex, "Stok serbest bırakma çakışması (Concurrency Conflict)! ProductId: {ProductId}", productId);
+            _logger.LogError(ex, "Stok serbest bırakma çakışması! ProductId: {ProductId}", productId);
             _context.Entry(stock).State = EntityState.Detached;
             return false;
         }
     }
 
-    // 🟢 3. Yeni Ürün İçin Stok Oluşturma (Catalog API Senkronu İçin)
+    // 🟢 3. Rezervasyonu Onaylama (Commit) - Ödeme başarılı olduğunda çağrılır
+    public async Task<bool> ConfirmReservationAsync(string productId, int quantity)
+    {
+        var stock = await _context.ProductStocks.FirstOrDefaultAsync(x => x.ProductId == productId);
+
+        if (stock == null)
+        {
+            _logger.LogWarning("Rezervasyon onaylanamadı. Ürün bulunamadı: {ProductId}", productId);
+            return false;
+        }
+
+        // Ürün zaten satıldı, rezerve havuzundan kalıcı olarak düşülür
+        if (stock.ReservedStock >= quantity)
+        {
+            stock.ReservedStock -= quantity;
+        }
+        else
+        {
+            stock.ReservedStock = 0;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Stok rezervasyonu kesinleştirildi -> ProductId: {ProductId}, Miktar: {Quantity}", productId, quantity);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogError(ex, "Stok onaylama çakışması! ProductId: {ProductId}", productId);
+            _context.Entry(stock).State = EntityState.Detached;
+            return false;
+        }
+    }
+
+    // 🟢 Derleme hatasını önleyen güvenli alias:
+    public Task<bool> IncreaseStockAsync(string productId, int quantity) => ReleaseStockAsync(productId, quantity);
+
+    // 4. Yeni Ürün İçin Stok Oluşturma
     public async Task<bool> CreateStockAsync(string productId, int initialStock)
     {
         var exists = await _context.ProductStocks.AnyAsync(x => x.ProductId == productId);
