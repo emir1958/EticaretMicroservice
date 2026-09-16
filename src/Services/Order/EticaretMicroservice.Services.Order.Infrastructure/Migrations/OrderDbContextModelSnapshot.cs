@@ -33,7 +33,7 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
 
                     b.Property<string>("BuyerId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -41,7 +41,17 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
                     b.Property<int>("OrderStatus")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("BuyerId", "CreatedDate");
+
+                    b.HasIndex("OrderStatus", "CreatedDate");
 
                     b.ToTable("Orders", "ordering");
                 });

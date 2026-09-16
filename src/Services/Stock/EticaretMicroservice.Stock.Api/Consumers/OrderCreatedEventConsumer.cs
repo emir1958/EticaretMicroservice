@@ -10,18 +10,16 @@ namespace EticaretMicroservice.Stock.Api.Consumers;
 public class OrderCreatedEventConsumer : IConsumer<OrderCreatedEvent>
 {
     private readonly IStockService _stockService;
-    private readonly IPublishEndpoint _publishEndpoint;
     private readonly StockDbContext _dbContext;
     private readonly ILogger<OrderCreatedEventConsumer> _logger;
 
     public OrderCreatedEventConsumer(
         IStockService stockService,
-        IPublishEndpoint publishEndpoint,
+    
         StockDbContext dbContext,
         ILogger<OrderCreatedEventConsumer> logger)
     {
         _stockService = stockService;
-        _publishEndpoint = publishEndpoint;
         _dbContext = dbContext;
         _logger = logger;
     }
@@ -77,7 +75,7 @@ public class OrderCreatedEventConsumer : IConsumer<OrderCreatedEvent>
                 await _stockService.ReleaseStockAsync(item.ProductId, item.Quantity);
             }
 
-            await _publishEndpoint.Publish(new StockFailedEvent
+            await context.Publish(new StockFailedEvent
             {
                 CorrelationId = message.CorrelationId,
                 OrderId = message.OrderId,
@@ -99,7 +97,7 @@ public class OrderCreatedEventConsumer : IConsumer<OrderCreatedEvent>
         _logger.LogInformation("[CorrelationId: {CorrelationId}] Tüm ürünler başarıyla rezerve edildi. OrderId: {OrderId}. Ödeme adımına geçiliyor.",
             message.CorrelationId, message.OrderId);
 
-        await _publishEndpoint.Publish(new StockReservedEvent
+        await context.Publish(new StockReservedEvent
         {
             CorrelationId = message.CorrelationId,
             OrderId = message.OrderId,

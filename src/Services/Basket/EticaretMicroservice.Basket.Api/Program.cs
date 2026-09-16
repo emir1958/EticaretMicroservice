@@ -1,67 +1,93 @@
-﻿using EticaretMicroservice.Basket.Api.Consumers; // 👈 Yeni consumer eklendi
+﻿using EticaretMicroservice.Basket.Api.Consumers;
 using EticaretMicroservice.Basket.Api.Services;
-using MassTransit;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Text;
 using EticaretMicroservice.Shared.Extensions;
+using HealthChecks.UI.Client;
+using MassTransit;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using OpenTelemetry.Logs;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Basket.Api");
 builder.Services.AddSharedSwagger();
 
-// 2. CORS
-builder.Services.AddCors(options =>
+// 1. OpenTelemetry
+builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Basket.Api");
+builder.Logging.AddOpenTelemetry(loggingOptions =>
 {
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-    });
+    loggingOptions.IncludeFormattedMessage = true;
+    loggingOptions.IncludeScopes = true;
+    loggingOptions.AddOtlpExporter(); // Logları OTLP üzerinden Aspire Dashboard'a gönderir
 });
+// 2. Redis Bağlantısı
+var redisConnString = builder.Configuration["Redis:ConnectionString"]
+    ?? builder.Configuration.GetConnectionString("Redis")
+    ?? "localhost:6379";
 
-builder.Services.AddSharedJwtAuthentication(builder.Configuration);
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+    ConnectionMultiplexer.Connect(redisConnString));
 
-// 🔴 DİKKAT: StockDbContext ve IStockService BURADAN TAMAMEN SİLİNDİ! (Bounded Context Kuralı)
-
-// 4. REDIS & BASKET SERVICE
-builder.Services.AddStackExchangeRedisCache(options =>
-{
-    options.Configuration = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
-});
 builder.Services.AddScoped<IBasketService, BasketService>();
 
-// 5. MASSTRANSIT & RABBITMQ
+// 3. Health Checks (Redis + RabbitMQ)
+var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
+var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
+var rabbitPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
+
+builder.Services.AddHealthChecks()
+    .AddRedis(
+        redisConnectionString: redisConnString,
+        name: "Basket-Redis",
+        tags: new[] { "cache", "redis" })
+    .AddRabbitMQ(
+        rabbitConnectionString: $"amqp://{rabbitUser}:{rabbitPass}@{rabbitHost}:5672/",
+        name: "Basket-RabbitMQ",
+        tags: new[] { "messagebus", "rabbitmq" });
+
+// 4. MassTransit & RabbitMQ (Sipariş tamamlandığında sepeti temizleme tüketimi)
 builder.Services.AddMassTransit(x =>
 {
-    // 🟢 Sadece kendi Basket Consumer'ımızı kaydediyoruz
     x.AddConsumer<BasketPaymentCompletedEventConsumer>();
 
     x.SetKebabCaseEndpointNameFormatter();
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        var rabbitMqHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
-        var rabbitMqUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
-        var rabbitMqPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
-
-        cfg.Host(rabbitMqHost, "/", h =>
+        cfg.Host(rabbitHost, "/", h =>
         {
-            h.Username(rabbitMqUser);
-            h.Password(rabbitMqPass);
+            h.Username(rabbitUser);
+            h.Password(rabbitPass);
         });
 
-        cfg.ReceiveEndpoint("basket-order-created-queue", e =>
+        // Ortak Retry & DLQ politikası
+        cfg.ConfigureSharedRetryAndDeadLetter(context);
+
+        cfg.ReceiveEndpoint("basket-payment-completed-queue", e =>
         {
             e.ConfigureConsumer<BasketPaymentCompletedEventConsumer>(context);
         });
     });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
+// 5. JWT Doğrulama (Issuer & Audience korumalı)
+builder.Services.AddSharedJwtAuthentication(builder.Configuration);
+
 var app = builder.Build();
+
+// 6. Global Exception Middleware
+app.UseCustomExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
@@ -69,8 +95,17 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAll");
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
+
+// 7. Health Check Endpoint
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+
 app.Run();

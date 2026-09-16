@@ -24,7 +24,11 @@ namespace EticaretMicroservice.Catalog.Api.Services
         {
             return await _productCollection.Find(p => p.Id == id).FirstOrDefaultAsync();
         }
-
+        public async Task<bool> UpdateAsync(Product product)
+        {
+            var result = await _productCollection.ReplaceOneAsync(p => p.Id == product.Id, product);
+            return result.IsAcknowledged && result.MatchedCount > 0;
+        }
         public async Task<Product> CreateAsync(Product product)
         {
             await _productCollection.InsertOneAsync(product);

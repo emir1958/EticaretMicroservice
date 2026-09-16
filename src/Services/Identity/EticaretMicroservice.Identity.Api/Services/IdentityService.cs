@@ -77,27 +77,33 @@ namespace EticaretMicroservice.Identity.Api.Services
         {
             var tokenHandler = new JwtSecurityTokenHandler();
 
-            // Shared kütüphanesindeki fallback anahtarla tam uyumlu secret
-            var secretKey = _configuration["JwtSettings:Secret"]
+            // 🟢 Shared kütüphanesi ve docker-compose ile tam uyumlu SecretKey okuma
+            var secretKey = _configuration["Jwt:SecretKey"]
+                            ?? _configuration["JwtSettings:Secret"]
                             ?? _configuration["Jwt:Secret"]
-                            ?? "SuperSecretKey_For_Jwt_Auth_EticaretMicroservice_2026_Secure_Key!";
+                            ?? "EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!";
 
-            var key = Encoding.ASCII.GetBytes(secretKey);
+            var issuer = _configuration["Jwt:Issuer"] ?? "EticaretIdentityServer";
+            var audience = _configuration["Jwt:Audience"] ?? "EticaretGateway";
+
+            var key = Encoding.UTF8.GetBytes(secretKey);
 
             var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.Id),
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
+    {
+        new Claim(ClaimTypes.NameIdentifier, user.Id),
+        new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+        new Claim(ClaimTypes.Name, user.Username),
+        new Claim(ClaimTypes.Email, user.Email),
+        new Claim(ClaimTypes.Role, user.Role),
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+    };
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddDays(7),
+                Issuer = issuer,       // 🟢 Eklendi: Issuer doğrulaması için şart
+                Audience = audience,   // 🟢 Eklendi: Audience doğrulaması için şart
                 SigningCredentials = new SigningCredentials(
                     new SymmetricSecurityKey(key),
                     SecurityAlgorithms.HmacSha256Signature)

@@ -1,16 +1,24 @@
 ﻿using EticaretMicroservice.Payment.Api.Consumers;
 using EticaretMicroservice.Payment.Api.Data;
 using EticaretMicroservice.Payment.Api.Services;
+using EticaretMicroservice.Shared.Events;
 using EticaretMicroservice.Shared.Extensions;
 using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Logs;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Payment.Api");
+builder.Logging.AddOpenTelemetry(loggingOptions =>
+{
+    loggingOptions.IncludeFormattedMessage = true;
+    loggingOptions.IncludeScopes = true;
+    loggingOptions.AddOtlpExporter(); // Logları OTLP üzerinden Aspire Dashboard'a gönderir
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IPaymentService, FakePaymentService>();
@@ -62,12 +70,19 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitPass);
         });
 
+        cfg.ConfigureSharedRetryAndDeadLetter(context);
+
         cfg.ReceiveEndpoint("payment-stock-reserved-queue", e =>
         {
-            // Mükerrer tüketimi ve kayıpları önleyen Inbox middleware'i
             e.UseEntityFrameworkOutbox<PaymentDbContext>(context);
             e.ConfigureConsumer<StockReservedEventConsumer>(context);
+
+            // 🟢 KRİTİK BINDING: Exchange ile kuyruk arasındaki bağı garantiye alır
+            e.Bind<StockReservedEvent>();
         });
+
+        // 🟢 Diğer tüm endpoint'leri bağlar
+        cfg.ConfigureEndpoints(context);
     });
 });
 

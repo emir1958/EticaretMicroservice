@@ -1,47 +1,16 @@
-﻿using MassTransit;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using System.Text;
 
 namespace EticaretMicroservice.Shared.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    // 🟢 1. JWT Authentication
-    public static IServiceCollection AddSharedJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
-    {
-        var jwtSettings = configuration.GetSection("JwtSettings");
-        var secretKey = jwtSettings["Secret"] ?? "SuperSecretKey_For_Jwt_Auth_123456789!";
-
-        services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        })
-        .AddJwtBearer(options =>
-        {
-            options.RequireHttpsMetadata = false;
-            options.SaveToken = true;
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero
-            };
-        });
-
-        return services;
-    }
-
-    // 🟢 2. Swagger Gen (JWT Butonlu)
     public static IServiceCollection AddSharedSwagger(this IServiceCollection services)
     {
         services.AddSwaggerGen(options =>
@@ -71,37 +40,53 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    // 🟢 3. MassTransit Retry ve Otomatik Endpoint Yapılandırması
-    public static void ConfigureSharedRetry(this IRabbitMqBusFactoryConfigurator cfg, IBusRegistrationContext context)
-    {
-        cfg.UseMessageRetry(r =>
-        {
-            r.Interval(3, TimeSpan.FromSeconds(5));
-        });
-
-        cfg.ConfigureEndpoints(context);
-    }
     public static IServiceCollection AddSharedOpenTelemetry(this IServiceCollection services, IConfiguration configuration, string serviceName)
     {
-        var otlpEndpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://localhost:4317";
+        AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+        var otlpEndpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://aspire-dashboard:4317";
+        var resourceBuilder = ResourceBuilder.CreateDefault().AddService(serviceName);
 
         services.AddOpenTelemetry()
             .WithTracing(tracing =>
             {
                 tracing
-                    .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName))
-                    .AddAspNetCoreInstrumentation(opts =>
-                    {
-                        opts.RecordException = true;
-                    })
+                    .SetResourceBuilder(resourceBuilder)
+                    .AddAspNetCoreInstrumentation(opts => opts.RecordException = true)
                     .AddHttpClientInstrumentation()
-                    .AddSource("MassTransit") // 🟢 MassTransit event izlemelerini (publish/consume) yakalar
+                    .AddSource("MassTransit")
                     .AddOtlpExporter(options =>
                     {
                         options.Endpoint = new Uri(otlpEndpoint);
+                        options.Protocol = OtlpExportProtocol.Grpc;
                     });
             });
 
         return services;
+    }
+
+    // 🟢 Aspire Dashboard'a log basan ortak metot
+    public static ILoggingBuilder AddSharedLogging(this ILoggingBuilder logging, IConfiguration configuration, string serviceName)
+    {
+        AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+        var otlpEndpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://aspire-dashboard:4317";
+        var resourceBuilder = ResourceBuilder.CreateDefault().AddService(serviceName);
+
+        logging.ClearProviders();
+        logging.AddConsole();
+        logging.SetMinimumLevel(LogLevel.Information);
+
+        logging.AddOpenTelemetry(options =>
+        {
+            options.SetResourceBuilder(resourceBuilder);
+            options.IncludeFormattedMessage = true;
+            options.IncludeScopes = true;
+            options.AddOtlpExporter(opt =>
+            {
+                opt.Endpoint = new Uri(otlpEndpoint);
+                opt.Protocol = OtlpExportProtocol.Grpc;
+            });
+        });
+
+        return logging;
     }
 }

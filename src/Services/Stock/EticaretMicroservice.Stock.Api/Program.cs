@@ -6,19 +6,41 @@ using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Stock.Api");
+
+// 🟢 OpenTelemetry: Tracing ve Logging tek merkezden bağlanır
+var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://aspire-dashboard:4317";
+var serviceName = "Stock.Api";
+
+builder.Services.AddSharedOpenTelemetry(builder.Configuration, serviceName);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddOpenTelemetry(loggingOptions =>
+{
+    loggingOptions.IncludeFormattedMessage = true;
+    loggingOptions.IncludeScopes = true;
+    loggingOptions.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName));
+    loggingOptions.AddOtlpExporter(opt =>
+    {
+        opt.Endpoint = new Uri(otlpEndpoint);
+        opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+    });
+});
+
 builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
-// 🟢 CORS Servis Kaydı
+// 🟢 CORS: İsim standardizasyonu
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
         policy.AllowAnyOrigin()
               .AllowAnyMethod()
@@ -26,19 +48,17 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 1. DbContext Kaydı
 builder.Services.AddDbContext<StockDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
 
-// 2. Service Kaydı
 builder.Services.AddScoped<IStockService, StockService>();
 
-// 3. HealthCheck Servis Kaydı
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
 var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
 var rabbitPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
+var formattedRabbitHost = rabbitHost.Contains(":") ? rabbitHost : $"{rabbitHost}:5672";
 
 builder.Services.AddHealthChecks()
     .AddSqlServer(
@@ -46,32 +66,32 @@ builder.Services.AddHealthChecks()
         name: "StockDb-SQL",
         tags: new[] { "db", "sql", "sqlserver" })
     .AddRabbitMQ(
-        rabbitConnectionString: $"amqp://{rabbitUser}:{rabbitPass}@{rabbitHost}:5672/",
+        rabbitConnectionString: $"amqp://{rabbitUser}:{rabbitPass}@{formattedRabbitHost}/",
         name: "Stock-RabbitMQ",
         tags: new[] { "messagebus", "rabbitmq" });
 
-// 4. MassTransit & Consumer Kaydı
+// 🟢 MassTransit: Consumer'ların kuyruğa bağlanması
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<OrderCreatedEventConsumer>();
     x.AddConsumer<PaymentFailedEventConsumer>();
-    x.AddConsumer<ProductCreatedEventConsumer>(); 
+    x.AddConsumer<ProductCreatedEventConsumer>();
+    x.AddConsumer<StockUpdatedEventConsumer>();
 
     x.SetKebabCaseEndpointNameFormatter();
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        var rabbitMqHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
-        var rabbitMqUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
-        var rabbitMqPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
-
-        cfg.Host(rabbitMqHost, "/", h =>
+        cfg.Host(rabbitHost, "/", h =>
         {
-            h.Username(rabbitMqUser);
-            h.Password(rabbitMqPass);
+            h.Username(rabbitUser);
+            h.Password(rabbitPass);
         });
 
-        cfg.ConfigureSharedRetry(context);
+        cfg.ConfigureSharedRetryAndDeadLetter(context);
+
+        // 🟢 KRİTİK: Kayıtlı tüm consumer'lar için kuyrukları otomatik açıp bağlar
+        cfg.ConfigureEndpoints(context);
     });
 });
 
@@ -83,7 +103,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAll");
+// 🟢 DÜZELTİLDİ: "AllowAll" yerine tanımlanan "AllowFrontend" politikası çağrılır
+app.UseCors("AllowFrontend");
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -94,7 +116,6 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
 
-// 🟢 Otomatik Migration (StockDb veritabanı yoksa oluşturulur ve tablolar güncellenir)
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<StockDbContext>();

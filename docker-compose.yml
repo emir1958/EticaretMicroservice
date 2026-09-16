@@ -5,10 +5,13 @@
     image: mcr.microsoft.com/dotnet/aspire-dashboard:8.0
     container_name: aspire_dashboard
     ports:
-      - "18888:18888" # Web UI (Kullanıcı Paneli)
-      - "4317:4317"   # OTLP gRPC Portu (Trace verileri)
+     - "18888:18888" # Dashboard UI
+     - "4317:4317"   # OTLP gRPC
+     - "4318:4318"   # OTLP HTTP
     environment:
-      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+     - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+     - DASHBOARD__OTLP__AUTHMODE=Unsecured 
+     - DASHBOARD__TELEMETRYLIMITS__MAXLOGCOUNT=10000
     networks:
       - microservice-network
 
@@ -18,15 +21,15 @@
     container_name: mssql_db
     environment:
       - ACCEPT_EULA=Y
-      - "SA_PASSWORD=Password12*!"
+      - MSSQL_SA_PASSWORD=${SQL_SA_PASSWORD:-Password12*!}
     ports:
       - "1435:1433"
     volumes:
-      - mssql_data:/var/opt/mssql # 👈 SQL Server verileri kalıcı hale getirildi
+      - mssql_data:/var/opt/mssql
     networks:
       - microservice-network
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Password12*!' -C -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${SQL_SA_PASSWORD:-Password12*!}' -C -Q 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,12 +37,12 @@
 
   # 2️⃣ MongoDB (Catalog API için)
   mongodb:
-    image: mongo:7.0 # 👈 Sürüm 7.0 olarak sabitlendi
+    image: mongo:7.0
     container_name: mongodb_db
     ports:
       - "27017:27017"
     volumes:
-      - mongo_data:/data/db # 👈 MongoDB ürün koleksiyonları kalıcı hale getirildi
+      - mongo_data:/data/db
     networks:
       - microservice-network
     healthcheck:
@@ -50,13 +53,16 @@
 
   # 3️⃣ RabbitMQ Mesaj Kuyruğu
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine # 👈 Hafif ve kararlı sürüme sabitlendi
+    image: rabbitmq:3.13-management-alpine
     container_name: rabbitmq_bus
     ports:
       - "5672:5672"
       - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq # 👈 Kuyruk ve mesaj tanımları kalıcı hale getirildi
+      - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - microservice-network
     healthcheck:
@@ -68,12 +74,12 @@
 
   # 4️⃣ Redis Cache (Basket API için)
   redis:
-    image: redis:7.2-alpine # 👈 Sürüm 7.2 olarak sabitlendi
+    image: redis:7.2-alpine
     container_name: redis_cache
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data # 👈 Redis sepet anahtarları kalıcı hale getirildi
+      - redis_data:/data
     networks:
       - microservice-network
     healthcheck:
@@ -92,8 +98,14 @@
       - "5243:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=IdentityDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=IdentityDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Password12*!};TrustServerCertificate=True;
+      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
+      - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_INSECURE=true 
+      - OTEL_LOGS_EXPORTER=otlp 
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -113,9 +125,22 @@
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - DatabaseSettings__ConnectionString=mongodb://mongodb:27017
+      - DatabaseSettings__DatabaseName=CatalogDb
+      - DatabaseSettings__CollectionName=Products
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-guest}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
+      - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
     depends_on:
       mongodb:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       aspire-dashboard:
         condition: service_started
@@ -134,7 +159,15 @@
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__Redis=redis:6379
       - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-guest}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
+      - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
     depends_on:
       redis:
         condition: service_healthy
@@ -155,9 +188,19 @@
       - "5051:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Password12*!};TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-guest}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
+      - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
+      - ServiceUrls__Catalog=http://catalog.api:8080
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_INSECURE=true 
+      - OTEL_SERVICE_NAME=order-service
+      - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -178,9 +221,18 @@
       - "5027:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=StockDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=StockDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Password12*!};TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-guest}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
+      - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_INSECURE=true 
+      - OTEL_SERVICE_NAME=stock-service
+      - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -201,9 +253,15 @@
       - "5295:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=PaymentDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=PaymentDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Password12*!};TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-guest}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_INSECURE=true # 🟢 Eksikti eklendi
+      - OTEL_SERVICE_NAME=payment-service 
+      - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -225,6 +283,10 @@
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - OTEL_SERVICE_NAME=gateway-service 
+      - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
     depends_on:
       - identity.api
       - catalog.api
@@ -236,7 +298,6 @@
     networks:
       - microservice-network
 
-# 🟢 Kalıcı Disk Alanları (Named Volumes)
 volumes:
   mssql_data:
   mongo_data:

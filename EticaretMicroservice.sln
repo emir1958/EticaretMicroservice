@@ -49,8 +49,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Paymen
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
+		.env = .env
 		docker-compose.yml = docker-compose.yml
 	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{DBCEBC7F-FB32-4B79-A49C-5CBD40470D16}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.UnitTests", "tests\EticaretMicroservice.UnitTests\EticaretMicroservice.UnitTests.csproj", "{0E340F92-87DE-262D-21C2-6EC1E6C9120D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -102,6 +107,10 @@ Global
 		{91514255-22F3-4F2D-93D7-EBC402359E20}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{91514255-22F3-4F2D-93D7-EBC402359E20}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{91514255-22F3-4F2D-93D7-EBC402359E20}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E340F92-87DE-262D-21C2-6EC1E6C9120D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E340F92-87DE-262D-21C2-6EC1E6C9120D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E340F92-87DE-262D-21C2-6EC1E6C9120D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E340F92-87DE-262D-21C2-6EC1E6C9120D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -128,6 +137,7 @@ Global
 		{D29F4961-6DA1-4898-8ED5-FC84573F5759} = {61A37586-673E-4FF5-8BBE-8D15C8CF2928}
 		{4E7AC0E7-8D68-4764-89E6-C8EF0103C9E7} = {67E297C3-529D-41D5-8B0E-0EC8245DC758}
 		{91514255-22F3-4F2D-93D7-EBC402359E20} = {4E7AC0E7-8D68-4764-89E6-C8EF0103C9E7}
+		{0E340F92-87DE-262D-21C2-6EC1E6C9120D} = {DBCEBC7F-FB32-4B79-A49C-5CBD40470D16}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B005D55D-80EE-4613-95DB-8BDCE1777FED}

@@ -41,7 +41,7 @@ builder.Services.AddReverseProxy()
 // 🟢 CORS: SignalR ve UI origin kısıtlaması
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("CorsPolicy", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins("http://localhost:5173", "http://localhost:3000") // Vite & React portları
               .AllowAnyMethod()
@@ -79,7 +79,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseCors("CorsPolicy");
+app.UseCors("AllowFrontend");
 app.UseRateLimiter();
 
 app.MapReverseProxy();

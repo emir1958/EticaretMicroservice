@@ -65,8 +65,11 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
             );
         }
 
-        // 4. Sipariş Entity Kaydı (Henüz Commit Değil)
+        // 4. Sipariş Entity Kaydı
         var savedOrder = await _orderRepository.AddAsync(newOrder);
+
+        // 🟢 1. ÖNCE SQL COMMIT: SQL Server gerçek Id değerini atasın
+        await _orderRepository.SaveChangesAsync(cancellationToken);
 
         // 5. Outbox Event Hazırlığı
         var paymentToken = request.Payment != null && !string.IsNullOrWhiteSpace(request.Payment.PaymentToken)
@@ -76,20 +79,19 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
         var orderCreatedEvent = new OrderCreatedEvent
         {
             CorrelationId = correlationId,
-            OrderId = savedOrder.Id,
+            OrderId = savedOrder.Id, // 🟢 Artık gerçek Identity değeri (örn: 3005) gidecek
             BuyerId = savedOrder.BuyerId,
             OrderItems = savedOrder.OrderItems.Select(x => new OrderItemMessage
             {
                 ProductId = x.ProductId,
                 Quantity = x.Quantity,
-                Price = x.Price 
+                Price = x.Price
             }).ToList(),
             PaymentToken = paymentToken
         };
 
         await _publishEndpoint.Publish(orderCreatedEvent, cancellationToken);
-
-        await _orderRepository.SaveChangesAsync(cancellationToken);
+        await _orderRepository.SaveChangesAsync(cancellationToken); // Outbox kaydını commit eder
 
         return savedOrder.Id;
     }

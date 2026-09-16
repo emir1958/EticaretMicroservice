@@ -49,7 +49,8 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
             {
                 Name = dto.Name,
                 Description = dto.Description,
-                Price = dto.Price
+                Price = dto.Price,
+                ImageUrl = dto.ImageUrl ?? string.Empty
             };
 
             var createdProduct = await _productService.CreateAsync(product);
@@ -60,11 +61,43 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
                 ProductId = createdProduct.Id!,
                 Name = createdProduct.Name,
                 Price = createdProduct.Price,
-                InitialStock = dto.InitialStock
+                InitialStock = dto.InitialStock,
+
             });
 
             return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
         }
+
+        [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Update(string id, [FromBody] UpdateProductDto dto)
+        {
+            var existingProduct = await _productService.GetByIdAsync(id);
+            if (existingProduct == null)
+                return NotFound(new { Message = "Güncellenecek ürün bulunamadı." });
+
+            existingProduct.Name = dto.Name;
+            existingProduct.Description = dto.Description;
+            existingProduct.Price = dto.Price;
+
+            existingProduct.ImageUrl = !string.IsNullOrWhiteSpace(dto.ImageUrl)
+                ? dto.ImageUrl
+                : existingProduct.ImageUrl ?? string.Empty;
+
+            var isUpdated = await _productService.UpdateAsync(existingProduct);
+            if (!isUpdated)
+                return BadRequest(new { Message = "Güncelleme başarısız." });
+
+            // Stock API'ye stok güncelleme event'i fırlat
+            await _publishEndpoint.Publish(new StockUpdatedEvent
+            {
+                ProductId = id,
+                NewStock = dto.Stock
+            });
+
+            return NoContent();
+        }
+
 
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]

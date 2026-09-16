@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api' // Gateway Adresimiz
+  baseURL: 'http://localhost:5000' // Gateway Adresimiz
 });
 
 // Her istek öncesi araya girip Token ekleyen Interceptor
