@@ -12,13 +12,9 @@ using OpenTelemetry.Logs;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+// 🟢 OpenTelemetry: Tracing ve Logging tek merkezden bağlanır
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Payment.Api");
-builder.Logging.AddOpenTelemetry(loggingOptions =>
-{
-    loggingOptions.IncludeFormattedMessage = true;
-    loggingOptions.IncludeScopes = true;
-    loggingOptions.AddOtlpExporter(); // Logları OTLP üzerinden Aspire Dashboard'a gönderir
-});
+builder.Logging.AddSharedLogging(builder.Configuration, "Payment.Api");
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IPaymentService, FakePaymentService>();

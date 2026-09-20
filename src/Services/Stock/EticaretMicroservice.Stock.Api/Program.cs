@@ -18,21 +18,9 @@ builder.Services.AddEndpointsApiExplorer();
 var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://aspire-dashboard:4317";
 var serviceName = "Stock.Api";
 
-builder.Services.AddSharedOpenTelemetry(builder.Configuration, serviceName);
-
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
-builder.Logging.AddOpenTelemetry(loggingOptions =>
-{
-    loggingOptions.IncludeFormattedMessage = true;
-    loggingOptions.IncludeScopes = true;
-    loggingOptions.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName));
-    loggingOptions.AddOtlpExporter(opt =>
-    {
-        opt.Endpoint = new Uri(otlpEndpoint);
-        opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
-    });
-});
+// 🟢 OpenTelemetry: Tracing ve Logging tek merkezden bağlanır
+builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Stock.Api");
+builder.Logging.AddSharedLogging(builder.Configuration, "Stock.Api");
 
 builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);

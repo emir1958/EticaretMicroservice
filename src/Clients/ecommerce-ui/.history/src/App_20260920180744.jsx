@@ -2,15 +2,15 @@ import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
-import ProductList from "./pages/customer/ProductList";
-import ProductDetail from "./pages/customer/ProductDetail";
-import Checkout from "./pages/customer/Checkout";
+import ProductList from "./pages/ProductList";
+import ProductDetail from "./pages/ProductDetail"; // 🟢 Eklendi
+import Checkout from "./pages/Checkout";
 import Auth from "./pages/auth/Auth";
-import AdminProduct from "./pages/admin/AdminProduct";
-import AdminOrders from "./pages/admin/AdminOrders";
-import AdminOrderDetail from "./pages/admin/AdminOrderDetail";
+import AdminProduct from "./pages/AdminProduct";
+import AdminOrders from "./pages/AdminOrders"; // 🟢 Eklendi
+import AdminOrderDetail from "./pages/AdminOrderDetail"; // 🟢 Eklendi
 import ProtectedRoute from "./components/ProtectedRoute";
-import CartDrawer from "./components/CartDrawer";
+import CartDrawer from "./components/CartDrawer"; // 🟢 Eklendi
 
 export default function App() {
   return (

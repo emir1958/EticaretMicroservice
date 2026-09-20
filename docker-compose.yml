@@ -5,13 +5,15 @@
     image: mcr.microsoft.com/dotnet/aspire-dashboard:8.0
     container_name: aspire_dashboard
     ports:
-     - "18888:18888" # Dashboard UI
-     - "4317:4317"   # OTLP gRPC
-     - "4318:4318"   # OTLP HTTP
+      - "18888:18888" # Dashboard UI
+      - "4317:18889" # Container içi 18889 (gRPC), dışarıya/ağa 4317
+      - "4318:18890" # Container içi 18890 (HTTP), dışarıya/ağa 4318
     environment:
-     - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
-     - DASHBOARD__OTLP__AUTHMODE=Unsecured 
-     - DASHBOARD__TELEMETRYLIMITS__MAXLOGCOUNT=10000
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+      - DASHBOARD__OTLP__AUTHMODE=Unsecured
+      - DASHBOARD__OTLP__GRPCENDPOINTURL=http://0.0.0.0:18889
+      - DASHBOARD__OTLP__HTTPENDPOINTURL=http://0.0.0.0:18890
+      - DASHBOARD__TELEMETRYLIMITS__MAXLOGCOUNT=10000
     networks:
       - microservice-network
 
@@ -102,7 +104,7 @@
       - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_EXPORTER_OTLP_INSECURE=true 
       - OTEL_LOGS_EXPORTER=otlp 
@@ -133,7 +135,7 @@
       - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_EXPORTER_OTLP_INSECURE=true
       - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
@@ -164,7 +166,7 @@
       - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_EXPORTER_OTLP_INSECURE=true
       - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
@@ -196,11 +198,12 @@
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - ServiceUrls__Catalog=http://catalog.api:8080
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_EXPORTER_OTLP_INSECURE=true 
       - OTEL_SERVICE_NAME=order-service
       - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
+      - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=1 
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -228,11 +231,12 @@
       - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_EXPORTER_OTLP_INSECURE=true 
       - OTEL_SERVICE_NAME=stock-service
-      - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
+      - OTEL_LOGS_EXPORTER=otlp
+      - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=1
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -257,11 +261,12 @@
       - RabbitMQ__Host=rabbitmq
       - RabbitMQ__Username=${RABBITMQ_USER:-guest}
       - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_EXPORTER_OTLP_INSECURE=true # 🟢 Eksikti eklendi
       - OTEL_SERVICE_NAME=payment-service 
-      - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
+      - OTEL_LOGS_EXPORTER=otlp 
+      - DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=1 
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -282,7 +287,7 @@
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_EXPORTER_OTLP_INSECURE=true
       - OTEL_SERVICE_NAME=gateway-service 

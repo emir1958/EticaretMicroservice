@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import api from "../services/api";
+import api from "../../services/api";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -178,6 +178,7 @@ export default function ProductList() {
           gap: "20px",
         }}
       >
+        // ... Diğer kodlar aynı kalacak
         {products.map((p) => (
           <div
             key={p.id}
@@ -192,8 +193,11 @@ export default function ProductList() {
               boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
             }}
           >
-            <div>
-              {/* Dinamik Resim Alanı */}
+            {/* 🟢 Detaya Yönlendiren Link */}
+            <Link
+              to={`/product/${p.id}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
               <div
                 style={{
                   background: "#f9fafb",
@@ -239,7 +243,8 @@ export default function ProductList() {
               >
                 {p.description || "Açıklama bulunmuyor"}
               </p>
-            </div>
+            </Link>
+
             <div
               style={{
                 display: "flex",
