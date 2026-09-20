@@ -39,9 +39,11 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Repositories
         {
             return await _context.SaveChangesAsync(cancellationToken);
         }
-        public async Task<Domain.Entities.Order> GetByIdAsync(int id)
+        public async Task<Domain.Entities.Order?> GetByIdAsync(int id)
         {
-            return await _context.Orders.FindAsync(id);
+            return await _context.Orders
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync(o => o.Id == id);
         }
         public async Task<List<Domain.Entities.Order>> GetPendingOrdersOlderThanAsync(DateTime thresholdTime, CancellationToken cancellationToken = default)
         {
@@ -49,6 +51,13 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Repositories
                 .Include(o => o.OrderItems)
                 .Where(o => o.OrderStatus == OrderStatus.Beklemede && o.CreatedDate <= thresholdTime)
                 .ToListAsync(cancellationToken);
+        }
+        public async Task<List<Domain.Entities.Order>> GetAllOrdersAsync()
+        {
+            return await _context.Orders
+                .Include(o => o.OrderItems)
+                .OrderByDescending(o => o.CreatedDate)
+                .ToListAsync();
         }
     }
 }

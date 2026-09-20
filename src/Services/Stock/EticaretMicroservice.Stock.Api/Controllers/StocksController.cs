@@ -18,6 +18,7 @@ public class StocksController : ControllerBase
     }
 
     // GET: api/stocks/prod-1
+    [AllowAnonymous]
     [HttpGet("{productId}")]
     public async Task<IActionResult> GetStockByProductId(string productId)
     {

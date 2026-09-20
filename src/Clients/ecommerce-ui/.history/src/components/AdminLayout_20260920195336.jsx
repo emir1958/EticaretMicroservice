@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import api from "../../services/api";
+import api from "../services/api";
 import { useCart } from "../../context/CartContext";
 import { ArrowLeft, Package, Minus, Plus } from "lucide-react";
 
@@ -14,30 +14,23 @@ export default function ProductDetail() {
   const { addToCart } = useCart();
 
   useEffect(() => {
+    // 1. Ürün, Stok ve Tüm Ürünleri paralel çekeriz
     const fetchData = async () => {
       setLoading(true);
       try {
         const [prodRes, stockRes, allProdsRes] = await Promise.all([
           api.get(`/api/Products/${id}`),
-          api.get(`/api/stocks/${id}`).catch((err) => {
-            console.warn("Stok servisi yanıt vermedi:", err);
-            return { data: null };
-          }),
+          api.get(`/api/stocks/${id}`).catch(() => ({ data: { count: 0 } })), // Stok yoksa 0 say
           api.get(`/api/Products`),
         ]);
 
         setProduct(prodRes.data?.data || prodRes.data);
-
-        // 🟢 availableStock veya AvailableStock kontrolü
-        const stockData = stockRes.data?.data || stockRes.data;
-        const count =
-          stockData?.availableStock ?? stockData?.AvailableStock ?? 0;
-        setStockCount(count);
+        setStockCount(stockRes.data?.count || 0);
 
         const allList = Array.isArray(allProdsRes.data)
           ? allProdsRes.data
           : allProdsRes.data?.data || [];
-
+        // Mevcut ürünü listeden çıkar
         setOtherProducts(allList.filter((p) => p.id !== id).slice(0, 4));
       } catch (err) {
         console.error("Veriler alınamadı", err);
@@ -47,7 +40,7 @@ export default function ProductDetail() {
     };
 
     fetchData();
-    setQuantity(1);
+    setQuantity(1); // Farklı bir ürüne geçince adeti sıfırla
   }, [id]);
 
   if (loading)

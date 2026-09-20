@@ -13,5 +13,6 @@ namespace EticaretMicroservice.Services.Order.Application.Interfaces
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default); 
         Task<Domain.Entities.Order> GetByIdAsync(int id);
         Task<List<Domain.Entities.Order>> GetPendingOrdersOlderThanAsync(DateTime thresholdTime, CancellationToken cancellationToken = default);
+        Task<List<Domain.Entities.Order>> GetAllOrdersAsync();
     }
 }

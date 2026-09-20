@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from "react";
 import api from "../../services/api";
 import { Link } from "react-router-dom";
-import { Eye } from "lucide-react";
-import AdminLayout from "../../components/AdminLayout"; // 🟢 Eklendi
+import { ArrowLeft, Eye } from "lucide-react";
+import AdminLayout from "../../components/AdminLayout";
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // Hata izleme eklendi
-
+  const [error, setError] = useState(null);
   useEffect(() => {
     api
       .get("/api/Orders")
@@ -18,17 +17,33 @@ export default function AdminOrders() {
       })
       .catch((err) => {
         console.error("Siparişler getirilemedi:", err);
-        setError(
-          err.response?.data?.message ||
-            err.message ||
-            "Siparişlere erişim yetkiniz yok veya servis kapalı.",
-        );
         setLoading(false);
       });
   }, []);
 
   return (
-    <AdminLayout>
+    <div
+      style={{
+        maxWidth: "1000px",
+        margin: "30px auto",
+        padding: "24px",
+        fontFamily: "sans-serif",
+      }}
+    >
+      <Link
+        to="/"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          textDecoration: "none",
+          color: "#2563eb",
+          marginBottom: "20px",
+        }}
+      >
+        <ArrowLeft size={18} /> Mağazaya Dön
+      </Link>
+
       <div
         style={{
           display: "flex",
@@ -37,13 +52,11 @@ export default function AdminOrders() {
           marginBottom: "20px",
         }}
       >
-        <h2 style={{ margin: 0, color: "#0f172a" }}>📦 Sipariş Yönetimi</h2>
+        <h2 style={{ margin: 0 }}>📦 Sipariş Yönetimi</h2>
       </div>
 
       {loading ? (
         <p>Yükleniyor...</p>
-      ) : error ? (
-        <p style={{ color: "red" }}>{error}</p>
       ) : (
         <table
           style={{
@@ -143,6 +156,6 @@ export default function AdminOrders() {
           </tbody>
         </table>
       )}
-    </AdminLayout>
+    </div>
   );
 }

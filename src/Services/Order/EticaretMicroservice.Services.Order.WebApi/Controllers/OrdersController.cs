@@ -18,6 +18,25 @@ public class OrdersController : ControllerBase
     {
         _mediator = mediator;
     }
+    // GET: api/Orders (Tüm siparişleri getirir - Admin)
+    [HttpGet]
+    // İsteğe bağlı rol kontrolü: [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetAllOrders()
+    {
+        var orders = await _mediator.Send(new GetAllOrdersQuery());
+        return Ok(orders);
+    }
+
+    // GET: api/Orders/5 (Admin detay sayfası için tekil sipariş getirme)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetOrderById(int id)
+    {
+        var order = await _mediator.Send(new GetOrderByIdQuery(id));
+        if (order == null)
+            return NotFound(new { message = "Sipariş bulunamadı." });
+
+        return Ok(order);
+    }
 
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderCommand command)
