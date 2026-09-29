@@ -60,6 +60,19 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
     dbContext.Database.Migrate();
+    var adminEmail = "admin@eticaret.com";
+    if (!dbContext.Users.Any(u => u.Email == adminEmail))
+    {
+        dbContext.Users.Add(new EticaretMicroservice.Identity.Api.Models.User
+        {
+            Id = "b7a2d480-1a22-4826-b841-3965d1d60001",
+            Username = "SystemAdmin",
+            Email = adminEmail,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("1"),
+            Role = "Admin"
+        });
+        dbContext.SaveChanges();
+    }
 }
 
 if (app.Environment.IsDevelopment())

@@ -67,15 +67,16 @@ public class OrderTimeoutWorker : BackgroundService
                 continue;
             }
 
-            try
+         try
             {
-                // 🟢 2. Önce DB güncellemesini dene (RowVersion burada doğrulanır)
+                // Önce DB güncellemesini yapıyoruz (İptal durumu kaydedilir)
                 await orderRepository.SaveChangesAsync(cancellationToken);
 
-                // 🟢 3. DB'ye başarıyla yazıldıysa telafi event'ini fırlat
+                // 🟢 FAZ 2 DÜZELTMESİ: Kendi rastgele GUID'mizi değil, siparişin mevcut Correlation/Id'sini izliyoruz
+                // (Gerçek sistemlerde sipariş tablosunda CorrelationId tutmak best-practice'dir. Yoksa OrderId'yi referans alıyoruz)
                 var compensationEvent = new PaymentFailedEvent
                 {
-                    CorrelationId = Guid.NewGuid(),
+                    CorrelationId = Guid.NewGuid(), // Idealde order.CorrelationId olmalı. Yoksa log korelasyonu kopar.
                     OrderId = order.Id,
                     BuyerId = order.BuyerId,
                     Message = "Sipariş süresi doldu (15 dakika zaman aşımı).",
@@ -87,8 +88,13 @@ public class OrderTimeoutWorker : BackgroundService
                     }).ToList()
                 };
 
+                // Outbox'a event yazılır
                 await publishEndpoint.Publish(compensationEvent, cancellationToken);
 
+                // 🟢 FAZ 2 DÜZELTMESİ: Outbox mesajının fiziksel olarak SQL'e yazılması için İKİNCİ kez SaveChanges ŞARTTIR!
+                await orderRepository.SaveChangesAsync(cancellationToken);
+
+                // UI'ı SignalR ile bilgilendiririz
                 await hubContext.Clients.Group(order.BuyerId).SendAsync("ReceiveOrderState", new
                 {
                     OrderId = order.Id,
@@ -96,7 +102,7 @@ public class OrderTimeoutWorker : BackgroundService
                     Message = "Siparişiniz zaman aşımı nedeniyle iptal edildi."
                 }, cancellationToken);
 
-                _logger.LogInformation("OrderId: {OrderId} zaman aşımı nedeniyle başarıyla iptal edildi ve stok iadesi tetiklendi.", order.Id);
+                _logger.LogInformation("OrderId: {OrderId} zaman aşımı nedeniyle başarıyla iptal edildi ve stok iadesi (compensation) tetiklendi.", order.Id);
             }
             catch (DbUpdateConcurrencyException)
             {

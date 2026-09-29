@@ -1,9 +1,10 @@
-﻿using System.Security.Claims;
-using EticaretMicroservice.Services.Order.Application.Commands;
+﻿using EticaretMicroservice.Services.Order.Application.Commands;
 using EticaretMicroservice.Services.Order.Application.Queries; // 👈 Query namespace'i eklendi
+using EticaretMicroservice.Services.Order.Infrastructure.Filters;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace EticaretMicroservice.Services.Order.WebApi.Controllers;
 
@@ -18,8 +19,8 @@ public class OrdersController : ControllerBase
     {
         _mediator = mediator;
     }
-    // GET: api/Orders (Tüm siparişleri getirir - Admin)
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     // İsteğe bağlı rol kontrolü: [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAllOrders()
     {
@@ -29,6 +30,7 @@ public class OrdersController : ControllerBase
 
     // GET: api/Orders/5 (Admin detay sayfası için tekil sipariş getirme)
     [HttpGet("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetOrderById(int id)
     {
         var order = await _mediator.Send(new GetOrderByIdQuery(id));
@@ -39,8 +41,14 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost]
+    [Idempotent]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderCommand command)
     {
+        if (User.IsInRole("Admin"))
+        {
+            return BadRequest(new { message = "Yönetici (Admin) hesapları üzerinden sipariş verilemez." });
+        }
+
         var userIdFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                              ?? User.FindFirst("sub")?.Value;
 
@@ -50,7 +58,15 @@ public class OrdersController : ControllerBase
         }
 
         command.BuyerId = userIdFromToken;
-
+        if (Request.Headers.TryGetValue("X-Correlation-ID", out var correlationHeader) &&
+        Guid.TryParse(correlationHeader.FirstOrDefault(), out var correlationId))
+        {
+            command.CorrelationId = correlationId;
+        }
+        else
+        {
+            command.CorrelationId = Guid.NewGuid();
+        }
         var orderId = await _mediator.Send(command);
         return Ok(new { OrderId = orderId });
     }

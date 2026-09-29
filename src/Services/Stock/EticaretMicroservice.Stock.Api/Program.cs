@@ -65,7 +65,12 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<PaymentFailedEventConsumer>();
     x.AddConsumer<ProductCreatedEventConsumer>();
     x.AddConsumer<StockUpdatedEventConsumer>();
-
+    x.AddConsumer<StockPaymentCompletedEventConsumer>();
+    x.AddEntityFrameworkOutbox<StockDbContext>(o =>
+    {
+        o.UseSqlServer();
+        o.UseBusOutbox();
+    });
     x.SetKebabCaseEndpointNameFormatter();
 
     x.UsingRabbitMq((context, cfg) =>

@@ -21,6 +21,7 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
 
         public DbSet<Domain.Entities.Order> Orders { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
+        public DbSet<IdempotentRequest> IdempotentRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -64,7 +65,12 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
             });
 
             base.OnModelCreating(modelBuilder);
-
+            modelBuilder.Entity<IdempotentRequest>(b =>
+            {
+                b.ToTable("IdempotentRequests", "ordering");
+                b.HasKey(x => x.Id);
+                b.Property(x => x.OperationName).HasMaxLength(500).IsRequired(); 
+            });
             // 🔹 MassTransit 8.x Transactional Outbox Entity Mapping
             modelBuilder.AddInboxStateEntity();
             modelBuilder.AddOutboxMessageEntity();

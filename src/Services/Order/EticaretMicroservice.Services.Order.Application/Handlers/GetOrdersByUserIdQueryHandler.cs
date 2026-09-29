@@ -29,6 +29,7 @@ namespace EticaretMicroservice.Services.Order.Application.Handlers
                 Id = o.Id,
                 BuyerId = o.BuyerId,
                 CreatedDate = o.CreatedDate,
+                OrderStatus = o.OrderStatus.ToString(),
                 TotalPrice = o.GetTotalPrice,
                 Address = new AddressDto
                 {

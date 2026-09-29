@@ -27,6 +27,7 @@ public class GetAllOrdersQueryHandler : IRequestHandler<GetAllOrdersQuery, List<
             Id = o.Id,
             BuyerId = o.BuyerId,
             CreatedDate = o.CreatedDate,
+            OrderStatus = o.OrderStatus.ToString(),
             TotalPrice = o.GetTotalPrice,
             Address = new AddressDto
             {

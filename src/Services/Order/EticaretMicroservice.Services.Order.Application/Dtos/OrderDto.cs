@@ -10,6 +10,7 @@ namespace EticaretMicroservice.Services.Order.Application.Dtos
     {
         public int Id { get; set; }
         public string BuyerId { get; set; }
+        public string OrderStatus { get; set; }
         public DateTime CreatedDate { get; set; }
         public AddressDto Address { get; set; }
         public List<OrderItemDto> OrderItems { get; set; }

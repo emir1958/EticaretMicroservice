@@ -15,6 +15,7 @@ namespace EticaretMicroservice.Shared.Events
     public record OrderItemMessage
     {
         public string ProductId { get; init; } = string.Empty;
+        public string ProductName { get; init; } = string.Empty;
         public int Quantity { get; init; }
         public decimal Price { get; init; }
     }

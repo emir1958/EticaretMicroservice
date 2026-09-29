@@ -8,14 +8,13 @@ namespace EticaretMicroservice.Stock.Api.Data
     {
         public StockDbContext(DbContextOptions<StockDbContext> options) : base(options) { }
 
-        public DbSet<ProcessedMessage> ProcessedMessages { get; set; }
         public DbSet<ProductStock> ProductStocks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // 🟢 MassTransit Transactional Outbox & Inbox tablolarını topluca tanımlar
+            // MassTransit tabloları
             modelBuilder.AddInboxStateEntity();
             modelBuilder.AddOutboxMessageEntity();
             modelBuilder.AddOutboxStateEntity();

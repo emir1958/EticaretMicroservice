@@ -36,7 +36,9 @@ public class BasketController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
 
-        basket.UserId = userId; // Token'daki UserId garanti edilir
+        basket.Items = basket.Items.Where(x => x.Quantity > 0).ToList();
+
+        basket.UserId = userId; 
         var updatedBasket = await _basketService.UpdateBasketAsync(basket);
         return Ok(updatedBasket);
     }

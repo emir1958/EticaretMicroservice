@@ -29,6 +29,12 @@ var redisConnString = builder.Configuration["Redis:ConnectionString"]
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     ConnectionMultiplexer.Connect(redisConnString));
 
+// IDistributedCache kullanabilmek için StackExchangeRedisCache eklenir
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = redisConnString;
+});
+
 builder.Services.AddScoped<IBasketService, BasketService>();
 
 // 3. Health Checks (Redis + RabbitMQ)

@@ -13,7 +13,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
     private readonly IOrderRepository _orderRepository;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly ICatalogRepository _catalogRepository; // 👈 1. Catalog İstemcisi Enjeksiyonu
+    private readonly ICatalogRepository _catalogRepository;
 
     public CreateOrderCommandHandler(
         IOrderRepository orderRepository,
@@ -47,7 +47,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
 
         var newOrder = new Domain.Entities.Order(request.BuyerId, address);
 
-        // 🟢 3. SERVER-SIDE FİYAT DOĞRULAMA (İstemci fiyat manipülasyonu engelleniyor)
+        // 3. Fiyat Doğrulama
         foreach (var item in request.OrderItems)
         {
             var catalogProduct = await _catalogRepository.GetProductByIdAsync(item.ProductId, cancellationToken);
@@ -60,18 +60,18 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
             newOrder.AddOrderItem(
                 productId: catalogProduct.Id,
                 productName: catalogProduct.Name,
-                price: catalogProduct.Price, 
+                price: catalogProduct.Price,
                 quantity: item.Quantity
             );
         }
 
-        // 4. Sipariş Entity Kaydı
+        // 4. Siparişi Veritabanına Ekle
         var savedOrder = await _orderRepository.AddAsync(newOrder);
 
-        // 🟢 1. ÖNCE SQL COMMIT: SQL Server gerçek Id değerini atasın
+        // 🟢 1. SQL Server'ın gerçek IDENTITY Id (örn: 6003) ataması için önce kaydedilir
         await _orderRepository.SaveChangesAsync(cancellationToken);
 
-        // 5. Outbox Event Hazırlığı
+        // 5. Outbox Event Hazırlığı (savedOrder.Id artık kesinleşmiş gerçek Id'dir)
         var paymentToken = request.Payment != null && !string.IsNullOrWhiteSpace(request.Payment.PaymentToken)
             ? request.Payment.PaymentToken
             : Guid.NewGuid().ToString();
@@ -79,7 +79,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
         var orderCreatedEvent = new OrderCreatedEvent
         {
             CorrelationId = correlationId,
-            OrderId = savedOrder.Id, // 🟢 Artık gerçek Identity değeri (örn: 3005) gidecek
+            OrderId = savedOrder.Id, // 👈 Artık 0 değil, gerçek sipariş numarası
             BuyerId = savedOrder.BuyerId,
             OrderItems = savedOrder.OrderItems.Select(x => new OrderItemMessage
             {
@@ -90,8 +90,24 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
             PaymentToken = paymentToken
         };
 
-        await _publishEndpoint.Publish(orderCreatedEvent, cancellationToken);
-        await _orderRepository.SaveChangesAsync(cancellationToken); // Outbox kaydını commit eder
+        // Outbox tablosuna gerçek OrderId ile ekleme yapılır
+        await _publishEndpoint.Publish(new OrderCreatedEvent
+        {
+            CorrelationId = request.CorrelationId, // 🟢 Guid.NewGuid() yerine komuttan gelen ID kullanılır
+            OrderId = newOrder.Id,
+            BuyerId = newOrder.BuyerId,
+            PaymentToken = request.Payment.PaymentToken,
+            OrderItems = request.OrderItems.Select(x => new OrderItemMessage
+            {
+                ProductId = x.ProductId,
+                ProductName = x.ProductName,
+                Price = x.Price,
+                Quantity = x.Quantity
+            }).ToList()
+        }, cancellationToken);
+
+        // 🟢 2. Outbox mesajı veritabanına commit edilir
+        await _orderRepository.SaveChangesAsync(cancellationToken);
 
         return savedOrder.Id;
     }

@@ -46,7 +46,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5173", "http://localhost:3000") // Vite & React portları
               .AllowAnyMethod()
               .AllowAnyHeader()
-              .AllowCredentials(); // SignalR Hub için zorunlu
+              .AllowCredentials()
+              .WithExposedHeaders("X-Correlation-ID"); //React yanıttan bu ID'yi okuyabilsin
     });
 });
 
@@ -61,6 +62,7 @@ builder.Services.AddHealthChecksUI(options =>
 .AddInMemoryStorage();
 
 var app = builder.Build();
+app.UseCors("AllowFrontend");
 
 // 🟢 4. CORRELATION ID MIDDLEWARE (YARP'a taşınacak temiz Guid zinciri)
 app.Use(async (context, next) =>
@@ -79,7 +81,6 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseCors("AllowFrontend");
 app.UseRateLimiter();
 
 app.MapReverseProxy();
