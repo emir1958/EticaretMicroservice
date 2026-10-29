@@ -53,16 +53,6 @@ namespace EticaretMicroservice.Identity.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = "b7a2d480-1a22-4826-b841-3965d1d60001",
-                            Email = "admin@eticaret.com",
-                            PasswordHash = "$2a$11$Vgn9HlfqINviXCCEo3SV1Occ0wMFJrLTdl8Ak/ESP8a2Pt/wjCuTO",
-                            Role = "Admin",
-                            Username = "SystemAdmin"
-                        });
                 });
 #pragma warning restore 612, 618
         }

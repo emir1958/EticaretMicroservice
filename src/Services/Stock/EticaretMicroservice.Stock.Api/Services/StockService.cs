@@ -1,15 +1,22 @@
-﻿using EticaretMicroservice.Stock.Api.Data;
+﻿using EticaretMicroservice.Shared.Events;
+using EticaretMicroservice.Stock.Api.Data;
 using EticaretMicroservice.Stock.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace EticaretMicroservice.Stock.Api.Services;
 
+public enum ReservationResult
+{
+    Reserved,
+    InsufficientStock,
+    AlreadyProcessed
+}
+
 public interface IStockService
 {
-    Task<bool> ReserveStockAsync(string productId, int quantity);
-    Task<bool> ReleaseStockAsync(string productId, int quantity);
-    Task<bool> ConfirmReservationAsync(string productId, int quantity);
-    Task<bool> IncreaseStockAsync(string productId, int quantity);
+    Task<ReservationResult> ReserveForOrderAsync(int orderId, IReadOnlyCollection<OrderItemMessage> items, CancellationToken cancellationToken = default);
+    Task<int> ConfirmForOrderAsync(int orderId, CancellationToken cancellationToken = default);
+    Task<int> ReleaseForOrderAsync(int orderId, CancellationToken cancellationToken = default);
     Task<bool> CreateStockAsync(string productId, int initialStock);
 }
 
@@ -24,131 +31,82 @@ public class StockService : IStockService
         _logger = logger;
     }
 
-    public async Task<bool> ReserveStockAsync(string productId, int quantity)
+    public async Task<ReservationResult> ReserveForOrderAsync(int orderId, IReadOnlyCollection<OrderItemMessage> items, CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        if (await _context.StockReservations.AnyAsync(r => r.OrderId == orderId, cancellationToken))
         {
-            var stock = await _context.ProductStocks
-                .FromSqlInterpolated($"SELECT * FROM ProductStocks WITH (UPDLOCK, ROWLOCK) WHERE ProductId = {productId}")
-                .FirstOrDefaultAsync();
+            return ReservationResult.AlreadyProcessed;
+        }
 
-            if (stock == null)
+        var lines = items
+            .GroupBy(i => i.ProductId)
+            .Select(g => new StockLine(g.Key, g.Sum(i => i.Quantity)))
+            .OrderBy(l => l.ProductId, StringComparer.Ordinal)
+            .ToList();
+
+        var reservedLines = new List<StockLine>();
+
+        foreach (var line in lines)
+        {
+            var affectedRows = await _context.ProductStocks
+                .Where(s => s.ProductId == line.ProductId && s.AvailableStock >= line.Quantity)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.AvailableStock, x => x.AvailableStock - line.Quantity)
+                    .SetProperty(x => x.ReservedStock, x => x.ReservedStock + line.Quantity),
+                    cancellationToken);
+
+            if (affectedRows == 0)
             {
-                _logger.LogWarning("Ürün stoğu bulunamadı: {ProductId}", productId);
-                await transaction.RollbackAsync();
-                return false;
+                _logger.LogWarning("Yetersiz stok veya ürün bulunamadı. OrderId: {OrderId}, ProductId: {ProductId}, İstenen: {Quantity}",
+                    orderId, line.ProductId, line.Quantity);
+
+                foreach (var reserved in reservedLines)
+                {
+                    await AdjustStockAsync(reserved.ProductId, availableDelta: reserved.Quantity, reservedDelta: -reserved.Quantity, cancellationToken);
+                }
+
+                AddReservations(orderId, lines, StockReservationStatus.Rejected);
+                return ReservationResult.InsufficientStock;
             }
 
-            if (stock.AvailableStock < quantity)
-            {
-                _logger.LogWarning("Yetersiz stok! Ürün: {ProductId}, Mevcut: {Available}, İstenen: {Quantity}",
-                    productId, stock.AvailableStock, quantity);
-                await transaction.RollbackAsync();
-                return false;
-            }
-
-            stock.AvailableStock -= quantity;
-            stock.ReservedStock += quantity;
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            _logger.LogInformation("Stok başarıyla rezerve edildi -> ProductId: {ProductId}, Rezerve: {Quantity}, Kalan: {Available}",
-                productId, quantity, stock.AvailableStock);
-
-            return true;
+            reservedLines.Add(line);
         }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            _logger.LogError(ex, "Stok rezerve edilirken hata oluştu. ProductId: {ProductId}", productId);
-            return false;
-        }
+
+        AddReservations(orderId, lines, StockReservationStatus.Reserved);
+
+        _logger.LogInformation("OrderId: {OrderId} için {Count} kalem stok rezerve edildi.", orderId, lines.Count);
+        return ReservationResult.Reserved;
     }
 
-    // 2. Stok Rezervasyon İadesi (Release) - Ödeme iptalinde veya zaman aşımında
-    public async Task<bool> ReleaseStockAsync(string productId, int quantity)
-    { 
-        await using var transaction = await _context.Database.BeginTransactionAsync();
-        try
-        {
-            var stock = await _context.ProductStocks
-                .FromSqlInterpolated($"SELECT * FROM ProductStocks WITH (UPDLOCK, ROWLOCK) WHERE ProductId = {productId}")
-                .FirstOrDefaultAsync();
-
-            if (stock == null)
-            {
-                _logger.LogWarning("Stok iadesi yapılamadı. Ürün bulunamadı: {ProductId}", productId);
-                await transaction.RollbackAsync();
-                return false;
-            }
-
-            stock.AvailableStock += quantity;
-            if (stock.ReservedStock >= quantity)
-            {
-                stock.ReservedStock -= quantity;
-            }
-            else
-            {
-                stock.ReservedStock = 0;
-            }
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            _logger.LogInformation("Stok rezervasyonu serbest bırakıldı -> ProductId: {ProductId}, İade: {Quantity}", productId, quantity);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            _logger.LogError(ex, "Stok serbest bırakılırken hata! ProductId: {ProductId}", productId);
-            return false;
-        }
-    }
-
-    // 3. Rezervasyonu Onaylama (Commit) - Ödeme başarılı olduğunda rezerve havuzundan düşülür
-    public async Task<bool> ConfirmReservationAsync(string productId, int quantity)
+    // 2. Kesinleştirme - ödeme başarılı: rezerve havuzundan düşülür, müsait stoğa geri dönmez
+    public async Task<int> ConfirmForOrderAsync(int orderId, CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        var reservations = await LockActiveReservationsAsync(orderId, cancellationToken);
+
+        foreach (var reservation in reservations)
         {
-            var stock = await _context.ProductStocks
-                .FromSqlInterpolated($"SELECT * FROM ProductStocks WITH (UPDLOCK, ROWLOCK) WHERE ProductId = {productId}")
-                .FirstOrDefaultAsync();
-
-            if (stock == null)
-            {
-                _logger.LogWarning("Rezervasyon onaylanamadı. Ürün bulunamadı: {ProductId}", productId);
-                await transaction.RollbackAsync();
-                return false;
-            }
-
-            if (stock.ReservedStock >= quantity)
-            {
-                stock.ReservedStock -= quantity;
-            }
-            else
-            {
-                stock.ReservedStock = 0;
-            }
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            _logger.LogInformation("Stok rezervasyonu kesinleştirildi -> ProductId: {ProductId}, Kesinleşen: {Quantity}", productId, quantity);
-            return true;
+            await AdjustStockAsync(reservation.ProductId, availableDelta: 0, reservedDelta: -reservation.Quantity, cancellationToken);
+            reservation.Status = StockReservationStatus.Confirmed;
+            reservation.UpdatedAt = DateTime.UtcNow;
         }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            _logger.LogError(ex, "Stok onaylanırken hata! ProductId: {ProductId}", productId);
-            return false;
-        }
+
+        return reservations.Count;
     }
 
-    public Task<bool> IncreaseStockAsync(string productId, int quantity) => ReleaseStockAsync(productId, quantity);
+    // 3. İade - ödeme başarısız veya zaman aşımı: yalnızca BU siparişin aktif rezervasyonu geri verilir
+    public async Task<int> ReleaseForOrderAsync(int orderId, CancellationToken cancellationToken = default)
+    {
+        var reservations = await LockActiveReservationsAsync(orderId, cancellationToken);
+
+        foreach (var reservation in reservations)
+        {
+            await AdjustStockAsync(reservation.ProductId, availableDelta: reservation.Quantity, reservedDelta: -reservation.Quantity, cancellationToken);
+            reservation.Status = StockReservationStatus.Released;
+            reservation.UpdatedAt = DateTime.UtcNow;
+        }
+
+        return reservations.Count;
+    }
 
     // 4. Yeni Ürün Stok Kaydı
     public async Task<bool> CreateStockAsync(string productId, int initialStock)
@@ -167,4 +125,33 @@ public class StockService : IStockService
         await _context.SaveChangesAsync();
         return true;
     }
+
+    // UPDLOCK: aynı siparişe ait iki kopya mesaj (örn. iki PaymentFailedEvent) aynı anda gelirse
+    // ikincisi burada bekler; ilki commit edince "Reserved" satır kalmadığını görür ve hiçbir şey yapmaz.
+    private Task<List<StockReservation>> LockActiveReservationsAsync(int orderId, CancellationToken cancellationToken) =>
+        _context.StockReservations
+            .FromSqlInterpolated($"SELECT * FROM StockReservations WITH (UPDLOCK, ROWLOCK) WHERE OrderId = {orderId} AND Status = {(int)StockReservationStatus.Reserved}")
+            .OrderBy(r => r.ProductId)
+            .ToListAsync(cancellationToken);
+
+    private Task<int> AdjustStockAsync(string productId, int availableDelta, int reservedDelta, CancellationToken cancellationToken) =>
+        _context.ProductStocks
+            .Where(s => s.ProductId == productId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.AvailableStock, x => x.AvailableStock + availableDelta)
+                .SetProperty(x => x.ReservedStock, x => x.ReservedStock + reservedDelta),
+                cancellationToken);
+
+    private void AddReservations(int orderId, IEnumerable<StockLine> lines, StockReservationStatus status)
+    {
+        _context.StockReservations.AddRange(lines.Select(l => new StockReservation
+        {
+            OrderId = orderId,
+            ProductId = l.ProductId,
+            Quantity = l.Quantity,
+            Status = status
+        }));
+    }
+
+    private sealed record StockLine(string ProductId, int Quantity);
 }

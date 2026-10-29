@@ -21,7 +21,7 @@ builder.Services.AddScoped<IPaymentService, FakePaymentService>();
 
 // 🟢 1. SQL Server & DbContext Kaydı
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Server=localhost,1435;Database=PaymentDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;";
+    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection yapılandırması eksik!");
 
 builder.Services.AddDbContext<PaymentDbContext>(options =>
 {

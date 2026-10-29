@@ -1,4 +1,5 @@
 ﻿using EticaretMicroservice.Payment.Api.Data;
+using EticaretMicroservice.Payment.Api.Models;
 using EticaretMicroservice.Payment.Api.Services;
 using EticaretMicroservice.Shared.Events;
 using MassTransit;
@@ -26,36 +27,44 @@ public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
     {
         var message = context.Message;
 
-        // 1. Idempotency Kontrolü (CorrelationId üzerinden kontrol daha güvenlidir)
-        var alreadyPaid = message.OrderId > 0 && await _dbContext.Payments.AnyAsync(x => x.OrderId == message.OrderId);
-        if (alreadyPaid)
+        // 1. TAM İDEMPOTENCY KONTROLÜ (Başarılı ya da Başarısız fark etmez, daha önce işlendi mi?)
+        var existingPayment = await _dbContext.Payments
+            .FirstOrDefaultAsync(x => x.OrderId == message.OrderId);
+
+        if (existingPayment != null)
         {
-            _logger.LogWarning("[CorrelationId: {CorrelationId}] OrderId {OrderId} için ödeme veritabanında zaten mevcut. Mükerrer çekim engellendi.",
-                message.CorrelationId, message.OrderId);
+            _logger.LogWarning(
+                "[CorrelationId: {CorrelationId}] OrderId: {OrderId} için ödeme daha önce işlenmiş! Durum: {Status}. Mükerrer işlem engellendi.",
+                message.CorrelationId, message.OrderId, existingPayment.Status);
             return;
         }
 
-        _logger.LogInformation("[CorrelationId: {CorrelationId}] Payment.API: StockReservedEvent alındı. OrderId: {OrderId}, Tutar: {Price} TL",
+        _logger.LogInformation(
+            "[CorrelationId: {CorrelationId}] Payment.API: StockReservedEvent alındı. OrderId: {OrderId}, Tutar: {Price} TL",
             message.CorrelationId, message.OrderId, message.TotalPrice);
 
-        // 2. Ödeme Çekimi
+        // 2. Ödeme İşlemi
         var (isSuccess, failReason) = _paymentService.ProcessPayment(message.PaymentToken, message.TotalPrice);
 
         if (isSuccess)
         {
+            // Başarılı ödeme kaydı
             _dbContext.Payments.Add(new PaymentRecord
             {
+                CorrelationId = message.CorrelationId,
                 OrderId = message.OrderId,
                 BuyerId = message.BuyerId,
                 TotalPrice = message.TotalPrice,
                 PaymentToken = message.PaymentToken,
+                Status = PaymentStatus.Success,
+                FailureReason = null,
                 CreatedAt = DateTime.UtcNow
             });
 
-            _logger.LogInformation("[CorrelationId: {CorrelationId}] Ödeme ONAYLANDI! OrderId: {OrderId}",
+            _logger.LogInformation(
+                "[CorrelationId: {CorrelationId}] Ödeme ONAYLANDI! OrderId: {OrderId}",
                 message.CorrelationId, message.OrderId);
 
-            // 🟢 DÜZELTİLDİ: Outbox transaction'ı ile uyumlu context.Publish
             await context.Publish(new PaymentCompletedEvent
             {
                 CorrelationId = message.CorrelationId,
@@ -63,15 +72,26 @@ public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
                 BuyerId = message.BuyerId,
                 OrderItems = message.OrderItems
             });
-
-            await _dbContext.SaveChangesAsync();
         }
         else
         {
-            _logger.LogWarning("[CorrelationId: {CorrelationId}] Ödeme REDDEDİLDİ! OrderId: {OrderId}. Sebep: {Reason}",
+            // 🟢 KRİTİK DÜZELTME: Başarısız ödeme de veritabanına kaydedilir
+            _dbContext.Payments.Add(new PaymentRecord
+            {
+                CorrelationId = message.CorrelationId,
+                OrderId = message.OrderId,
+                BuyerId = message.BuyerId,
+                TotalPrice = message.TotalPrice,
+                PaymentToken = message.PaymentToken,
+                Status = PaymentStatus.Failed,
+                FailureReason = failReason,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            _logger.LogWarning(
+                "[CorrelationId: {CorrelationId}] Ödeme REDDEDİLDİ! OrderId: {OrderId}. Sebep: {Reason}",
                 message.CorrelationId, message.OrderId, failReason);
 
-            // 🟢 DÜZELTİLDİ: Outbox transaction'ı ile uyumlu context.Publish
             await context.Publish(new PaymentFailedEvent
             {
                 CorrelationId = message.CorrelationId,
@@ -80,8 +100,9 @@ public class StockReservedEventConsumer : IConsumer<StockReservedEvent>
                 Message = failReason ?? "Ödeme işlemi başarısız oldu.",
                 OrderItems = message.OrderItems
             });
-
-            await _dbContext.SaveChangesAsync();
         }
+
+        // 3. Tek bir SaveChanges ile; PaymentRecord + Outbox Event aynı transaction'da kaydedilir
+        await _dbContext.SaveChangesAsync();
     }
 }

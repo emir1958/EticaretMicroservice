@@ -22,7 +22,7 @@ builder.Logging.AddOpenTelemetry(loggingOptions =>
 });
 // 2. DbContext (SQL Server)
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Server=localhost,1435;Database=IdentityDb;User Id=sa;Password=Password12*!;TrustServerCertificate=True;";
+    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection yapılandırması eksik!");
 
 builder.Services.AddDbContext<AppIdentityDbContext>(options =>
 {
@@ -40,15 +40,7 @@ builder.Services.AddHealthChecks()
         tags: new[] { "db", "sqlserver" });
 
 // 5. CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+builder.Services.AddSharedCors();
 
 var app = builder.Build();
 
@@ -60,15 +52,23 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
     dbContext.Database.Migrate();
-    var adminEmail = "admin@eticaret.com";
-    if (!dbContext.Users.Any(u => u.Email == adminEmail))
+
+    // Admin seed: şifre koda gömülmez, yapılandırmadan (AdminSeed:Password) okunur
+    var adminEmail = (builder.Configuration["AdminSeed:Email"] ?? "admin@eticaret.com").Trim().ToLowerInvariant();
+    var adminPassword = builder.Configuration["AdminSeed:Password"];
+
+    if (string.IsNullOrWhiteSpace(adminPassword))
+    {
+        app.Logger.LogWarning("AdminSeed:Password yapılandırılmamış, admin kullanıcısı oluşturulmadı.");
+    }
+    else if (!dbContext.Users.Any(u => u.Email == adminEmail))
     {
         dbContext.Users.Add(new EticaretMicroservice.Identity.Api.Models.User
         {
             Id = "b7a2d480-1a22-4826-b841-3965d1d60001",
             Username = "SystemAdmin",
             Email = adminEmail,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("1"),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword),
             Role = "Admin"
         });
         dbContext.SaveChanges();
@@ -81,7 +81,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowFrontend");
+app.UseCors(CorsExtensions.PolicyName);
 app.UseAuthorization();
 
 app.MapControllers();

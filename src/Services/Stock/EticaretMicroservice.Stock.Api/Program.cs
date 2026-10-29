@@ -1,6 +1,6 @@
 ﻿using EticaretMicroservice.Shared.Extensions;
-using EticaretMicroservice.Stock.Api.Consumers;
 using EticaretMicroservice.Stock.Api.Data;
+using EticaretMicroservice.Stock.Api.Extensions;
 using EticaretMicroservice.Stock.Api.Services;
 using HealthChecks.UI.Client;
 using MassTransit;
@@ -26,15 +26,7 @@ builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
 // 🟢 CORS: İsim standardizasyonu
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+builder.Services.AddSharedCors();
 
 builder.Services.AddDbContext<StockDbContext>(options =>
 {
@@ -61,17 +53,7 @@ builder.Services.AddHealthChecks()
 // 🟢 MassTransit: Consumer'ların kuyruğa bağlanması
 builder.Services.AddMassTransit(x =>
 {
-    x.AddConsumer<OrderCreatedEventConsumer>();
-    x.AddConsumer<PaymentFailedEventConsumer>();
-    x.AddConsumer<ProductCreatedEventConsumer>();
-    x.AddConsumer<StockUpdatedEventConsumer>();
-    x.AddConsumer<StockPaymentCompletedEventConsumer>();
-    x.AddEntityFrameworkOutbox<StockDbContext>(o =>
-    {
-        o.UseSqlServer();
-        o.UseBusOutbox();
-    });
-    x.SetKebabCaseEndpointNameFormatter();
+    x.AddStockMessaging();
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -96,8 +78,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// 🟢 DÜZELTİLDİ: "AllowAll" yerine tanımlanan "AllowFrontend" politikası çağrılır
-app.UseCors("AllowFrontend");
+app.UseCors(CorsExtensions.PolicyName);
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -99,16 +99,7 @@ builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Order.WebApi");
 builder.Logging.AddSharedLogging(builder.Configuration, "Order.WebApi");
 
 // 6. CORS Yapılandırması (SignalR Credentials Desteği ile)
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
-    });
-});
+builder.Services.AddSharedCors();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -169,7 +160,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowFrontend");
+app.UseCors(CorsExtensions.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -189,3 +180,6 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// 🟢 Integration test projesinin WebApplicationFactory ile bu API'yi başlatabilmesi için zorunludur:
+public partial class Program { }

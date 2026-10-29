@@ -77,15 +77,7 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+builder.Services.AddSharedCors();
 
 // 5. JWT Doğrulama (Issuer & Audience korumalı)
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
@@ -101,7 +93,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowFrontend");
+app.UseCors(CorsExtensions.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 

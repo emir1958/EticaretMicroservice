@@ -38,18 +38,7 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-// 🟢 CORS: SignalR ve UI origin kısıtlaması
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000") // Vite & React portları
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials()
-              .WithExposedHeaders("X-Correlation-ID"); //React yanıttan bu ID'yi okuyabilsin
-    });
-});
+builder.Services.AddSharedCors();
 
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Gateway.Api");
 
@@ -62,7 +51,7 @@ builder.Services.AddHealthChecksUI(options =>
 .AddInMemoryStorage();
 
 var app = builder.Build();
-app.UseCors("AllowFrontend");
+app.UseCors(CorsExtensions.PolicyName);
 
 // 🟢 4. CORRELATION ID MIDDLEWARE (YARP'a taşınacak temiz Guid zinciri)
 app.Use(async (context, next) =>

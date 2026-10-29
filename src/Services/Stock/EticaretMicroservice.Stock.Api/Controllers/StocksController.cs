@@ -43,6 +43,7 @@ public class StocksController : ControllerBase
 
     // 🟢 EKLENDİ: PUT api/stocks/{productId} -> StockDb üzerindeki AvailableStock alanını günceller
     [HttpPut("{productId}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateStock(string productId, [FromBody] UpdateStockDto dto)
     {
         var stock = await _context.ProductStocks.FirstOrDefaultAsync(x => x.ProductId == productId);

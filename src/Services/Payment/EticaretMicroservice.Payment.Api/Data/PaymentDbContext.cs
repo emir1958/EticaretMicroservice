@@ -1,17 +1,9 @@
 ﻿using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using EticaretMicroservice.Payment.Api.Models;
 
 namespace EticaretMicroservice.Payment.Api.Data;
 
-public class PaymentRecord
-{
-    public int Id { get; set; }
-    public int OrderId { get; set; }
-    public string BuyerId { get; set; } = string.Empty;
-    public decimal TotalPrice { get; set; }
-    public string PaymentToken { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-}
 
 public class PaymentDbContext : DbContext
 {

@@ -29,12 +29,15 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
 
     public async Task<int> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
     {
-        // 1. CorrelationId Tespiti
-        var correlationIdHeader = _httpContextAccessor.HttpContext?.Request.Headers["X-Correlation-ID"].FirstOrDefault();
-
-        Guid correlationId = !string.IsNullOrWhiteSpace(correlationIdHeader) && Guid.TryParse(correlationIdHeader, out var parsedId)
-            ? parsedId
-            : Guid.NewGuid();
+        // 1. CorrelationId Tespiti (Önce Command, yoksa HTTP Header, yoksa Yeni Guid)
+        Guid correlationId = request.CorrelationId;
+        if (correlationId == Guid.Empty)
+        {
+            var correlationIdHeader = _httpContextAccessor.HttpContext?.Request.Headers["X-Correlation-ID"].FirstOrDefault();
+            correlationId = !string.IsNullOrWhiteSpace(correlationIdHeader) && Guid.TryParse(correlationIdHeader, out var parsedId)
+                ? parsedId
+                : Guid.NewGuid();
+        }
 
         // 2. Adres Value Object
         var address = new Address(
@@ -47,7 +50,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
 
         var newOrder = new Domain.Entities.Order(request.BuyerId, address);
 
-        // 3. Fiyat Doğrulama
+        // 3. Katalog Üzerinden Ürün ve Fiyat Doğrulama (İstemci fiyatı asla kullanılmaz)
         foreach (var item in request.OrderItems)
         {
             var catalogProduct = await _catalogRepository.GetProductByIdAsync(item.ProductId, cancellationToken);
@@ -65,50 +68,42 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
             );
         }
 
-        // 4. Siparişi Veritabanına Ekle
-        var savedOrder = await _orderRepository.AddAsync(newOrder);
+        // ... (1, 2 ve 3. Katalog Doğrulama adımları aynı kalır) ...
 
-        // 🟢 1. SQL Server'ın gerçek IDENTITY Id (örn: 6003) ataması için önce kaydedilir
-        await _orderRepository.SaveChangesAsync(cancellationToken);
-
-        // 5. Outbox Event Hazırlığı (savedOrder.Id artık kesinleşmiş gerçek Id'dir)
-        var paymentToken = request.Payment != null && !string.IsNullOrWhiteSpace(request.Payment.PaymentToken)
-            ? request.Payment.PaymentToken
-            : Guid.NewGuid().ToString();
-
-        var orderCreatedEvent = new OrderCreatedEvent
+        // 🟢 4, 5 ve 6. Adımlar: Transaction Scope içine alınır. 
+        // Ya Sipariş ve Event aynı anda veritabanına yazılır, ya da ikisi birden iptal olur.
+        return await _orderRepository.ExecuteInTransactionAsync(async () =>
         {
-            CorrelationId = correlationId,
-            OrderId = savedOrder.Id, // 👈 Artık 0 değil, gerçek sipariş numarası
-            BuyerId = savedOrder.BuyerId,
-            OrderItems = savedOrder.OrderItems.Select(x => new OrderItemMessage
-            {
-                ProductId = x.ProductId,
-                Quantity = x.Quantity,
-                Price = x.Price
-            }).ToList(),
-            PaymentToken = paymentToken
-        };
+            // İlk kayıt (Sadece transaction içinde IDENTITY ID'yi üretmek için)
+            var savedOrder = await _orderRepository.AddAsync(newOrder);
+            await _orderRepository.SaveChangesAsync(cancellationToken);
 
-        // Outbox tablosuna gerçek OrderId ile ekleme yapılır
-        await _publishEndpoint.Publish(new OrderCreatedEvent
-        {
-            CorrelationId = request.CorrelationId, // 🟢 Guid.NewGuid() yerine komuttan gelen ID kullanılır
-            OrderId = newOrder.Id,
-            BuyerId = newOrder.BuyerId,
-            PaymentToken = request.Payment.PaymentToken,
-            OrderItems = request.OrderItems.Select(x => new OrderItemMessage
+            var paymentToken = request.Payment != null && !string.IsNullOrWhiteSpace(request.Payment.PaymentToken)
+                ? request.Payment.PaymentToken
+                : Guid.NewGuid().ToString();
+
+            var orderCreatedEvent = new OrderCreatedEvent
             {
-                ProductId = x.ProductId,
-                ProductName = x.ProductName,
-                Price = x.Price,
-                Quantity = x.Quantity
-            }).ToList()
+                CorrelationId = correlationId,
+                OrderId = savedOrder.Id,
+                BuyerId = savedOrder.BuyerId,
+                PaymentToken = paymentToken,
+                OrderItems = savedOrder.OrderItems.Select(x => new OrderItemMessage
+                {
+                    ProductId = x.ProductId,
+                    ProductName = x.ProductName,
+                    Price = x.Price,
+                    Quantity = x.Quantity
+                }).ToList()
+            };
+
+            // Event Outbox'a eklenir ve ikinci SaveChanges çağrılır
+            await _publishEndpoint.Publish(orderCreatedEvent, cancellationToken);
+            await _orderRepository.SaveChangesAsync(cancellationToken);
+
+            // Blok başarıyla bittiğinde Transaction Commitlenir ve tüm veriler kalıcı hale gelir
+            return savedOrder.Id;
+
         }, cancellationToken);
-
-        // 🟢 2. Outbox mesajı veritabanına commit edilir
-        await _orderRepository.SaveChangesAsync(cancellationToken);
-
-        return savedOrder.Id;
     }
 }

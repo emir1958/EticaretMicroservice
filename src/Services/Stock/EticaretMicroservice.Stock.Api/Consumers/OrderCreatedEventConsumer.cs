@@ -25,78 +25,47 @@ public class OrderCreatedEventConsumer : IConsumer<OrderCreatedEvent>
     {
         var message = context.Message;
 
-        // ❌ SİLİNDİ: Manuel ProcessedMessages AnyAsync kontrolü
-
         _logger.LogInformation("[CorrelationId: {CorrelationId}] Stock.API: OrderCreatedEvent yakalandı. OrderId: {OrderId}",
             message.CorrelationId, message.OrderId);
 
-        bool isAllStockReserved = true;
-        var reservedItems = new List<OrderItemMessage>();
+        var result = await _stockService.ReserveForOrderAsync(message.OrderId, message.OrderItems, context.CancellationToken);
 
-        // Stok Rezervasyonu
-        foreach (var item in message.OrderItems)
+        switch (result)
         {
-            var isReserved = await _stockService.ReserveStockAsync(item.ProductId, item.Quantity);
+            case ReservationResult.AlreadyProcessed:
+                // İlk işlemin sonucu (StockReserved/StockFailed) aynı transaction'da outbox'a yazıldığı için
+                // zaten yayınlandı ya da yayınlanacak; tekrar publish edilmez.
+                _logger.LogWarning("[CorrelationId: {CorrelationId}] OrderId: {OrderId} daha önce işlenmiş, kopya mesaj atlandı.",
+                    message.CorrelationId, message.OrderId);
+                return;
 
-            if (isReserved)
-            {
-                reservedItems.Add(item);
-                _logger.LogInformation("[CorrelationId: {CorrelationId}] Stok rezerve edildi -> ProductId: {ProductId}, Miktar: {Quantity}",
-                    message.CorrelationId, item.ProductId, item.Quantity);
-            }
-            else
-            {
-                _logger.LogError("[CorrelationId: {CorrelationId}] Yetersiz stok veya çakışma! ProductId: {ProductId}",
-                    message.CorrelationId, item.ProductId);
-                isAllStockReserved = false;
+            case ReservationResult.InsufficientStock:
+                await context.Publish(new StockFailedEvent
+                {
+                    CorrelationId = message.CorrelationId,
+                    OrderId = message.OrderId,
+                    BuyerId = message.BuyerId,
+                    Message = "Siparişteki bir veya daha fazla ürün için yeterli stok bulunamadı."
+                });
                 break;
-            }
+
+            case ReservationResult.Reserved:
+                await context.Publish(new StockReservedEvent
+                {
+                    CorrelationId = message.CorrelationId,
+                    OrderId = message.OrderId,
+                    BuyerId = message.BuyerId,
+                    TotalPrice = message.OrderItems.Sum(x => x.Price * x.Quantity),
+                    PaymentToken = message.PaymentToken,
+                    OrderItems = message.OrderItems
+                });
+                break;
         }
 
-        // Kısmi Hata Durumunda Telafi (Rollback)
-        if (!isAllStockReserved)
-        {
-            _logger.LogWarning("[CorrelationId: {CorrelationId}] Kısmi stok hatası! Daha önce rezerve edilen {Count} kalem iade ediliyor...",
-                message.CorrelationId, reservedItems.Count);
+        // Rezervasyon kayıtları + outbox mesajı; EF Outbox transaction'ı commit edildiğinde birlikte kalıcı olur
+        await _dbContext.SaveChangesAsync(context.CancellationToken);
 
-            foreach (var item in reservedItems)
-            {
-                await _stockService.ReleaseStockAsync(item.ProductId, item.Quantity);
-            }
-
-            await context.Publish(new StockFailedEvent
-            {
-                CorrelationId = message.CorrelationId,
-                OrderId = message.OrderId,
-                BuyerId = message.BuyerId,
-                Message = "Siparişteki bir veya daha fazla ürün için yeterli stok bulunamadı."
-            });
-
-            await _dbContext.SaveChangesAsync();
-            return;
-        }
-
-        // ❌ SİLİNDİ: _dbContext.ProcessedMessages.Add(...) satırları
-
-        // Tüm Rezervasyonlar Başarılıysa
-        await context.Publish(new StockReservedEvent
-        {
-            CorrelationId = message.CorrelationId,
-            OrderId = message.OrderId,
-            BuyerId = message.BuyerId,
-            TotalPrice = message.OrderItems.Sum(x => x.Price * x.Quantity),
-            PaymentToken = message.PaymentToken,
-            OrderItems = message.OrderItems
-        });
-
-        // 🟢 Tek bir SaveChanges çağrısı ile; 
-        // 1. Stok güncellemeleri (ProductStocks)
-        // 2. MassTransit Inbox kaydı (Mükerrer koruma)
-        // 3. MassTransit Outbox kaydı (StockReservedEvent)
-        // atomik olarak veritabanına işlenir. Biri başarısız olursa tümü iptal olur.
-        await _dbContext.SaveChangesAsync();
-
-        _logger.LogInformation("[CorrelationId: {CorrelationId}] Tüm ürünler başarıyla rezerve edildi. OrderId: {OrderId}. Ödeme adımına geçiliyor.",
-            message.CorrelationId, message.OrderId);
+        _logger.LogInformation("[CorrelationId: {CorrelationId}] OrderId: {OrderId} stok sonucu: {Result}",
+            message.CorrelationId, message.OrderId, result);
     }
 }

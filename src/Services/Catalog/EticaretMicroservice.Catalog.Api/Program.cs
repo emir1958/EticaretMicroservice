@@ -53,15 +53,8 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+// Shared veya her servisin Program.cs'inde olması gereken ortak politika:
+builder.Services.AddSharedCors();
 
 // 4. JWT Yetkilendirme (Issuer + Audience doğrulamalı extension)
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
@@ -83,7 +76,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowFrontend");
+app.UseCors(CorsExtensions.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -1,30 +1,37 @@
 ﻿using MassTransit;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace EticaretMicroservice.Shared.Extensions
+namespace EticaretMicroservice.Shared.Extensions;
+
+public static class MassTransitExtensions
 {
-    public static class MassTransitExtensions
+    public static void ConfigureSharedRetryAndDeadLetter(this IRabbitMqBusFactoryConfigurator cfg, IBusRegistrationContext context)
     {
-        /// <summary>
-        /// Tüm kuyruklar için ortak Retry ve Hata Politikasını uygular.
-        /// Geçici hatalarda 3 kez üstel (exponential) aralıkla dener,
-        /// çözülmeyen zehirli mesajları DLQ (_error kuyruğu) içine aktarır.
-        /// </summary>
-        public static void ConfigureSharedRetryAndDeadLetter(this IRabbitMqBusFactoryConfigurator cfg, IBusRegistrationContext context)
+        cfg.UseMessageRetry(retry =>
         {
-            cfg.UseMessageRetry(retry =>
-            {
-                // İlk deneme 1sn, ikinci 3sn, üçüncü 6sn sonra yapılır
-                retry.Interval(3, TimeSpan.FromSeconds(2));
+            retry.Exponential(
+                retryLimit: 3,
+                minInterval: TimeSpan.FromSeconds(1),
+                maxInterval: TimeSpan.FromSeconds(10),
+                intervalDelta: TimeSpan.FromSeconds(2)
+            );
 
-                // Format hataları ve bilinen kritik istisnalar tekrar denenmeden doğrudan DLQ'ya gider
-                retry.Ignore<ArgumentNullException>();
-                retry.Ignore<InvalidCastException>();
-            });
-        }
+            retry.Ignore<ArgumentNullException>();
+            retry.Ignore<InvalidCastException>();
+            retry.Ignore<FormatException>();
+        });
+
+       
+        cfg.UseDelayedRedelivery(r =>
+        {
+            r.Intervals(
+                TimeSpan.FromSeconds(15),
+                TimeSpan.FromMinutes(1)
+            );
+
+            r.Ignore<ArgumentNullException>();
+            r.Ignore<InvalidCastException>();
+            r.Ignore<FormatException>();
+        });
     }
 }

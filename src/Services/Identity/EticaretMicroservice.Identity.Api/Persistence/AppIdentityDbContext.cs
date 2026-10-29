@@ -28,18 +28,7 @@ namespace EticaretMicroservice.Identity.Api.Persistence
                 entity.Property(u => u.Role).IsRequired().HasMaxLength(50).HasDefaultValue("User");
             });
 
-            // 🟢 2. Sabit Güvenli Admin Seed Verisi (Parola: Admin123*!)
-            var adminId = "b7a2d480-1a22-4826-b841-3965d1d60001";
-            var adminPasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123*!");
-
-            modelBuilder.Entity<User>().HasData(new User
-            {
-                Id = adminId,
-                Username = "SystemAdmin",
-                Email = "admin@eticaret.com",
-                PasswordHash = adminPasswordHash,
-                Role = "Admin"
-            });
+            // Admin kullanıcısı burada HasData ile değil, Program.cs'te yapılandırmadan okunan şifreyle seed edilir.
         }
     }
 }

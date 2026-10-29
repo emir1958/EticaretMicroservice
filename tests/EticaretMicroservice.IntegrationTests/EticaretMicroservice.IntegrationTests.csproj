@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+      <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="FluentAssertions" Version="8.11.0" />
+     <PackageReference Include="MassTransit" Version="8.0.16" />
+      <PackageReference Include="MassTransit.RabbitMQ" Version="8.0.16" />
+      <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.0.16" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.*" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Moq" Version="4.21.0" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.16.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Services\Order\EticaretMicroservice.Services.Order.WebApi\EticaretMicroservice.Services.Order.WebApi.csproj" />
+    <ProjectReference Include="..\..\src\Services\Order\EticaretMicroservice.Services.Order.Infrastructure\EticaretMicroservice.Services.Order.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Services\Order\EticaretMicroservice.Services.Order.Application\EticaretMicroservice.Services.Order.Application.csproj" />
+    <ProjectReference Include="..\..\src\Shared\EticaretMicroservice.Shared\EticaretMicroservice.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

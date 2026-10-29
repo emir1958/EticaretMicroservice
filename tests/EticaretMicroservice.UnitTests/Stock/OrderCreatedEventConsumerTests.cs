@@ -23,8 +23,8 @@ public class OrderCreatedEventConsumerTests
         var loggerMock = new Mock<ILogger<OrderCreatedEventConsumer>>();
 
         stockServiceMock
-            .Setup(s => s.ReserveStockAsync(It.IsAny<string>(), It.IsAny<int>()))
-            .ReturnsAsync(true);
+            .Setup(s => s.ReserveForOrderAsync(It.IsAny<int>(), It.IsAny<IReadOnlyCollection<OrderItemMessage>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ReservationResult.Reserved);
 
         var dbOptions = new DbContextOptionsBuilder<StockDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
@@ -63,7 +63,11 @@ public class OrderCreatedEventConsumerTests
         (await consumerHarness.Consumed.Any<OrderCreatedEvent>()).Should().BeTrue();
 
         stockServiceMock.Verify(
-            s => s.ReserveStockAsync("prod-abc", 2),
+            s => s.ReserveForOrderAsync(
+                101,
+                It.Is<IReadOnlyCollection<OrderItemMessage>>(items =>
+                    items.Count == 1 && items.Single().ProductId == "prod-abc" && items.Single().Quantity == 2),
+                It.IsAny<CancellationToken>()),
             Times.Once);
 
         (await harness.Published.Any<StockReservedEvent>()).Should().BeTrue();
@@ -78,8 +82,8 @@ public class OrderCreatedEventConsumerTests
         var loggerMock = new Mock<ILogger<OrderCreatedEventConsumer>>();
 
         stockServiceMock
-            .Setup(s => s.ReserveStockAsync(It.IsAny<string>(), It.IsAny<int>()))
-            .ReturnsAsync(false);
+            .Setup(s => s.ReserveForOrderAsync(It.IsAny<int>(), It.IsAny<IReadOnlyCollection<OrderItemMessage>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ReservationResult.InsufficientStock);
 
         var dbOptions = new DbContextOptionsBuilder<StockDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())

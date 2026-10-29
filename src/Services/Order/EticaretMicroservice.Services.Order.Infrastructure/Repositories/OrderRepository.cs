@@ -59,5 +59,27 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Repositories
                 .OrderByDescending(o => o.CreatedDate)
                 .ToListAsync();
         }
+        // 🟢 EKLENDİ: Tüm işlemleri tek bir SQL Transaction'ı (BEGIN TRAN...COMMIT) içine alır.
+        // Hata anında tüm kayıtlar otomatik Rollback edilir.
+        public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken = default)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    var result = await action();
+                    await transaction.CommitAsync(cancellationToken);
+                    return result;
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    throw;
+                }
+            });
+        }
     }
 }

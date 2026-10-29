@@ -77,11 +77,9 @@ namespace EticaretMicroservice.Identity.Api.Services
         {
             var tokenHandler = new JwtSecurityTokenHandler();
 
-            // 🟢 Shared kütüphanesi ve docker-compose ile tam uyumlu SecretKey okuma
+            // Doğrulayan servislerle (JwtExtensions) aynı anahtar okunur; eksikse sessiz fallback yerine hata verilir
             var secretKey = _configuration["Jwt:SecretKey"]
-                            ?? _configuration["JwtSettings:Secret"]
-                            ?? _configuration["Jwt:Secret"]
-                            ?? "EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!";
+                            ?? throw new InvalidOperationException("JWT SecretKey yapılandırması eksik!");
 
             var issuer = _configuration["Jwt:Issuer"] ?? "EticaretIdentityServer";
             var audience = _configuration["Jwt:Audience"] ?? "EticaretGateway";

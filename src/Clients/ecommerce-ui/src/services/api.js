@@ -8,7 +8,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
 
-// 🟢 EKLENDİ: Her isteğe frontend'den benzersiz bir UUID basılır
+//  Her isteğe frontend'den benzersiz bir UUID basılır
     config.headers["X-Correlation-ID"] = crypto.randomUUID();
 
     const token = localStorage.getItem("token");

@@ -23,7 +23,7 @@
     container_name: mssql_db
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${SQL_SA_PASSWORD:-Password12*!}
+      - MSSQL_SA_PASSWORD=${SQL_SA_PASSWORD:?SQL_SA_PASSWORD is required - see .env.example}
     ports:
       - "1435:1433"
     volumes:
@@ -31,7 +31,7 @@
     networks:
       - microservice-network
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${SQL_SA_PASSWORD:-Password12*!}' -C -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${SQL_SA_PASSWORD:?SQL_SA_PASSWORD is required - see .env.example}' -C -Q 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -100,14 +100,16 @@
       - "5243:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=IdentityDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Password12*!};TrustServerCertificate=True;
-      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=IdentityDb;User Id=sa;Password=${SQL_SA_PASSWORD:?SQL_SA_PASSWORD is required - see .env.example};TrustServerCertificate=True;
+      - Jwt__SecretKey=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required - see .env.example}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
+      - AdminSeed__Email=${ADMIN_SEED_EMAIL:-admin@eticaret.com}
+      - AdminSeed__Password=${ADMIN_SEED_PASSWORD:?ADMIN_SEED_PASSWORD is required - see .env.example}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-      - OTEL_EXPORTER_OTLP_INSECURE=true 
-      - OTEL_LOGS_EXPORTER=otlp 
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - OTEL_LOGS_EXPORTER=otlp
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -132,7 +134,7 @@
       - RabbitMQ__Host=rabbitmq
       - RabbitMQ__Username=${RABBITMQ_USER:-guest}
       - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
-      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required - see .env.example}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
@@ -163,7 +165,7 @@
       - RabbitMQ__Host=rabbitmq
       - RabbitMQ__Username=${RABBITMQ_USER:-guest}
       - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
-      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required - see .env.example}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
@@ -190,11 +192,11 @@
       - "5051:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Password12*!};TrustServerCertificate=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=${SQL_SA_PASSWORD:?SQL_SA_PASSWORD is required - see .env.example};TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
       - RabbitMQ__Username=${RABBITMQ_USER:-guest}
       - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
-      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required - see .env.example}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - ServiceUrls__Catalog=http://catalog.api:8080
@@ -224,11 +226,11 @@
       - "5027:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=StockDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Password12*!};TrustServerCertificate=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=StockDb;User Id=sa;Password=${SQL_SA_PASSWORD:?SQL_SA_PASSWORD is required - see .env.example};TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
       - RabbitMQ__Username=${RABBITMQ_USER:-guest}
       - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
-      - Jwt__SecretKey=${JWT_SECRET_KEY:-EmirEken_Super_Secret_Microservice_Key_2026_Secure_Key_!}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required - see .env.example}
       - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
       - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
@@ -257,7 +259,7 @@
       - "5295:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=PaymentDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Password12*!};TrustServerCertificate=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=PaymentDb;User Id=sa;Password=${SQL_SA_PASSWORD:?SQL_SA_PASSWORD is required - see .env.example};TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
       - RabbitMQ__Username=${RABBITMQ_USER:-guest}
       - RabbitMQ__Password=${RABBITMQ_PASS:-guest}

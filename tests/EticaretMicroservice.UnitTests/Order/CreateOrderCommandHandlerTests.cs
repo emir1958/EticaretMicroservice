@@ -26,6 +26,13 @@ public class CreateOrderCommandHandlerTests
         _httpContextAccessorMock = new Mock<IHttpContextAccessor>();
         _catalogRepoMock = new Mock<ICatalogRepository>();
 
+        // Handler kayıt adımlarını ExecuteInTransactionAsync içine alır. Mock'lanmış bir metot verilen
+        // delegate'i kendiliğinden çalıştırmaz (default(int) = 0 döner); gerçek repository gibi davranması için
+        // transaction içindeki işi çalıştırıp sonucunu döndürüyoruz.
+        _orderRepoMock
+            .Setup(r => r.ExecuteInTransactionAsync(It.IsAny<Func<Task<int>>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task<int>> action, CancellationToken _) => action());
+
         _handler = new CreateOrderCommandHandler(
             _orderRepoMock.Object,
             _publishEndpointMock.Object,
@@ -34,17 +41,20 @@ public class CreateOrderCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenValidCommandProvided_ShouldFetchCatalogProductAndPublishOrderCreatedEvent()
+    public async Task Handle_WhenClientSendsManipulatedPrice_ShouldOverrideWithCatalogPriceAndPublishVerifiedEvent()
     {
         // Arrange
         var productId = "prod-test-101";
-        var productName = "Kablosuz Mouse";
-        var productPrice = 250m;
+        var catalogProductName = "Kablosuz Mouse";
+        var catalogPrice = 250m; // Gerçek katalog fiyatı
+        var manipulatedClientPrice = 1m; // İstemcinin gönderdiği sahte fiyat
         var quantity = 2;
         var expectedOrderId = 42;
+        var expectedCorrelationId = Guid.NewGuid();
 
         var command = new CreateOrderCommand
         {
+            CorrelationId = expectedCorrelationId,
             BuyerId = "buyer-123",
             Address = new AddressDto
             {
@@ -63,18 +73,20 @@ public class CreateOrderCommandHandlerTests
                 new()
                 {
                     ProductId = productId,
+                    ProductName = "Sahte Ürün Adı",
+                    Price = manipulatedClientPrice, // 👈 Sahte fiyat gönderiliyor
                     Quantity = quantity
                 }
             }
         };
 
-        // 1. Catalog API Mock: Ürün ve fiyat bilgisi dönüyor
-        var mockCatalogProduct = new CatalogProductDto(productId, productName, "Açıklama", productPrice);
+        // 1. Catalog API Mock: Gerçek ürün ve fiyat bilgisi dönüyor
+        var mockCatalogProduct = new CatalogProductDto(productId, catalogProductName, "Açıklama", catalogPrice);
         _catalogRepoMock
             .Setup(c => c.GetProductByIdAsync(productId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockCatalogProduct);
 
-        // 2. Order Repository Mock: AddAsync çağrıldığında siparişi simüle edilmiş ID ile döndür
+        // 2. Order Repository Mock: Simüle edilmiş IDENTITY ID ataması
         _orderRepoMock
             .Setup(r => r.AddAsync(It.IsAny<Services.Order.Domain.Entities.Order>()))
             .ReturnsAsync((Services.Order.Domain.Entities.Order order) =>
@@ -91,43 +103,45 @@ public class CreateOrderCommandHandlerTests
         // Assert
         result.Should().Be(expectedOrderId);
 
-        // Catalog'dan ürünün doğru ID ile sorgulandığını doğrula
-        _catalogRepoMock.Verify(
-            c => c.GetProductByIdAsync(productId, It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        // Veritabanına ürünün catalog fiyatı ve ismiyle eklendiğini doğrula
+        // 1. Veritabanına istemci fiyatıyla (1 TL) DEĞİL, katalog fiyatıyla (250 TL) eklendiğini doğrula
         _orderRepoMock.Verify(
             repo => repo.AddAsync(It.Is<Services.Order.Domain.Entities.Order>(o =>
                 o.BuyerId == "buyer-123" &&
+                o.OrderItems.Count == 1 &&
                 o.OrderItems.Any(item =>
                     item.ProductId == productId &&
-                    item.ProductName == productName &&
-                    item.Price == productPrice &&
+                    item.ProductName == catalogProductName &&
+                    item.Price == catalogPrice &&
                     item.Quantity == quantity)
             )),
             Times.Once);
 
-        // Event Bus'a OrderCreatedEvent basıldığını doğrula
+        // 2. Outbox'a basılan OrderCreatedEvent'in katalog fiyatını (250 TL), ürün adını ve CorrelationId'yi taşıdığını doğrula
         _publishEndpointMock.Verify(
             p => p.Publish(It.Is<OrderCreatedEvent>(e =>
+                e.CorrelationId == expectedCorrelationId &&
                 e.OrderId == expectedOrderId &&
                 e.BuyerId == "buyer-123" &&
                 e.PaymentToken == "tok_test_abc123" &&
-                e.OrderItems.Any(i => i.ProductId == productId && i.Price == productPrice && i.Quantity == quantity)
+                e.OrderItems.Count == 1 &&
+                e.OrderItems.Any(i =>
+                    i.ProductId == productId &&
+                    i.ProductName == catalogProductName &&
+                    i.Price == catalogPrice &&
+                    i.Quantity == quantity)
             ), It.IsAny<CancellationToken>()),
             Times.Once);
 
-        // DB SaveChanges çağrısını doğrula
+        // 3. Sipariş kaydı + Outbox kaydı için SaveChangesAsync çağrısını doğrula
         _orderRepoMock.Verify(
             repo => repo.SaveChangesAsync(It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Exactly(2));
     }
 
     [Fact]
     public async Task Handle_WhenProductNotFoundInCatalog_ShouldThrowInvalidOperationExceptionAndNotSave()
     {
-        // Arrange: Katalogda olmayan sahte bir ürün ID'si
+        // Arrange
         var nonExistingProductId = "invalid-prod-999";
         var command = new CreateOrderCommand
         {
@@ -154,7 +168,7 @@ public class CreateOrderCommandHandlerTests
         // Act
         var act = async () => await _handler.Handle(command, CancellationToken.None);
 
-        // Assert: Exception fırlatmalı, event atmamalı ve veritabanına kayıt yapmamalı
+        // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"*{nonExistingProductId}*");
 

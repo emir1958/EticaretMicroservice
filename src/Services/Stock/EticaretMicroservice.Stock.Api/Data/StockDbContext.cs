@@ -9,6 +9,7 @@ namespace EticaretMicroservice.Stock.Api.Data
         public StockDbContext(DbContextOptions<StockDbContext> options) : base(options) { }
 
         public DbSet<ProductStock> ProductStocks { get; set; }
+        public DbSet<StockReservation> StockReservations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -20,9 +21,23 @@ namespace EticaretMicroservice.Stock.Api.Data
             modelBuilder.AddOutboxStateEntity();
 
             // RowVersion / Optimistic Concurrency
-            modelBuilder.Entity<ProductStock>()
-                .Property(x => x.RowVersion)
-                .IsRowVersion();
+            modelBuilder.Entity<ProductStock>(b =>
+            {
+                b.Property(x => x.RowVersion).IsRowVersion();
+
+                // Stok satırları her zaman ProductId ile aranır/kilitlenir; index yoksa her UPDATE tabloyu tarar
+                // ve farklı ürünlere gelen siparişler birbirini bekler. nvarchar(max) kolona index konamaz.
+                b.Property(x => x.ProductId).HasMaxLength(64);
+                b.HasIndex(x => x.ProductId).IsUnique();
+            });
+
+            modelBuilder.Entity<StockReservation>(b =>
+            {
+                b.Property(x => x.ProductId).HasMaxLength(64).IsRequired();
+
+                // İş seviyesi idempotency: aynı sipariş aynı ürün için ikinci kez rezervasyon yapamaz
+                b.HasIndex(x => new { x.OrderId, x.ProductId }).IsUnique();
+            });
 
             // Seed Veriler
             modelBuilder.Entity<ProductStock>().HasData(
