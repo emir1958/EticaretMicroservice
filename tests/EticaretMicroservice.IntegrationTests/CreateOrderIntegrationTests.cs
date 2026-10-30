@@ -44,7 +44,6 @@ public class CreateOrderIntegrationTests
 
         var command = new CreateOrderCommand
         {
-            CorrelationId = correlationId,
             BuyerId = "body-buyer-should-be-ignored",
             Address = new AddressDto
             {
@@ -106,7 +105,8 @@ public class CreateOrderIntegrationTests
         var delivered = harness.Consumed.Select<OrderCreatedEvent>()
             .Single(m => m.Context.Message.OrderId == orderInDb.Id).Context.Message;
 
-        delivered.CorrelationId.Should().Be(correlationId);
+        delivered.CorrelationId.Should().Be(orderInDb.CorrelationId, "saga anahtarı istemci header'ından değil siparişten gelir");
+        delivered.CorrelationId.Should().NotBe(correlationId);
         delivered.BuyerId.Should().Be(buyerId);
         delivered.OrderItems.Should().ContainSingle(i => i.ProductId == productId && i.Price == catalogPrice);
     }

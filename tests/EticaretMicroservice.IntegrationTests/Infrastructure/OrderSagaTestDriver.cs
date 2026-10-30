@@ -43,7 +43,6 @@ public class OrderSagaTestDriver
     public async Task<CreatedOrder> CreateOrderAsync(int quantity = 1)
     {
         var buyerId = $"saga-buyer-{Guid.NewGuid():N}";
-        var correlationId = Guid.NewGuid();
 
         var command = new CreateOrderCommand
         {
@@ -57,14 +56,26 @@ public class OrderSagaTestDriver
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/orders") { Content = JsonContent.Create(command) };
         request.Headers.Add(TestAuthHandler.UserIdHeader, buyerId);
-        request.Headers.Add("X-Correlation-ID", correlationId.ToString());
+        request.Headers.Add("X-Correlation-ID", Guid.NewGuid().ToString());
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         var response = await _client.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadFromJsonAsync<CreateOrderResponse>();
-        return new CreatedOrder(body!.OrderId, correlationId, buyerId);
+
+        // Saga anahtarı sunucuda üretilir; diğer servislerin event'leri bu değeri taşır
+        return new CreatedOrder(body!.OrderId, await GetCorrelationIdAsync(body.OrderId), buyerId);
+    }
+
+    public async Task<Guid> GetCorrelationIdAsync(int orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        return await dbContext.Orders.AsNoTracking()
+            .Where(o => o.Id == orderId)
+            .Select(o => o.CorrelationId)
+            .SingleAsync();
     }
 
     public Task StockReservedAsync(CreatedOrder order) =>

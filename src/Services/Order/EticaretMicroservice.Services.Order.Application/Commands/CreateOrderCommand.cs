@@ -11,7 +11,6 @@ namespace EticaretMicroservice.Services.Order.Application.Commands
     // MediatR'ın IRequest arabirimini türetiyoruz. Dönen yanıt tipi bool veya int (Order ID) olabilir.
     public class CreateOrderCommand : IRequest<int>
     {
-        public Guid CorrelationId { get; set; }
         public string BuyerId { get; set; } = string.Empty;
         public AddressDto Address { get; set; }
         public List<OrderItemDto> OrderItems { get; set; }

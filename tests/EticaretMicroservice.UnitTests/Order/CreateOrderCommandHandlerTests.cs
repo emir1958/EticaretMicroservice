@@ -5,7 +5,6 @@ using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Shared.Events;
 using FluentAssertions;
 using MassTransit;
-using Microsoft.AspNetCore.Http;
 using Moq;
 using Xunit;
 
@@ -15,7 +14,6 @@ public class CreateOrderCommandHandlerTests
 {
     private readonly Mock<IOrderRepository> _orderRepoMock;
     private readonly Mock<IPublishEndpoint> _publishEndpointMock;
-    private readonly Mock<IHttpContextAccessor> _httpContextAccessorMock;
     private readonly Mock<ICatalogRepository> _catalogRepoMock;
     private readonly CreateOrderCommandHandler _handler;
 
@@ -23,7 +21,6 @@ public class CreateOrderCommandHandlerTests
     {
         _orderRepoMock = new Mock<IOrderRepository>();
         _publishEndpointMock = new Mock<IPublishEndpoint>();
-        _httpContextAccessorMock = new Mock<IHttpContextAccessor>();
         _catalogRepoMock = new Mock<ICatalogRepository>();
 
         // Handler kayıt adımlarını ExecuteInTransactionAsync içine alır. Mock'lanmış bir metot verilen
@@ -36,7 +33,6 @@ public class CreateOrderCommandHandlerTests
         _handler = new CreateOrderCommandHandler(
             _orderRepoMock.Object,
             _publishEndpointMock.Object,
-            _httpContextAccessorMock.Object,
             _catalogRepoMock.Object);
     }
 
@@ -50,11 +46,10 @@ public class CreateOrderCommandHandlerTests
         var manipulatedClientPrice = 1m; // İstemcinin gönderdiği sahte fiyat
         var quantity = 2;
         var expectedOrderId = 42;
-        var expectedCorrelationId = Guid.NewGuid();
+        Services.Order.Domain.Entities.Order? savedOrder = null;
 
         var command = new CreateOrderCommand
         {
-            CorrelationId = expectedCorrelationId,
             BuyerId = "buyer-123",
             Address = new AddressDto
             {
@@ -94,6 +89,7 @@ public class CreateOrderCommandHandlerTests
                 typeof(Services.Order.Domain.Entities.Order)
                     .GetProperty("Id")?
                     .SetValue(order, expectedOrderId);
+                savedOrder = order;
                 return order;
             });
 
@@ -102,6 +98,10 @@ public class CreateOrderCommandHandlerTests
 
         // Assert
         result.Should().Be(expectedOrderId);
+
+        // CorrelationId sunucuda üretilir: boş olmamalı ve siparişe yazılanla event'teki aynı olmalı (saga eşleştirmesi)
+        savedOrder.Should().NotBeNull();
+        savedOrder!.CorrelationId.Should().NotBe(Guid.Empty);
 
         // 1. Veritabanına istemci fiyatıyla (1 TL) DEĞİL, katalog fiyatıyla (250 TL) eklendiğini doğrula
         _orderRepoMock.Verify(
@@ -119,7 +119,7 @@ public class CreateOrderCommandHandlerTests
         // 2. Outbox'a basılan OrderCreatedEvent'in katalog fiyatını (250 TL), ürün adını ve CorrelationId'yi taşıdığını doğrula
         _publishEndpointMock.Verify(
             p => p.Publish(It.Is<OrderCreatedEvent>(e =>
-                e.CorrelationId == expectedCorrelationId &&
+                e.CorrelationId == savedOrder!.CorrelationId &&
                 e.OrderId == expectedOrderId &&
                 e.BuyerId == "buyer-123" &&
                 e.PaymentToken == "tok_test_abc123" &&

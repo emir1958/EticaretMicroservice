@@ -1,6 +1,5 @@
 ﻿using MediatR;
 using MassTransit;
-using Microsoft.AspNetCore.Http;
 using EticaretMicroservice.Services.Order.Application.Commands;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Services.Order.Domain.ValueObjects;
@@ -12,32 +11,23 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
 {
     private readonly IOrderRepository _orderRepository;
     private readonly IPublishEndpoint _publishEndpoint;
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ICatalogRepository _catalogRepository;
 
     public CreateOrderCommandHandler(
         IOrderRepository orderRepository,
         IPublishEndpoint publishEndpoint,
-        IHttpContextAccessor httpContextAccessor,
         ICatalogRepository catalogRepository)
     {
         _orderRepository = orderRepository;
         _publishEndpoint = publishEndpoint;
-        _httpContextAccessor = httpContextAccessor;
         _catalogRepository = catalogRepository;
     }
 
     public async Task<int> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
     {
-        // 1. CorrelationId Tespiti (Önce Command, yoksa HTTP Header, yoksa Yeni Guid)
-        Guid correlationId = request.CorrelationId;
-        if (correlationId == Guid.Empty)
-        {
-            var correlationIdHeader = _httpContextAccessor.HttpContext?.Request.Headers["X-Correlation-ID"].FirstOrDefault();
-            correlationId = !string.IsNullOrWhiteSpace(correlationIdHeader) && Guid.TryParse(correlationIdHeader, out var parsedId)
-                ? parsedId
-                : Guid.NewGuid();
-        }
+        // 1. Saga anahtarı sunucuda üretilir: istemci header'ı (X-Correlation-ID) yalnızca log/trace içindir.
+        // NewId sıralı GUID üretir; OrderState'in clustered PK'sinde rastgele GUID'in yarattığı index parçalanmasını önler.
+        var correlationId = NewId.NextGuid();
 
         // 2. Adres Value Object
         var address = new Address(
@@ -48,7 +38,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
             request.Address.Line
         );
 
-        var newOrder = new Domain.Entities.Order(request.BuyerId, address);
+        var newOrder = new Domain.Entities.Order(request.BuyerId, address, correlationId);
 
         // 3. Katalog Üzerinden Ürün ve Fiyat Doğrulama (İstemci fiyatı asla kullanılmaz)
         foreach (var item in request.OrderItems)

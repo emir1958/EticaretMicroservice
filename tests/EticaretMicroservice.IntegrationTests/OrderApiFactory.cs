@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,6 +26,10 @@ public class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         .Build();
 
     public readonly Mock<ICatalogRepository> CatalogRepoMock = new();
+
+    // Aynı konteynerde, uygulamanın kullandığından bağımsız bir veritabanı (migration testleri için)
+    public string GetConnectionString(string database) =>
+        new SqlConnectionStringBuilder(_dbContainer.GetConnectionString()) { InitialCatalog = database }.ConnectionString;
 
     public async Task InitializeAsync()
     {
