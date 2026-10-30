@@ -23,6 +23,49 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("EticaretMicroservice.Services.Order.Application.Sagas.OrderState", b =>
+                {
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BuyerId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrentState")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("PaymentTimeoutTokenId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("CorrelationId");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.HasIndex("CurrentState", "ExpiresAt");
+
+                    b.ToTable("OrderStates", "ordering");
+                });
+
             modelBuilder.Entity("EticaretMicroservice.Services.Order.Domain.Entities.IdempotentRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -37,8 +80,8 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
 
                     b.Property<string>("OperationName")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ResponseBody")
                         .HasColumnType("nvarchar(max)");
@@ -63,6 +106,9 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
@@ -76,6 +122,9 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
                         .HasColumnType("rowversion");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId")
+                        .IsUnique();
 
                     b.HasIndex("BuyerId", "CreatedDate");
 

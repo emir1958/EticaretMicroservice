@@ -72,11 +72,9 @@ public class OrderTimeoutWorker : BackgroundService
                 // Önce DB güncellemesini yapıyoruz (İptal durumu kaydedilir)
                 await orderRepository.SaveChangesAsync(cancellationToken);
 
-                // 🟢 FAZ 2 DÜZELTMESİ: Kendi rastgele GUID'mizi değil, siparişin mevcut Correlation/Id'sini izliyoruz
-                // (Gerçek sistemlerde sipariş tablosunda CorrelationId tutmak best-practice'dir. Yoksa OrderId'yi referans alıyoruz)
                 var compensationEvent = new PaymentFailedEvent
                 {
-                    CorrelationId = Guid.NewGuid(), // Idealde order.CorrelationId olmalı. Yoksa log korelasyonu kopar.
+                    CorrelationId = order.CorrelationId,
                     OrderId = order.Id,
                     BuyerId = order.BuyerId,
                     Message = "Sipariş süresi doldu (15 dakika zaman aşımı).",

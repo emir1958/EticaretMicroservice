@@ -1,10 +1,12 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
+using EticaretMicroservice.IntegrationTests.Infrastructure;
 using EticaretMicroservice.Services.Order.Application.Commands;
 using EticaretMicroservice.Services.Order.Application.Dtos;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
+using EticaretMicroservice.Shared.Events;
 using FluentAssertions;
-using MassTransit.EntityFrameworkCoreIntegration;
+using MassTransit.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -12,7 +14,8 @@ using Xunit;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
 namespace EticaretMicroservice.IntegrationTests;
 
-public class CreateOrderIntegrationTests : IClassFixture<OrderApiFactory>
+[Collection(OrderApiCollection.Name)]
+public class CreateOrderIntegrationTests
 {
     private readonly HttpClient _client;
     private readonly OrderApiFactory _factory;
@@ -24,12 +27,13 @@ public class CreateOrderIntegrationTests : IClassFixture<OrderApiFactory>
     }
 
     [Fact]
-    public async Task CreateOrder_WhenValidPayloadPosted_ShouldPersistOrderAndProduceOutboxMessageAtomically()
+    public async Task CreateOrder_WhenValidPayloadPosted_ShouldPersistOrderAndPublishEventWithCatalogPrice()
     {
         // Arrange
         var productId = "test-keyboard-001";
         var catalogPrice = 750.00m;
         var manipulatedClientPrice = 1.00m; // İstemcinin hileli göndermeye çalıştığı fiyat
+        var buyerId = "integration-buyer-01"; // BuyerId gövdeden değil token'dan (test kimliğinden) alınır
         var correlationId = Guid.NewGuid();
         var idempotencyKey = Guid.NewGuid();
 
@@ -40,8 +44,7 @@ public class CreateOrderIntegrationTests : IClassFixture<OrderApiFactory>
 
         var command = new CreateOrderCommand
         {
-            CorrelationId = correlationId,
-            BuyerId = "integration-buyer-01",
+            BuyerId = "body-buyer-should-be-ignored",
             Address = new AddressDto
             {
                 City = "İstanbul",
@@ -70,6 +73,7 @@ public class CreateOrderIntegrationTests : IClassFixture<OrderApiFactory>
         {
             Content = JsonContent.Create(command)
         };
+        requestMessage.Headers.Add(TestAuthHandler.UserIdHeader, buyerId);
         requestMessage.Headers.Add("X-Correlation-ID", correlationId.ToString());
         requestMessage.Headers.Add("Idempotency-Key", idempotencyKey.ToString());
 
@@ -83,21 +87,27 @@ public class CreateOrderIntegrationTests : IClassFixture<OrderApiFactory>
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
 
-        // Sipariş tablosunda kayıt katalog fiyatıyla mı oluştu?
+        // Sipariş tablosunda kayıt katalog fiyatıyla ve token'daki kullanıcıyla mı oluştu?
         var orderInDb = await dbContext.Orders
             .Include(o => o.OrderItems)
-            .FirstOrDefaultAsync(o => o.BuyerId == "integration-buyer-01");
+            .FirstOrDefaultAsync(o => o.BuyerId == buyerId);
 
         orderInDb.Should().NotBeNull();
         orderInDb!.OrderItems.First().Price.Should().Be(catalogPrice);
 
-        // Outbox tablosunda kuyruğa iletilmeyi bekleyen event mühürlenmiş mi?
-        var outboxMessages = await dbContext.Set<OutboxMessage>().ToListAsync();
-        outboxMessages.Should().ContainSingle();
+        // Assert 3: Outbox üzerinden aşağı akışa (Stock) ulaşan event katalog fiyatını ve CorrelationId'yi taşıyor mu?
+        // Outbox satırı teslim edildikten sonra silindiği için tablo yerine teslim edilen mesaj doğrulanır.
+        var harness = _factory.Services.GetTestHarness();
+        await OrderSagaTestDriver.WaitUntilAsync(
+            () => Task.FromResult(harness.Consumed.Select<OrderCreatedEvent>().Any(m => m.Context.Message.OrderId == orderInDb.Id)),
+            "OrderCreatedEvent aşağı akışa ulaşmalı");
 
-        var outboxPayload = outboxMessages.First().Body;
-        outboxPayload.Should().Contain(productId);
-        outboxPayload.Should().Contain(catalogPrice.ToString("F2"));
-        outboxPayload.Should().Contain(correlationId.ToString());
+        var delivered = harness.Consumed.Select<OrderCreatedEvent>()
+            .Single(m => m.Context.Message.OrderId == orderInDb.Id).Context.Message;
+
+        delivered.CorrelationId.Should().Be(orderInDb.CorrelationId, "saga anahtarı istemci header'ından değil siparişten gelir");
+        delivered.CorrelationId.Should().NotBe(correlationId);
+        delivered.BuyerId.Should().Be(buyerId);
+        delivered.OrderItems.Should().ContainSingle(i => i.ProductId == productId && i.Price == catalogPrice);
     }
 }

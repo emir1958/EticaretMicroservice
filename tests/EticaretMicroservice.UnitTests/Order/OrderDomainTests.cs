@@ -11,11 +11,38 @@ public class OrderDomainTests
     private static Address CreateSampleAddress() =>
         new("İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1 Daire:5");
 
+    private static Services.Order.Domain.Entities.Order CreateSampleOrder() =>
+        new("buyer-123", CreateSampleAddress(), Guid.NewGuid());
+
+    [Fact]
+    public void Order_WhenCreated_ShouldKeepGivenCorrelationId()
+    {
+        // Arrange
+        var correlationId = Guid.NewGuid();
+
+        // Act
+        var order = new Services.Order.Domain.Entities.Order("buyer-123", CreateSampleAddress(), correlationId);
+
+        // Assert
+        order.CorrelationId.Should().Be(correlationId);
+    }
+
+    // Saga anahtarı olduğu için boş CorrelationId ile sipariş oluşturulamaz
+    [Fact]
+    public void Order_WhenCorrelationIdIsEmpty_ShouldThrow()
+    {
+        // Act
+        var act = () => new Services.Order.Domain.Entities.Order("buyer-123", CreateSampleAddress(), Guid.Empty);
+
+        // Assert
+        act.Should().Throw<ArgumentException>();
+    }
+
     [Fact]
     public void Order_WhenCreated_ShouldHaveBeklemedeStatus()
     {
         // Arrange & Act
-        var order = new Services.Order.Domain.Entities.Order("buyer-123", CreateSampleAddress());
+        var order = CreateSampleOrder();
 
         // Assert
         order.OrderStatus.Should().Be(OrderStatus.Beklemede);
@@ -25,7 +52,7 @@ public class OrderDomainTests
     public void TrySetStatusToCompleted_WhenStatusIsBeklemede_ShouldReturnTrueAndSetTamamlandi()
     {
         // Arrange
-        var order = new Services.Order.Domain.Entities.Order("buyer-123", CreateSampleAddress());
+        var order = CreateSampleOrder();
 
         // Act
         var result = order.TrySetStatusToCompleted();
@@ -39,7 +66,7 @@ public class OrderDomainTests
     public void TrySetStatusToCompleted_WhenOrderIsAlreadyCanceled_ShouldReturnFalseAndKeepIptalEdildi()
     {
         // Arrange
-        var order = new Services.Order.Domain.Entities.Order("buyer-123", CreateSampleAddress());
+        var order = CreateSampleOrder();
         order.TrySetStatusToCanceled();
 
         // Act
@@ -54,7 +81,7 @@ public class OrderDomainTests
     public void TrySetStatusToCanceled_WhenOrderIsAlreadyCompleted_ShouldReturnFalseAndKeepTamamlandi()
     {
         // Arrange
-        var order = new Services.Order.Domain.Entities.Order("buyer-123", CreateSampleAddress());
+        var order = CreateSampleOrder();
         order.TrySetStatusToCompleted();
 
         // Act

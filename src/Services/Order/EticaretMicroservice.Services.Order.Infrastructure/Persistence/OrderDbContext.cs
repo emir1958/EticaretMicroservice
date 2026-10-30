@@ -39,6 +39,9 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
                 // Index optimizasyonu (Kullanıcının sipariş geçmişi ve timeout sorguları için)
                 b.HasIndex(o => new { o.BuyerId, o.CreatedDate });
                 b.HasIndex(o => new { o.OrderStatus, o.CreatedDate });
+
+                // Saga anahtarı: her siparişin süreci tekil olarak bu değerle bulunur
+                b.HasIndex(o => o.CorrelationId).IsUnique();
                 // Value Object (Address) konfigürasyonu - Single table (OwnsOne)
                 b.OwnsOne(o => o.Address, a =>
                 {
@@ -75,6 +78,9 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
             modelBuilder.AddInboxStateEntity();
             modelBuilder.AddOutboxMessageEntity();
             modelBuilder.AddOutboxStateEntity();
+
+            // Order saga instance tablosu
+            new OrderStateMap().Configure(modelBuilder);
         }
     }
 }

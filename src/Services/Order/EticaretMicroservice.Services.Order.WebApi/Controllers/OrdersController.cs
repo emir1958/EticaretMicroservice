@@ -58,15 +58,7 @@ public class OrdersController : ControllerBase
         }
 
         command.BuyerId = userIdFromToken;
-        if (Request.Headers.TryGetValue("X-Correlation-ID", out var correlationHeader) &&
-        Guid.TryParse(correlationHeader.FirstOrDefault(), out var correlationId))
-        {
-            command.CorrelationId = correlationId;
-        }
-        else
-        {
-            command.CorrelationId = Guid.NewGuid();
-        }
+
         var orderId = await _mediator.Send(command);
         return Ok(new { OrderId = orderId });
     }

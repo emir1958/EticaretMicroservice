@@ -11,6 +11,9 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
     public class Order
     {
         public int Id { get; private set; }
+
+        // Sipariş sürecinin (saga) kimliği; Stock/Payment event'leri bu değeri taşır
+        public Guid CorrelationId { get; private set; }
         public string BuyerId { get; private set; } // JWT'den gelen ClaimTypes.NameIdentifier (UserId)
         public DateTime CreatedDate { get; private set; }
         public Address Address { get; private set; }
@@ -22,8 +25,12 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
         public byte[] RowVersion { get; private set; } = Array.Empty<byte>();
         private Order() { }
 
-        public Order(string buyerId, Address address)
+        public Order(string buyerId, Address address, Guid correlationId)
         {
+            if (correlationId == Guid.Empty)
+                throw new ArgumentException("CorrelationId boş olamaz.", nameof(correlationId));
+
+            CorrelationId = correlationId;
             BuyerId = buyerId;
             Address = address;
             CreatedDate = DateTime.UtcNow;
