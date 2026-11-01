@@ -4,6 +4,7 @@ using EticaretMicroservice.Services.Order.Application.Dtos;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Domain.Enums;
+using EticaretMicroservice.Services.Order.Domain.ValueObjects;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Shared.Events;
 using MassTransit;
@@ -69,6 +70,22 @@ public class OrderSagaTestDriver
         return new CreatedOrder(body!.OrderId, await GetCorrelationIdAsync(body.OrderId), buyerId);
     }
 
+    // Order satırını OrderCreated yayınlamadan (outbox'a dokunmadan) yazar: saga'yı test kendisi başlatır.
+    // Saga'nın timeout'u gerçek bir siparişi iptal edebilsin diye sahte OrderId yerine kullanılır.
+    public async Task<CreatedOrder> CreateOrderWithoutSagaAsync()
+    {
+        var buyerId = $"saga-buyer-{Guid.NewGuid():N}";
+        var order = new Services.Order.Domain.Entities.Order(buyerId, new Address("İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1"), Guid.NewGuid());
+        order.AddOrderItem($"{ProductPrefix}{Guid.NewGuid():N}", "Saga Test Ürünü", ProductPrice, 1);
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        return new CreatedOrder(order.Id, order.CorrelationId, buyerId);
+    }
+
     public async Task<Guid> GetCorrelationIdAsync(int orderId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -114,6 +131,10 @@ public class OrderSagaTestDriver
             BuyerId = order.BuyerId,
             Message = "Kart reddedildi"
         });
+
+    // Zamanlayıcı dışından gelen (token'sız) timeout mesajı: erken/başıboş teslimi simüle eder
+    public Task PaymentTimeoutAsync(CreatedOrder order) =>
+        Harness.Bus.Publish(new PaymentTimeoutExpired { CorrelationId = order.CorrelationId });
 
     public async Task<OrderStatus> GetStatusAsync(int orderId)
     {

@@ -1,4 +1,5 @@
 using EticaretMicroservice.IntegrationTests.Infrastructure;
+using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Domain.Enums;
 using EticaretMicroservice.Shared.Commands;
 using EticaretMicroservice.Shared.Events;
@@ -68,8 +69,7 @@ public class OrderSagaTests
 
     // --- Saga davranışı: saga uygulanana kadar kırmızı ---
 
-    // Ödeme süre içinde gelmezse sipariş iptal edilir ve rezerve stok iade edilir.
-    // Bugün: OrderTimeoutWorker 15 dakikaya sabit, OrderSaga:PaymentTimeout ayarını tanımıyor.
+    // Ödeme süre içinde gelmezse sipariş iptal edilir ve rezerve stok iade edilir (saga Schedule, OrderSaga:PaymentTimeout).
     [Fact]
     public async Task PaymentNotReceivedWithinTimeout_CancelsOrderAndReleasesStock()
     {
@@ -80,6 +80,44 @@ public class OrderSagaTests
         await OrderSagaTestDriver.WaitUntilAsync(
             () => Task.FromResult(_driver.ReceivedDownstreamCount<ReleaseStockCommand>(c => c.OrderId == order.OrderId) == 1),
             "ReleaseStockCommand gönderilmeli");
+    }
+
+    // ExpiresAt emniyet kontrolü: süre dolmadan gelen timeout mesajı (erken teslim / saat farkı) siparişi iptal etmez,
+    // saga kalan süre için yeniden zamanlar ve sipariş süre dolunca bir kez iptal edilir.
+    [Fact]
+    public async Task TimeoutArrivingBeforeExpiresAt_DoesNotCancelUntilExpired()
+    {
+        var order = await _driver.CreateOrderAsync();
+        await _driver.StockReservedAsync(order);
+        await _driver.WaitForSagaStateAsync(order, "AwaitingPayment");
+        var timeoutConsumes = _driver.CountSagaConsumes<PaymentTimeoutExpired>(m => m.CorrelationId == order.CorrelationId);
+
+        await _driver.PaymentTimeoutAsync(order);
+        await OrderSagaTestDriver.WaitUntilAsync(() => Task.FromResult(timeoutConsumes.Count == 1), "erken timeout işlenmeli");
+
+        (await _driver.GetStatusAsync(order.OrderId)).Should().Be(OrderStatus.Beklemede);
+
+        await _driver.WaitForStatusAsync(order, OrderStatus.IptalEdildi);
+        await OrderSagaTestDriver.SettleAsync();
+        _driver.ReceivedDownstreamCount<ReleaseStockCommand>(c => c.OrderId == order.OrderId).Should().Be(1);
+    }
+
+    // Tamamlanmış siparişe geç gelen (zamanlanmış ya da başıboş) timeout mesajı iptal etmemeli, stok iadesi istememeli.
+    [Fact]
+    public async Task TimeoutAfterCompletion_DoesNotCancelCompletedOrder()
+    {
+        var order = await _driver.CreateOrderAsync();
+        await _driver.StockReservedAsync(order);
+        await _driver.PaymentCompletedAsync(order);
+        await _driver.WaitForStatusAsync(order, OrderStatus.Tamamlandı);
+
+        await _driver.PaymentTimeoutAsync(order);
+        await Task.Delay(OrderApiFactory.PaymentTimeout);
+        await OrderSagaTestDriver.SettleAsync();
+
+        (await _driver.GetStatusAsync(order.OrderId)).Should().Be(OrderStatus.Tamamlandı);
+        (await _driver.GetSagaAsync(order.CorrelationId))!.CurrentState.Should().Be("Completed");
+        _driver.ReceivedDownstreamCount<ReleaseStockCommand>(c => c.OrderId == order.OrderId).Should().Be(0);
     }
 
     // Analizdeki 3. bulgu: timeout'tan sonra gelen ödeme müşteriden çekilmiş paradır; iade edilmelidir.

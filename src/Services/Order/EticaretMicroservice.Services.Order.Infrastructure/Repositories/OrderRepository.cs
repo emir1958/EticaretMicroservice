@@ -45,13 +45,6 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Repositories
                 .Include(o => o.OrderItems)
                 .FirstOrDefaultAsync(o => o.Id == id);
         }
-        public async Task<List<Domain.Entities.Order>> GetPendingOrdersOlderThanAsync(DateTime thresholdTime, CancellationToken cancellationToken = default)
-        {
-            return await _context.Orders
-                .Include(o => o.OrderItems)
-                .Where(o => o.OrderStatus == OrderStatus.Beklemede && o.CreatedDate <= thresholdTime)
-                .ToListAsync(cancellationToken);
-        }
         public async Task<List<Domain.Entities.Order>> GetAllOrdersAsync()
         {
             return await _context.Orders

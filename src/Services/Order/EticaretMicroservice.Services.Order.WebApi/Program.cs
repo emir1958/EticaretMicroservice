@@ -1,8 +1,8 @@
 ﻿using EticaretMicroservice.Services.Order.Application.Behaviors;
 using EticaretMicroservice.Services.Order.Application.Hubs;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
+using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Application.Validators;
-using EticaretMicroservice.Services.Order.Infrastructure.BackgroundServices;
 using EticaretMicroservice.Services.Order.Infrastructure.Messaging;
 using EticaretMicroservice.Services.Order.Infrastructure.Notifications;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
@@ -43,6 +43,8 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddValidatorsFromAssemblyContaining<CreateOrderCommandValidator>();
 
 // 4. MassTransit, RabbitMQ & Transactional Outbox
+builder.Services.Configure<OrderSagaOptions>(builder.Configuration.GetSection(OrderSagaOptions.SectionName));
+
 builder.Services.AddMassTransit(x =>
 {
     // Order saga'sı (OrderStateMachine) + EF saga repository + Transactional Outbox
@@ -61,6 +63,10 @@ builder.Services.AddMassTransit(x =>
         });
 
         cfg.ConfigureSharedRetryAndDeadLetter(context);
+
+        // Saga'nın ödeme timeout'u (Schedule) RabbitMQ delayed exchange ile teslim edilir.
+        // Broker'da rabbitmq_delayed_message_exchange plugin'i etkin olmalıdır.
+        cfg.UseDelayedMessageScheduler();
 
         // Saga endpoint'i (order-saga) ve outbox callback'i buradan uygulanır
         cfg.ConfigureEndpoints(context);
@@ -89,7 +95,6 @@ builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration, signalRHubPath: "/orderhub");
 
 builder.Services.AddSignalR();
-builder.Services.AddHostedService<OrderTimeoutWorker>();
 
 // 8. Health Check Servis Kaydı
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";

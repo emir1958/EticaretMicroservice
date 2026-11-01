@@ -10,6 +10,7 @@ public static class StockMessagingExtensions
     {
         x.AddConsumer<OrderCreatedEventConsumer>();
         x.AddConsumer<PaymentFailedEventConsumer>();
+        x.AddConsumer<ReleaseStockCommandConsumer>();
         x.AddConsumer<ProductCreatedEventConsumer>();
         x.AddConsumer<StockUpdatedEventConsumer>();
         x.AddConsumer<StockPaymentCompletedEventConsumer>();

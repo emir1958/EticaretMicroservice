@@ -12,7 +12,6 @@ namespace EticaretMicroservice.Services.Order.Application.Interfaces
         Task<List<Domain.Entities.Order>> GetOrdersByUserIdAsync(string userId);
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default); 
         Task<Domain.Entities.Order> GetByIdAsync(int id);
-        Task<List<Domain.Entities.Order>> GetPendingOrdersOlderThanAsync(DateTime thresholdTime, CancellationToken cancellationToken = default);
         Task<List<Domain.Entities.Order>> GetAllOrdersAsync();
 
         // 🟢 EKLENDİ: Atomik işlemler için Transaction Wrapper

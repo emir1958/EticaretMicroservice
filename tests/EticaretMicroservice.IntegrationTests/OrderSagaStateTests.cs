@@ -61,11 +61,11 @@ public class OrderSagaStateTests
 
     // Henüz instance yokken aynı anda gelen iki OrderCreated: kilitlenecek satır olmadığından ikisi de INSERT dener.
     // Kaybeden PK ihlali (2627) alır, retry'da instance'ı bulur ve Ignore(OrderCreated) ile yoksayılır; mesaj fault'a düşmez.
-    // HTTP akışı kendi OrderCreated'ını da ürettiği için yarış, siparişi olmayan bir CorrelationId ile kurulur.
+    // HTTP akışı kendi OrderCreated'ını da ürettiği için sipariş OrderCreated yayınlanmadan yazılır, iki kopyayı test gönderir.
     [Fact]
     public async Task DuplicateOrderCreatedArriveConcurrently_CreatesSingleInstanceWithoutFault()
     {
-        var order = new CreatedOrder(-Random.Shared.Next(1, int.MaxValue), Guid.NewGuid(), $"saga-buyer-{Guid.NewGuid():N}");
+        var order = await _driver.CreateOrderWithoutSagaAsync();
         var sagaConsumes = _driver.CountSagaConsumes<OrderCreatedEvent>(m => m.CorrelationId == order.CorrelationId);
 
         await Task.WhenAll(_driver.OrderCreatedAsync(order), _driver.OrderCreatedAsync(order));

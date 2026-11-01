@@ -32,7 +32,7 @@ public class CompleteOrderActivity : IStateMachineActivity<OrderState, PaymentCo
         }
         else
         {
-            // Geçiş dönemi: OrderTimeoutWorker siparişi saga'dan bağımsız iptal edebiliyor (Step 4'te kaldırılacak)
+            // Order'ı yalnızca saga değiştirir; buraya düşmek saga ile Order'ın ayrıştığını gösterir
             _logger.LogWarning("[CorrelationId: {CorrelationId}] OrderId {OrderId} tamamlanamadı, mevcut durum: {Status}",
                 context.Saga.CorrelationId, order.Id, order.OrderStatus);
         }

@@ -74,6 +74,8 @@ public class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 x.UsingInMemory((context, cfg) =>
                 {
                     cfg.UseMessageRetry(r => r.Intervals(100, 250, 500, 1000, 2000, 3000));
+                    // Program.cs'teki RabbitMQ ayarının karşılığı: saga Schedule'ı için
+                    cfg.UseDelayedMessageScheduler();
                     cfg.ConfigureEndpoints(context);
                 });
             });
