@@ -1,14 +1,15 @@
-# Order Saga — Step 3 + 4 deploy riskleri
+# Order Saga — Step 3–5 deploy riskleri
 
 Kapsam: Order servisinin consumer tabanlı yapıdan `OrderStateMachine` saga'sına geçişi (Step 3), pessimistic saga
-repository (Step 3.1) ve saga içi ödeme timeout'u (Step 4). `OrderTimeoutWorker` kaldırıldı.
+repository (Step 3.1), saga içi ödeme timeout'u (Step 4) ve timeout sonrası gelen ödemenin iadesi (Step 5).
+`OrderTimeoutWorker` kaldırıldı.
 
 ## 1. Ön koşul: RabbitMQ delayed exchange plugin'i
 
 - Order, `UseDelayedMessageScheduler()` kullanır; broker'da `rabbitmq_delayed_message_exchange` etkin olmalıdır.
   Düz `rabbitmq:3.13-management-alpine` image'ında bu plugin yoktur.
-- Çözüm: [infra/rabbitmq/Dockerfile](../../infra/rabbitmq/Dockerfile). Aynı base image'ı (`rabbitmq:3.13-management-alpine`,
-  build anında 3.13.7) kullanır. Plugin **v3.13.0** sürümüne sabitlenmiştir ve SHA-256
+- Çözüm: [infra/rabbitmq/Dockerfile](../../infra/rabbitmq/Dockerfile). Base image `rabbitmq:3.13.7-management-alpine`
+  sürümüne sabitlenmiştir (önceki kayan tag `3.13-management-alpine` ile aynı seri). Plugin **v3.13.0** sürümüne sabitlenmiştir ve SHA-256
   `3479180df03fa830fd59ccf638a60eee8f0e8261524a8616685522d7b8d9a9ee` ile doğrulanır. Plugin build sırasında
   `rabbitmq-plugins enable --offline` ile etkinleştirilir.
   docker-compose `rabbitmq` servisi artık bu Dockerfile'dan `eticaret-rabbitmq:3.13-delayed` olarak build edilir.
@@ -17,8 +18,8 @@ repository (Step 3.1) ve saga içi ödeme timeout'u (Step 4). `OrderTimeoutWorke
   `x-delayed-message` tipinde exchange tanımlanabildi.
 - `rabbitmq_bus` container'ı yeni image ile **yeniden oluşturulmalıdır** (`docker compose up -d --build rabbitmq`).
   Eski container plugin'siz kalır. `enabled_plugins` dosyası `/etc/rabbitmq` altında durur, `rabbitmq_data` volume'u etkilenmez.
-- Base image tag'i (`3.13-management-alpine`) kayan bir tag'dir. 3.13 serisi içinde güncellenmesi plugin ile uyumludur;
-  minor sürüm (örn. 4.x) değişirse plugin sürümü de değiştirilmelidir.
+- Base image yükseltilirken plugin sürümü de kontrol edilmeli: 3.13.x içinde plugin 3.13.0 uyumludur,
+  4.x'e geçişte plugin'in eşleşen sürümü gerekir.
 - Plugin olmadan: Order, zamanlanmış mesaj için `x-delayed-message` tipinde exchange tanımlamaya çalışır, broker reddeder.
   Timeout mesajı hiç teslim edilmez, siparişler `Beklemede` kalır. Outbox teslimatı bu mesajda hata alıp tekrar dener;
   aynı outbox'taki diğer mesajların gecikip gecikmeyeceği doğrulanmadı.
@@ -30,7 +31,9 @@ repository (Step 3.1) ve saga içi ödeme timeout'u (Step 4). `OrderTimeoutWorke
 1. RabbitMQ: `rabbitmq_bus`'ı yeni image ile yeniden oluştur (madde 1).
 2. **Stock** servisini deploy et (`ReleaseStockCommandConsumer`). Order'dan önce olmalı: Stock'un `release-stock-command`
    kuyruğu yokken publish edilen `ReleaseStockCommand` hiçbir kuyruğa yönlenmez ve kaybolur. Sonuç: stok iade edilmez.
-3. Eski Order'ın kuyruklarını boşalt (madde 3), ardından **Order** servisini deploy et.
+3. **Payment** servisini deploy et (`RefundPaymentCommandConsumer`, `payment-refund-queue`). Order'dan önce olmalı: aksi halde
+   saga'nın publish ettiği `RefundPaymentCommand` kaybolur ve timeout'tan sonra çekilen para iade edilmez.
+4. Eski Order'ın kuyruklarını boşalt (madde 3), ardından **Order** servisini deploy et.
 
 Step 3 tek başına deploy edilmemeli. Step 3'te oluşan saga instance'larında `ExpiresAt` ve zamanlanmış timeout yok.
 Step 4'ten sonra bu instance'lar için timeout hiç gelmez (madde 4).
@@ -41,7 +44,7 @@ Step 4'ten sonra bu instance'lar için timeout hiç gelmez (madde 4).
   (ve `_error` / `_skipped` eşleri) event exchange'lerine bağlı kalır. Artık tüketicileri yok, mesaj birikmeye devam eder.
 - Deploy'dan önce eski sürüm bu kuyrukları boşaltmalı. Kuyrukta kalan son event (örn. `PaymentCompleted`) saga'ya
   ulaşmaz ve sipariş takılı kalır. Deploy'dan sonra kuyruklar boş olduğu doğrulanarak management UI'dan silinmeli.
-- Yeni kuyruklar: Order'da `order-saga`, Stock'ta `release-stock-command`.
+- Yeni kuyruklar: Order'da `order-saga`, Stock'ta `release-stock-command`, Payment'ta `payment-refund-queue`.
 
 ## 4. Eski siparişler
 
@@ -63,14 +66,21 @@ bunları ayrı listeler ve manuel karara bırakır. Müşteriye bildirim gönder
   - Tur başına 100 instance işlenir. Saga yetişemezse aynı instance'lar sonraki turda tekrar gönderilir (mükerrer gönderim güvenli).
   - Order'ın birden fazla instance'ı çalışıyorsa her biri tarama yapar. Bu yalnızca mükerrer mesaj üretir, tutarsızlık üretmez.
   - Mesaj outbox'tan değil doğrudan bus'tan gönderilir. Kaybolursa instance bir sonraki turda yeniden seçilir.
-- **Timeout'tan sonra gelen ödeme:** Step 5'e kadar `Canceled` durumunda `PaymentCompleted` yoksayılır. Para çekilmiş,
-  sipariş iptal kalır, iade yapılmaz.
+- **Timeout'tan sonra gelen ödeme (Step 5):** Saga `Canceled` durumunda gelen `PaymentCompleted` için `RefundPaymentCommand`
+  publish eder, sipariş iptal kalır. Payment yalnızca `Success` ödemeyi iade eder (`UPDLOCK` ile, idempotent). Kalan riskler:
+  - İade sağlayıcı çağrısı DB transaction'ı içinde yapılır. Çağrı başarılı olup commit başarısız olursa mesaj yeniden işlenir;
+    gerçek bir sağlayıcıda `OrderId` idempotency anahtarı olarak gönderilmelidir (şu an `FakePaymentService`).
+  - Müşteriye iade için ayrı bir SignalR bildirimi gönderilmez; sipariş zaten `Canceled` olarak bildirilmiştir.
+- **Timeout ile ödeme yarışında stok:** Stock, `ReleaseStockCommand`'dan önce `PaymentCompleted`'ı işleyip rezervasyonu
+  `Confirmed` yapmış olabilir. `ReleaseStockCommand` artık iptal edilen siparişin `Reserved` ve `Confirmed` satırlarını
+  geri verir (`ReleaseForCanceledOrderAsync`); `Released` satırlara dokunmaz. `PaymentFailedEvent` yolu yalnızca `Reserved`
+  satırları geri verir (ödeme başarısızsa kesinleşmiş satır olamaz).
 - **Pessimistic kilit:** MassTransit 8.0.16'nın lock statement'ı `WITH (UPDLOCK, ROWLOCK, SERIALIZABLE)` üretir. Henüz var
   olmayan instance için key-range kilidi alınır: eşzamanlı kopya `OrderCreated`'da PK ihlali oluşmaz, ikinci mesaj bekler.
   Aynı key aralığına düşen farklı yeni siparişler de kısa süre birbirini bekleyebilir (CorrelationId rastgele GUID olduğu
   için etkisi düşük). Bekleme komut timeout'u (30 sn) ile sınırlıdır.
 - **`Canceled` + geç `StockReserved`:** Timeout stok cevabından önce gelirse saga yeniden `ReleaseStockCommand` publish eder.
   Stock iadesi siparişin aktif rezervasyonlarına göre yapıldığı için tekrar zararsızdır.
-- **Test:** factory'deki 3 sn'lik global timeout tüm saga testlerinde çalışır. `AwaitingPayment`'ta ~2 sn bekleyen
-  testlerin payı ~1 sn; yavaş CI'da flaky olabilir.
+- **Test:** global harness timeout'u 30 sn. Timeout senaryoları ayrı bir host'ta 3 sn ile çalışır (`ShortTimeoutApi`).
+  Payment'ın `RefundPaymentCommandConsumer`'ı için otomatik test yok (raw SQL + `UPDLOCK`, EF InMemory ile test edilemez).
 - `OrderState.RowVersion` kolonu artık kullanılmıyor. Kaldırılması ayrı bir migration gerektirir.

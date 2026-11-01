@@ -117,8 +117,16 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             Ignore(PaymentFailed),
             Ignore(PaymentTimeout.Received));
 
-        // Step 5: Canceled durumunda gelen PaymentCompleted için refund eklenecek
         During(Canceled,
+            // Sipariş iptal edildikten sonra (örn. timeout) ödeme tamamlandı: müşteriden çekilen para iade edilir, sipariş iptal kalır.
+            // Payment iadeyi yalnızca Success durumundaki ödeme için yapar; kopya komut zararsızdır.
+            When(PaymentCompleted)
+                .PublishAsync(ctx => ctx.Init<RefundPaymentCommand>(new
+                {
+                    ctx.Saga.CorrelationId,
+                    ctx.Saga.OrderId,
+                    Reason = "Sipariş iptal edildikten sonra ödeme alındı."
+                })),
             // Timeout stok cevabından önce gelirse Stock rezervasyonu iptalden sonra yapmış olabilir: tekrar iade istenir.
             // Stock tarafında iade siparişin aktif rezervasyonlarına göre yapıldığı için kopya istek zararsızdır.
             When(StockReserved)
@@ -130,7 +138,6 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 })),
             Ignore(OrderCreated),
             Ignore(StockFailed),
-            Ignore(PaymentCompleted),
             Ignore(PaymentFailed),
             Ignore(PaymentTimeout.Received));
     }

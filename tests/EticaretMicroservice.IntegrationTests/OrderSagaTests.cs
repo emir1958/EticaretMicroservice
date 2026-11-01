@@ -9,7 +9,7 @@ namespace EticaretMicroservice.IntegrationTests;
 
 // Order saga'sının sözleşmesi. Diğer servisler (Stock, Payment) event publish edilerek simüle edilir.
 // Characterization testleri bugünkü choreography davranışını korur; saga'ya geçişte de yeşil kalmalıdır.
-// Saga davranışı testleri saga uygulanana kadar kırmızıdır.
+// Saga davranışı testleri saga'nın durum geçişlerini, timeout'u ve telafi (compensation) adımlarını doğrular.
 [Collection(OrderApiCollection.Name)]
 public class OrderSagaTests
 {
@@ -76,7 +76,7 @@ public class OrderSagaTests
         _driver.ReceivedDownstreamCount<RefundPaymentCommand>(c => c.OrderId == order.OrderId).Should().Be(0);
     }
 
-    // --- Saga davranışı: saga uygulanana kadar kırmızı ---
+    // --- Saga davranışı ---
 
     // Ödeme süre içinde gelmezse sipariş iptal edilir ve rezerve stok iade edilir (saga Schedule, OrderSaga:PaymentTimeout).
     [Fact]
@@ -150,7 +150,6 @@ public class OrderSagaTests
     }
 
     // Analizdeki 3. bulgu: timeout'tan sonra gelen ödeme müşteriden çekilmiş paradır; iade edilmelidir.
-    // Bugün: iade adımı yok, para çekilmiş halde sipariş iptal kalır.
     [Fact]
     public async Task PaymentCompletedAfterTimeout_RefundsPaymentAndKeepsOrderCanceled()
     {
@@ -167,7 +166,6 @@ public class OrderSagaTests
     }
 
     // Sıra dışı (out-of-order) gelen StockFailed, tamamlanmış bir siparişi iptal etmemeli.
-    // Bugün: StockFailedEventConsumer korumasız SetStatusToCanceled() kullanıyor.
     [Fact]
     public async Task StockFailedAfterCompletion_DoesNotCancelCompletedOrder()
     {
