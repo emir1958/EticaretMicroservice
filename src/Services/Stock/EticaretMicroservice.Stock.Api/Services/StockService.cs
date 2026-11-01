@@ -17,6 +17,7 @@ public interface IStockService
     Task<ReservationResult> ReserveForOrderAsync(int orderId, IReadOnlyCollection<OrderItemMessage> items, CancellationToken cancellationToken = default);
     Task<int> ConfirmForOrderAsync(int orderId, CancellationToken cancellationToken = default);
     Task<int> ReleaseForOrderAsync(int orderId, CancellationToken cancellationToken = default);
+    Task<int> ReleaseForCanceledOrderAsync(int orderId, CancellationToken cancellationToken = default);
     Task<bool> CreateStockAsync(string productId, int initialStock);
 }
 
@@ -93,7 +94,7 @@ public class StockService : IStockService
         return reservations.Count;
     }
 
-    // 3. İade - ödeme başarısız veya zaman aşımı: yalnızca BU siparişin aktif rezervasyonu geri verilir
+    // 3. İade - ödeme başarısız: yalnızca BU siparişin aktif rezervasyonu geri verilir
     public async Task<int> ReleaseForOrderAsync(int orderId, CancellationToken cancellationToken = default)
     {
         var reservations = await LockActiveReservationsAsync(orderId, cancellationToken);
@@ -101,6 +102,25 @@ public class StockService : IStockService
         foreach (var reservation in reservations)
         {
             await AdjustStockAsync(reservation.ProductId, availableDelta: reservation.Quantity, reservedDelta: -reservation.Quantity, cancellationToken);
+            reservation.Status = StockReservationStatus.Released;
+            reservation.UpdatedAt = DateTime.UtcNow;
+        }
+
+        return reservations.Count;
+    }
+
+    // 4. İade - Order saga'sı siparişi iptal etti (ödeme süresi doldu): kesinleşmiş rezervasyonlar da geri verilir.
+    // Timeout ile ödeme yarışırsa PaymentCompleted bu komuttan önce işlenip rezervasyonu Confirmed yapmış olabilir;
+    // sipariş iptal edilip ödeme iade edildiği için o stok da müsait stoğa döner. Released satırlara dokunulmaz (idempotent).
+    public async Task<int> ReleaseForCanceledOrderAsync(int orderId, CancellationToken cancellationToken = default)
+    {
+        var reservations = await LockReleasableReservationsAsync(orderId, cancellationToken);
+
+        foreach (var reservation in reservations)
+        {
+            // Confirmed rezervasyon, kesinleştirmede rezerve havuzundan zaten düşülmüştü
+            var reservedDelta = reservation.Status == StockReservationStatus.Reserved ? -reservation.Quantity : 0;
+            await AdjustStockAsync(reservation.ProductId, availableDelta: reservation.Quantity, reservedDelta: reservedDelta, cancellationToken);
             reservation.Status = StockReservationStatus.Released;
             reservation.UpdatedAt = DateTime.UtcNow;
         }
@@ -131,6 +151,14 @@ public class StockService : IStockService
     private Task<List<StockReservation>> LockActiveReservationsAsync(int orderId, CancellationToken cancellationToken) =>
         _context.StockReservations
             .FromSqlInterpolated($"SELECT * FROM StockReservations WITH (UPDLOCK, ROWLOCK) WHERE OrderId = {orderId} AND Status = {(int)StockReservationStatus.Reserved}")
+            .OrderBy(r => r.ProductId)
+            .ToListAsync(cancellationToken);
+
+    // İptal edilen sipariş için geri verilebilecek satırlar (Reserved + Confirmed). Aynı UPDLOCK kuralı:
+    // ConfirmForOrderAsync ile eşzamanlı çalışırsa biri diğerini bekler, ikisi aynı satırı iki kez işleyemez.
+    private Task<List<StockReservation>> LockReleasableReservationsAsync(int orderId, CancellationToken cancellationToken) =>
+        _context.StockReservations
+            .FromSqlInterpolated($"SELECT * FROM StockReservations WITH (UPDLOCK, ROWLOCK) WHERE OrderId = {orderId} AND Status IN ({(int)StockReservationStatus.Reserved}, {(int)StockReservationStatus.Confirmed})")
             .OrderBy(r => r.ProductId)
             .ToListAsync(cancellationToken);
 

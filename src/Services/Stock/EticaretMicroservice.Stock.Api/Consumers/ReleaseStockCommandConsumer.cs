@@ -28,12 +28,12 @@ public class ReleaseStockCommandConsumer : IConsumer<ReleaseStockCommand>
         _logger.LogWarning("[CorrelationId: {CorrelationId}] ReleaseStockCommand alındı. OrderId: {OrderId}, Sebep: {Reason}",
             message.CorrelationId, message.OrderId, message.Reason);
 
-        // PaymentFailedEventConsumer ile aynı kural: yalnızca bu siparişin aktif rezervasyonları iade edilir, kopya istek zararsızdır.
-        var releasedCount = await _stockService.ReleaseForOrderAsync(message.OrderId, context.CancellationToken);
+        // Sipariş iptal edildi: bu siparişin rezerve ve (ödeme yarışında) kesinleşmiş satırları iade edilir, kopya istek zararsızdır.
+        var releasedCount = await _stockService.ReleaseForCanceledOrderAsync(message.OrderId, context.CancellationToken);
 
         if (releasedCount == 0)
         {
-            _logger.LogInformation("[CorrelationId: {CorrelationId}] OrderId: {OrderId} için aktif rezervasyon yok (zaten iade/kesinleşmiş ya da hiç rezerve edilmemiş).",
+            _logger.LogInformation("[CorrelationId: {CorrelationId}] OrderId: {OrderId} için iade edilecek rezervasyon yok (zaten iade edilmiş ya da hiç rezerve edilmemiş).",
                 message.CorrelationId, message.OrderId);
         }
 
