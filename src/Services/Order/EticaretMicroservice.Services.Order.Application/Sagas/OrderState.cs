@@ -23,6 +23,7 @@ public class OrderState : SagaStateMachineInstance
     // Ödeme gelirse zamanlanmış timeout mesajını iptal edebilmek için
     public Guid? PaymentTimeoutTokenId { get; set; }
 
-    // Optimistic concurrency: aynı instance'a eşzamanlı iki event yazamaz
+    // Kullanılmıyor: saga repository Pessimistic modda, eşzamanlılık satır kilidiyle (UPDLOCK) sağlanır.
+    // Kolon şema değişikliği gerektirmemek için şimdilik bırakıldı; kaldırılması ayrı bir migration işidir.
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

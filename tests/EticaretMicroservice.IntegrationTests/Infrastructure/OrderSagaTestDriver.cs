@@ -155,6 +155,15 @@ public class OrderSagaTestDriver
     public int ReceivedDownstreamCount<T>(Func<T, bool> filter) where T : class =>
         Harness.Consumed.Select<T>().Count(m => filter(m.Context.Message));
 
+    // Harness.Consumed kayıtları MessageId ile tutar: aynı mesajı hem saga hem sink tükettiğinde tek kayıt kalır.
+    // Saga'nın kaç kez başarıyla işlediğini saymak için bus'a bir consume observer bağlanır.
+    public SagaConsumeCounter<T> CountSagaConsumes<T>(Func<T, bool> filter) where T : class
+    {
+        var counter = new SagaConsumeCounter<T>(filter);
+        Harness.Bus.ConnectConsumeMessageObserver(counter);
+        return counter;
+    }
+
     public Task WaitForStatusAsync(CreatedOrder order, OrderStatus expected) =>
         WaitUntilAsync(async () => await GetStatusAsync(order.OrderId) == expected,
             $"OrderId {order.OrderId} durumu '{expected}' olmalı");

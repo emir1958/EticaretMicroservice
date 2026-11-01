@@ -1,6 +1,8 @@
 using EticaretMicroservice.IntegrationTests.Infrastructure;
 using EticaretMicroservice.Services.Order.Domain.Enums;
+using EticaretMicroservice.Shared.Events;
 using FluentAssertions;
+using MassTransit;
 
 namespace EticaretMicroservice.IntegrationTests;
 
@@ -57,9 +59,29 @@ public class OrderSagaStateTests
         (await _driver.GetSagaAsync(order.CorrelationId))!.CurrentState.Should().Be(AwaitingPayment);
     }
 
+    // Henüz instance yokken aynı anda gelen iki OrderCreated: kilitlenecek satır olmadığından ikisi de INSERT dener.
+    // Kaybeden PK ihlali (2627) alır, retry'da instance'ı bulur ve Ignore(OrderCreated) ile yoksayılır; mesaj fault'a düşmez.
+    // HTTP akışı kendi OrderCreated'ını da ürettiği için yarış, siparişi olmayan bir CorrelationId ile kurulur.
+    [Fact]
+    public async Task DuplicateOrderCreatedArriveConcurrently_CreatesSingleInstanceWithoutFault()
+    {
+        var order = new CreatedOrder(-Random.Shared.Next(1, int.MaxValue), Guid.NewGuid(), $"saga-buyer-{Guid.NewGuid():N}");
+        var sagaConsumes = _driver.CountSagaConsumes<OrderCreatedEvent>(m => m.CorrelationId == order.CorrelationId);
+
+        await Task.WhenAll(_driver.OrderCreatedAsync(order), _driver.OrderCreatedAsync(order));
+
+        await _driver.WaitForSagaStateAsync(order, AwaitingStock);
+        await OrderSagaTestDriver.WaitUntilAsync(() => Task.FromResult(sagaConsumes.Count == 2),
+            "iki OrderCreated da saga tarafından işlenmeli");
+
+        (await _driver.CountSagasForOrderAsync(order.OrderId)).Should().Be(1);
+        _driver.Harness.Published.Select<Fault<OrderCreatedEvent>>()
+            .Count(f => f.Context.Message.Message.CorrelationId == order.CorrelationId).Should().Be(0);
+    }
+
     // Çelişen iki event aynı anda gelirse tek bir sonuç kazanmalı; saga durumu ile sipariş durumu birbirini tutmalı.
-    // Kaybeden mesaj çakışma alır, retry'da saga'yı terminal durumda bulur ve yoksayılır. Mevcut yapılandırmada
-    // (outbox transaction'ı RepeatableRead) çakışma SQL deadlock'u olarak çıkar; RowVersion ikinci savunma hattıdır.
+    // Pessimistic saga repository'de ikinci event instance satırının kilidinde (UPDLOCK) bekler, ilki commit edince
+    // saga'yı terminal durumda bulur ve yoksayılır; deadlock/retry gerekmez.
     [Fact]
     public async Task PaymentCompletedAndFailedArriveConcurrently_SagaAndOrderStayConsistent()
     {

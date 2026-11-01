@@ -17,13 +17,16 @@ public static class OrderMessagingExtensions
         x.AddScoped<CancelOrderActivity>();
 
         // Saga durumu, Order aggregate'i ve outbox mesajları aynı OrderDbContext'i (ExistingDbContext) paylaşır:
-        // hepsi tek bir transaction'da commit edilir. Aynı instance'a eşzamanlı yazımda kaybeden taraf retry ile yeniden
-        // işlenir. Outbox transaction'ı RepeatableRead olduğu için çakışma pratikte deadlock olarak çıkar; RowVersion yedek savunmadır.
+        // hepsi tek bir transaction'da commit edilir.
+        // Pessimistic: instance satırı UPDLOCK, ROWLOCK ile okunur; aynı instance'a gelen ikinci event, ilki commit edene kadar
+        // okumada bekler ve güncel durumu görür. (Optimistic modda iki okuma da RepeatableRead S kilidi tutup UPDATE'te
+        // birbirini beklediği için SQL deadlock'u oluşuyordu.) Concurrency kontrolü bu kilitle sağlanır; RowVersion kolonu kullanılmıyor.
         x.AddSagaStateMachine<OrderStateMachine, OrderState>()
             .EntityFrameworkRepository(r =>
             {
-                r.ConcurrencyMode = ConcurrencyMode.Optimistic;
+                r.ConcurrencyMode = ConcurrencyMode.Pessimistic;
                 r.ExistingDbContext<OrderDbContext>();
+                // SqlServerLockStatementProvider: SELECT ... WITH (UPDLOCK, ROWLOCK)
                 r.UseSqlServer();
             })
             .Endpoint(e => e.Name = SagaEndpointName);
