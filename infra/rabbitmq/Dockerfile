@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # docker-compose'daki önceki image'ın aynısı + Order saga timeout'u (MassTransit UseDelayedMessageScheduler) için
 # rabbitmq_delayed_message_exchange plugin'i.
-FROM rabbitmq:3.13-management-alpine
+FROM rabbitmq:3.13.7-management-alpine
 
 # Plugin sürümü RabbitMQ minor sürümüyle eşleşmelidir (3.13.x -> plugin 3.13.x). Base image güncellenirse burası da kontrol edilmeli.
 ARG DELAYED_EXCHANGE_VERSION=3.13.0
