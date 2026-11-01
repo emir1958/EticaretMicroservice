@@ -1,6 +1,7 @@
 ﻿using EticaretMicroservice.Payment.Api.Consumers;
 using EticaretMicroservice.Payment.Api.Data;
 using EticaretMicroservice.Payment.Api.Services;
+using EticaretMicroservice.Shared.Commands;
 using EticaretMicroservice.Shared.Events;
 using EticaretMicroservice.Shared.Extensions;
 using HealthChecks.UI.Client;
@@ -47,6 +48,7 @@ builder.Services.AddHealthChecks()
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<StockReservedEventConsumer>();
+    x.AddConsumer<RefundPaymentCommandConsumer>();
 
     // Entity Framework Outbox & Inbox entegrasyonu
     x.AddEntityFrameworkOutbox<PaymentDbContext>(o =>
@@ -75,6 +77,14 @@ builder.Services.AddMassTransit(x =>
 
             // 🟢 KRİTİK BINDING: Exchange ile kuyruk arasındaki bağı garantiye alır
             e.Bind<StockReservedEvent>();
+        });
+
+        // Order saga'sının iade komutu (iptal edilmiş siparişe gelen ödeme)
+        cfg.ReceiveEndpoint("payment-refund-queue", e =>
+        {
+            e.UseEntityFrameworkOutbox<PaymentDbContext>(context);
+            e.ConfigureConsumer<RefundPaymentCommandConsumer>(context);
+            e.Bind<RefundPaymentCommand>();
         });
 
         // 🟢 Diğer tüm endpoint'leri bağlar
