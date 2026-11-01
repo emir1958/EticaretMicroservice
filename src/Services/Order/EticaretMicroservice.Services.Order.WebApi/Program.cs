@@ -3,6 +3,7 @@ using EticaretMicroservice.Services.Order.Application.Hubs;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Application.Validators;
+using EticaretMicroservice.Services.Order.Infrastructure.BackgroundServices;
 using EticaretMicroservice.Services.Order.Infrastructure.Messaging;
 using EticaretMicroservice.Services.Order.Infrastructure.Notifications;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
@@ -95,6 +96,10 @@ builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration, signalRHubPath: "/orderhub");
 
 builder.Services.AddSignalR();
+
+// Kaçan saga timeout'ları için emniyet ağı. Singleton olarak da kayıtlı: integration testler taramayı doğrudan tetikler.
+builder.Services.AddSingleton<OrderTimeoutSweeper>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<OrderTimeoutSweeper>());
 
 // 8. Health Check Servis Kaydı
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";

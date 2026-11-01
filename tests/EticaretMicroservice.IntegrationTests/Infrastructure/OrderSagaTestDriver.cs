@@ -5,6 +5,7 @@ using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Domain.Enums;
 using EticaretMicroservice.Services.Order.Domain.ValueObjects;
+using EticaretMicroservice.Services.Order.Infrastructure.BackgroundServices;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Shared.Events;
 using MassTransit;
@@ -169,6 +170,18 @@ public class OrderSagaTestDriver
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
         return await dbContext.Set<OrderState>().AsNoTracking().SingleOrDefaultAsync(s => s.CorrelationId == correlationId);
+    }
+
+    public OrderTimeoutSweeper Sweeper => _factory.Services.GetRequiredService<OrderTimeoutSweeper>();
+
+    // Zamanlanmış timeout mesajının kaybolduğu durumu simüle eder: instance'ın son tarihi geçmişe çekilir
+    public async Task SetSagaExpiresAtAsync(Guid correlationId, DateTime expiresAt)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        await dbContext.Set<OrderState>()
+            .Where(s => s.CorrelationId == correlationId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ExpiresAt, expiresAt));
     }
 
     public async Task<int> CountSagasForOrderAsync(int orderId)

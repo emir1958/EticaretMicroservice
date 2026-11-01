@@ -48,14 +48,17 @@ Step 4'ten sonra bu instance'lar için timeout hiç gelmez (madde 4).
 | Durum | Ne olur | Öneri |
 |---|---|---|
 | Deploy anında `Beklemede` olan, saga instance'ı olmayan sipariş | Stock/Payment event'leri `OnMissingInstance → Fault` ile `order-saga_error`'a düşer. Worker kaldırıldığı için 15 dk sonra iptal de edilmez | Step 7'ye kadar: deploy'u bekleyen sipariş yokken yap veya bu siparişleri deploy öncesi manuel iptal et / tamamla |
-| Saga instance'ı var ama `ExpiresAt` boş (yalnızca Step 3 ayrı deploy edilirse) | Zamanlanmış timeout yok, `AwaitingStock/AwaitingPayment`'ta kalır | Step 3 ile 4'ü birlikte deploy et |
+| Saga instance'ı var ama `ExpiresAt` boş (yalnızca Step 3 ayrı deploy edilirse) | Zamanlanmış timeout yok. `OrderTimeoutSweeper` bunları `CreatedAt + PaymentTimeout + SweeperGrace` geçince saga üzerinden iptal ettirir | Yine de Step 3 ile 4'ü birlikte deploy et |
 
 ## 5. Açık kalan riskler
 
-- **Kaçan timeout için emniyet ağı yok.** Delayed mesaj kaybolursa (RabbitMQ node kaybı) sipariş `Beklemede` ve stok
-  rezerve kalır. `ExpiresAt` ve `(CurrentState, ExpiresAt)` index'i hazır. Süresi geçmiş instance'lara saga üzerinden
-  `PaymentTimeoutExpired` gönderen bir sweeper eklenebilir. Bu sweeper Order tablosuna doğrudan yazmamalı: eski worker'ın
-  "saga Completed / DB İptal" tutarsızlığı böyle oluşuyordu.
+- **Kaçan timeout → `OrderTimeoutSweeper`.** Delayed mesaj kaybolursa (RabbitMQ node kaybı) sweeper her
+  `OrderSaga:SweeperInterval` (varsayılan 1 dk) aralıkta `AwaitingStock/AwaitingPayment` durumundaki ve
+  `ExpiresAt + OrderSaga:SweeperGrace` (varsayılan 2 dk) süresini geçmiş instance'lara `PaymentTimeoutExpired` gönderir.
+  Order'a yazmaz, kararı saga verir. Kalan sınırlar:
+  - Tur başına 100 instance işlenir. Saga yetişemezse aynı instance'lar sonraki turda tekrar gönderilir (mükerrer gönderim güvenli).
+  - Order'ın birden fazla instance'ı çalışıyorsa her biri tarama yapar. Bu yalnızca mükerrer mesaj üretir, tutarsızlık üretmez.
+  - Mesaj outbox'tan değil doğrudan bus'tan gönderilir. Kaybolursa instance bir sonraki turda yeniden seçilir.
 - **Timeout'tan sonra gelen ödeme:** Step 5'e kadar `Canceled` durumunda `PaymentCompleted` yoksayılır. Para çekilmiş,
   sipariş iptal kalır, iade yapılmaz.
 - **Pessimistic kilit:** MassTransit 8.0.16'nın lock statement'ı `WITH (UPDLOCK, ROWLOCK, SERIALIZABLE)` üretir. Henüz var
