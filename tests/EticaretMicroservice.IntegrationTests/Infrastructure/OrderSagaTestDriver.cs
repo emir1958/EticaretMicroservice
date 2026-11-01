@@ -9,6 +9,7 @@ using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Shared.Events;
 using MassTransit;
 using MassTransit.Testing;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -27,15 +28,23 @@ public class OrderSagaTestDriver
     private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan SettleDelay = TimeSpan.FromSeconds(2);
 
-    private readonly OrderApiFactory _factory;
+    private readonly WebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
 
-    public OrderSagaTestDriver(OrderApiFactory factory)
+    public OrderSagaTestDriver(OrderApiFactory factory) : this(factory, factory.CatalogRepoMock)
+    {
+    }
+
+    // Timeout senaryoları için: OrderApiFactory.ShortTimeoutApi (aynı DB, kendi bus'ı ve harness'ı)
+    public static OrderSagaTestDriver WithShortTimeout(OrderApiFactory factory) =>
+        new(factory.ShortTimeoutApi, factory.CatalogRepoMock);
+
+    private OrderSagaTestDriver(WebApplicationFactory<Program> factory, Mock<ICatalogRepository> catalogRepoMock)
     {
         _factory = factory;
         _client = factory.CreateClient();
 
-        _factory.CatalogRepoMock
+        catalogRepoMock
             .Setup(x => x.GetProductByIdAsync(It.Is<string>(id => id.StartsWith(ProductPrefix)), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string id, CancellationToken _) => new CatalogProductDto(id, "Saga Test Ürünü", "Açıklama", ProductPrice));
     }
