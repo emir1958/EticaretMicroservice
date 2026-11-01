@@ -3,13 +3,22 @@
 Kapsam: Order servisinin consumer tabanlı yapıdan `OrderStateMachine` saga'sına geçişi (Step 3), pessimistic saga
 repository (Step 3.1) ve saga içi ödeme timeout'u (Step 4). `OrderTimeoutWorker` kaldırıldı.
 
-## 1. Ön koşul: RabbitMQ delayed exchange plugin'i (şu an YOK)
+## 1. Ön koşul: RabbitMQ delayed exchange plugin'i
 
-- `rabbitmq:3.13-management-alpine` image'ında `rabbitmq_delayed_message_exchange` bulunmuyor; `enabled_plugins`
-  yalnızca `rabbitmq_management, rabbitmq_prometheus` (2026-11-01'de image üzerinden kontrol edildi).
-- Gerekenler: 3.13 ile uyumlu plugin `.ez` dosyası (community plugin, v3.13.x) image'a eklenmeli (custom Dockerfile
-  veya `/opt/rabbitmq/plugins` mount) ve `rabbitmq-plugins enable rabbitmq_delayed_message_exchange` ile etkinleştirilmeli
-  (veya `enabled_plugins` dosyasına eklenmeli). Bu bir altyapı değişikliğidir, henüz yapılmadı.
+- Order, `UseDelayedMessageScheduler()` kullanır; broker'da `rabbitmq_delayed_message_exchange` etkin olmalıdır.
+  Düz `rabbitmq:3.13-management-alpine` image'ında bu plugin yoktur.
+- Çözüm: [infra/rabbitmq/Dockerfile](../../infra/rabbitmq/Dockerfile). Aynı base image'ı (`rabbitmq:3.13-management-alpine`,
+  build anında 3.13.7) kullanır. Plugin **v3.13.0** sürümüne sabitlenmiştir ve SHA-256
+  `3479180df03fa830fd59ccf638a60eee8f0e8261524a8616685522d7b8d9a9ee` ile doğrulanır. Plugin build sırasında
+  `rabbitmq-plugins enable --offline` ile etkinleştirilir.
+  docker-compose `rabbitmq` servisi artık bu Dockerfile'dan `eticaret-rabbitmq:3.13-delayed` olarak build edilir.
+  Container adı, port'lar, volume ve kimlik bilgileri değişmedi.
+- Doğrulama (2026-11-01, geçici container): `rabbitmq-plugins list -e` → `[E*] rabbitmq_delayed_message_exchange 3.13.0`.
+  `x-delayed-message` tipinde exchange tanımlanabildi.
+- `rabbitmq_bus` container'ı yeni image ile **yeniden oluşturulmalıdır** (`docker compose up -d --build rabbitmq`).
+  Eski container plugin'siz kalır. `enabled_plugins` dosyası `/etc/rabbitmq` altında durur, `rabbitmq_data` volume'u etkilenmez.
+- Base image tag'i (`3.13-management-alpine`) kayan bir tag'dir. 3.13 serisi içinde güncellenmesi plugin ile uyumludur;
+  minor sürüm (örn. 4.x) değişirse plugin sürümü de değiştirilmelidir.
 - Plugin olmadan: Order, zamanlanmış mesaj için `x-delayed-message` tipinde exchange tanımlamaya çalışır, broker reddeder.
   Timeout mesajı hiç teslim edilmez, siparişler `Beklemede` kalır. Outbox teslimatı bu mesajda hata alıp tekrar dener;
   aynı outbox'taki diğer mesajların gecikip gecikmeyeceği doğrulanmadı.
@@ -18,7 +27,7 @@ repository (Step 3.1) ve saga içi ödeme timeout'u (Step 4). `OrderTimeoutWorke
 
 ## 2. Deploy sırası
 
-1. RabbitMQ: plugin'i etkinleştir (madde 1).
+1. RabbitMQ: `rabbitmq_bus`'ı yeni image ile yeniden oluştur (madde 1).
 2. **Stock** servisini deploy et (`ReleaseStockCommandConsumer`). Order'dan önce olmalı: Stock'un `release-stock-command`
    kuyruğu yokken publish edilen `ReleaseStockCommand` hiçbir kuyruğa yönlenmez ve kaybolur. Sonuç: stok iade edilmez.
 3. Eski Order'ın kuyruklarını boşalt (madde 3), ardından **Order** servisini deploy et.
