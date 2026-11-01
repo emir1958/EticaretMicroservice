@@ -45,9 +45,13 @@ Step 4'ten sonra bu instance'lar için timeout hiç gelmez (madde 4).
 
 ## 4. Eski siparişler
 
+Script varsayılan olarak yalnızca listeler (`@Cancel = 0`). `@Cancel = 1` ile ödemesi alınmamış siparişleri iptal eder
+ve aktif stok rezervasyonlarını aynı transaction'da iade eder. Ödemesi alınmış ama beklemede kalmış siparişlere dokunmaz;
+bunları ayrı listeler ve manuel karara bırakır. Müşteriye bildirim gönderilmez.
+
 | Durum | Ne olur | Öneri |
 |---|---|---|
-| Deploy anında `Beklemede` olan, saga instance'ı olmayan sipariş | Stock/Payment event'leri `OnMissingInstance → Fault` ile `order-saga_error`'a düşer. Worker kaldırıldığı için 15 dk sonra iptal de edilmez | Step 7'ye kadar: deploy'u bekleyen sipariş yokken yap veya bu siparişleri deploy öncesi manuel iptal et / tamamla |
+| Deploy anında `Beklemede` olan, saga instance'ı olmayan sipariş | Stock/Payment event'leri `OnMissingInstance → Fault` ile `order-saga_error`'a düşer. Worker kaldırıldığı için 15 dk sonra iptal de edilmez. Sweeper bunları seçmez (yalnızca saga instance'larına bakar) | Bekleyen sipariş yokken deploy et **ya da** önce [cancel-pending-orders-without-saga.sql](cancel-pending-orders-without-saga.sql) çalıştır |
 | Saga instance'ı var ama `ExpiresAt` boş (yalnızca Step 3 ayrı deploy edilirse) | Zamanlanmış timeout yok. `OrderTimeoutSweeper` bunları `CreatedAt + PaymentTimeout + SweeperGrace` geçince saga üzerinden iptal ettirir | Yine de Step 3 ile 4'ü birlikte deploy et |
 
 ## 5. Açık kalan riskler
