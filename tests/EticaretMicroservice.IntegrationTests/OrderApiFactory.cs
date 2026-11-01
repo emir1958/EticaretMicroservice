@@ -1,5 +1,6 @@
 ﻿using EticaretMicroservice.IntegrationTests.Infrastructure;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
+using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication;
@@ -62,8 +63,22 @@ public class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll(typeof(ICatalogRepository));
             services.AddSingleton(CatalogRepoMock.Object);
 
-            // RabbitMQ yerine in-memory transport; Program.cs'teki consumer ve outbox kayıtları korunur
-            services.AddMassTransitTestHarness(x => x.AddConsumer<SagaMessageSink>());
+            // RabbitMQ yerine in-memory transport; Program.cs'teki saga ve outbox kayıtları korunur.
+            // Production'daki retry politikasının karşılığı: saga instance'ından önce gelen event'ler ve
+            // RowVersion çakışmasını kaybeden mesajlar retry ile yeniden işlenir.
+            var registrationsBeforeHarness = services.ToList();
+
+            services.AddMassTransitTestHarness(x =>
+            {
+                x.AddConsumer<SagaMessageSink>();
+                x.UsingInMemory((context, cfg) =>
+                {
+                    cfg.UseMessageRetry(r => r.Intervals(100, 250, 500, 1000, 2000, 3000));
+                    cfg.ConfigureEndpoints(context);
+                });
+            });
+
+            KeepProductionSagaRepository(services, registrationsBeforeHarness);
 
             // JWT yerine header tabanlı test kimliği
             services.AddAuthentication(options =>
@@ -73,6 +88,25 @@ public class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
         });
+    }
+
+    // Harness saga repository'lerini in-memory kayıtlarla değiştirir (DI'da son kayıt kazanır).
+    // Saga'nın gerçek SQL'de (EF repository, RowVersion) test edilmesi için harness'ın OrderState altyapısına
+    // eklediği mükerrer kayıtlar kaldırılır; harness'a özgü (öncesinde olmayan) kayıtlar korunur.
+    private static void KeepProductionSagaRepository(IServiceCollection services, IReadOnlyCollection<ServiceDescriptor> registrationsBeforeHarness)
+    {
+        var productionSagaServiceTypes = registrationsBeforeHarness
+            .Where(d => d.ServiceType.GenericTypeArguments.Contains(typeof(OrderState)))
+            .Select(d => d.ServiceType)
+            .ToHashSet();
+
+        var harnessDuplicates = services
+            .Except(registrationsBeforeHarness)
+            .Where(d => productionSagaServiceTypes.Contains(d.ServiceType))
+            .ToList();
+
+        foreach (var descriptor in harnessDuplicates)
+            services.Remove(descriptor);
     }
 
     public new async Task DisposeAsync()

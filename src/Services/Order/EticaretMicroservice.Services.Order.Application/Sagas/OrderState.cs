@@ -8,7 +8,9 @@ public class OrderState : SagaStateMachineInstance
 {
     // Order.CorrelationId ile aynı değer; Stock/Payment event'leri bu değerle eşleşir
     public Guid CorrelationId { get; set; }
-    public string CurrentState { get; set; } = string.Empty;
+    // Yeni instance'ta null olmalı: MassTransit null'ı "Initial" sayar, string.Empty'yi ise tanımsız durum adı
+    // olarak okuyup UnknownStateException fırlatır. Kayıt anında her zaman dolu olduğu için kolon NOT NULL kalır.
+    public string CurrentState { get; set; } = null!;
 
     public int OrderId { get; set; }
     public string BuyerId { get; set; } = string.Empty;

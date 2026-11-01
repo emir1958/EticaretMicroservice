@@ -75,14 +75,5 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
             OrderStatus = OrderStatus.Tamamlandı;
             return true;
         }
-        public void SetStatusToCanceled()
-        {
-            OrderStatus = OrderStatus.IptalEdildi;
-        }
-
-        public void SetStatusToCompleted()
-        {
-            OrderStatus = OrderStatus.Tamamlandı;
-        }
     }
 }

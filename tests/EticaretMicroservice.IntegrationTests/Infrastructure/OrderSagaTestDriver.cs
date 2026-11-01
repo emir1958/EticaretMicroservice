@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using EticaretMicroservice.Services.Order.Application.Commands;
 using EticaretMicroservice.Services.Order.Application.Dtos;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
+using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Domain.Enums;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Shared.Events;
@@ -123,6 +124,33 @@ public class OrderSagaTestDriver
             .Select(o => o.OrderStatus)
             .SingleAsync();
     }
+
+    public Task OrderCreatedAsync(CreatedOrder order) =>
+        Harness.Bus.Publish(new OrderCreatedEvent
+        {
+            CorrelationId = order.CorrelationId,
+            OrderId = order.OrderId,
+            BuyerId = order.BuyerId,
+            PaymentToken = "tok_saga_test"
+        });
+
+    public async Task<OrderState?> GetSagaAsync(Guid correlationId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        return await dbContext.Set<OrderState>().AsNoTracking().SingleOrDefaultAsync(s => s.CorrelationId == correlationId);
+    }
+
+    public async Task<int> CountSagasForOrderAsync(int orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        return await dbContext.Set<OrderState>().CountAsync(s => s.OrderId == orderId);
+    }
+
+    public Task WaitForSagaStateAsync(CreatedOrder order, string expectedState) =>
+        WaitUntilAsync(async () => (await GetSagaAsync(order.CorrelationId))?.CurrentState == expectedState,
+            $"OrderId {order.OrderId} saga durumu '{expectedState}' olmalı");
 
     public int ReceivedDownstreamCount<T>(Func<T, bool> filter) where T : class =>
         Harness.Consumed.Select<T>().Count(m => filter(m.Context.Message));
