@@ -23,7 +23,8 @@ public class OrderState : SagaStateMachineInstance
     // Ödeme gelirse zamanlanmış timeout mesajını iptal edebilmek için
     public Guid? PaymentTimeoutTokenId { get; set; }
 
-    // Kullanılmıyor: saga repository Pessimistic modda, eşzamanlılık satır kilidiyle (UPDLOCK) sağlanır.
-    // Kolon şema değişikliği gerektirmemek için şimdilik bırakıldı; kaldırılması ayrı bir migration işidir.
+    // Yedek savunma: saga Pessimistic modda olduğu için birincil koruma satır kilididir (UPDLOCK) ve saga yolunda bu kontrol
+    // başarısız olamaz. EF yine de her UPDATE'e "WHERE RowVersion = @okunan" ekler; kilit almadan OrderStates'e yazan
+    // başka bir kod/elle düzeltme saga'nın yazısını sessizce ezemez.
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

@@ -48,6 +48,8 @@ Step 4'ten sonra bu instance'lar için timeout hiç gelmez (madde 4).
 
 ## 4. Eski siparişler
 
+Deploy'dan sonra `_error` kuyruğuna düşen mesajlar için: [error-queue-runbook.md](error-queue-runbook.md).
+
 Script varsayılan olarak yalnızca listeler (`@Cancel = 0`). `@Cancel = 1` ile ödemesi alınmamış siparişleri iptal eder
 ve aktif stok rezervasyonlarını aynı transaction'da iade eder. Ödemesi alınmış ama beklemede kalmış siparişlere dokunmaz;
 bunları ayrı listeler ve manuel karara bırakır. Müşteriye bildirim gönderilmez.
@@ -75,6 +77,10 @@ bunları ayrı listeler ve manuel karara bırakır. Müşteriye bildirim gönder
   `Confirmed` yapmış olabilir. `ReleaseStockCommand` artık iptal edilen siparişin `Reserved` ve `Confirmed` satırlarını
   geri verir (`ReleaseForCanceledOrderAsync`); `Released` satırlara dokunmaz. `PaymentFailedEvent` yolu yalnızca `Reserved`
   satırları geri verir (ödeme başarısızsa kesinleşmiş satır olamaz).
+- **Retry / redelivery sırası düzeltildi (Shared, tüm servisler):** `ConfigureSharedRetryAndDeadLetter`'da redelivery artık
+  dışta, anlık retry içte. Saga'dan önce gelen event ~1 sn'de (önceden 15 sn) yeniden denenir, kalıcı hatalı mesaj
+  `_error`'a ~135 sn'de (önceden ~75 sn) düşer. Shared kütüphane değiştiği için Basket, Catalog, Order, Payment ve Stock
+  yeniden build edilmelidir.
 - **Pessimistic kilit:** MassTransit 8.0.16'nın lock statement'ı `WITH (UPDLOCK, ROWLOCK, SERIALIZABLE)` üretir. Henüz var
   olmayan instance için key-range kilidi alınır: eşzamanlı kopya `OrderCreated`'da PK ihlali oluşmaz, ikinci mesaj bekler.
   Aynı key aralığına düşen farklı yeni siparişler de kısa süre birbirini bekleyebilir (CorrelationId rastgele GUID olduğu
@@ -82,5 +88,8 @@ bunları ayrı listeler ve manuel karara bırakır. Müşteriye bildirim gönder
 - **`Canceled` + geç `StockReserved`:** Timeout stok cevabından önce gelirse saga yeniden `ReleaseStockCommand` publish eder.
   Stock iadesi siparişin aktif rezervasyonlarına göre yapıldığı için tekrar zararsızdır.
 - **Test:** global harness timeout'u 30 sn. Timeout senaryoları ayrı bir host'ta 3 sn ile çalışır (`ShortTimeoutApi`).
-  Payment'ın `RefundPaymentCommandConsumer`'ı için otomatik test yok (raw SQL + `UPDLOCK`, EF InMemory ile test edilemez).
-- `OrderState.RowVersion` kolonu artık kullanılmıyor. Kaldırılması ayrı bir migration gerektirir.
+  Payment iadesi `EticaretMicroservice.Payment.IntegrationTests` ile gerçek SQL'de test edilir (tekrarlanan, eşzamanlı,
+  `Failed` ödeme, sağlayıcı reddi). Test host'u `payment-refund-queue` endpoint tanımını Program.cs'ten kopyalar;
+  Program.cs'teki endpoint değişirse test host'u da güncellenmelidir.
+- `OrderState.RowVersion` korunur: birincil koruma pessimistic kilittir, RowVersion kilit almadan yazan kod yollarına karşı
+  yedek savunmadır (EF her UPDATE'e `WHERE RowVersion = @okunan` ekler).

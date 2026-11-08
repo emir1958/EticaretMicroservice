@@ -20,7 +20,7 @@ public static class OrderMessagingExtensions
         // hepsi tek bir transaction'da commit edilir.
         // Pessimistic: instance satırı UPDLOCK, ROWLOCK ile okunur; aynı instance'a gelen ikinci event, ilki commit edene kadar
         // okumada bekler ve güncel durumu görür. (Optimistic modda iki okuma da RepeatableRead S kilidi tutup UPDATE'te
-        // birbirini beklediği için SQL deadlock'u oluşuyordu.) Concurrency kontrolü bu kilitle sağlanır; RowVersion kolonu kullanılmıyor.
+        // birbirini beklediği için SQL deadlock'u oluşuyordu.) Concurrency kontrolü bu kilitle sağlanır; RowVersion yedek savunma olarak kalır.
         x.AddSagaStateMachine<OrderStateMachine, OrderState>()
             .EntityFrameworkRepository(r =>
             {
