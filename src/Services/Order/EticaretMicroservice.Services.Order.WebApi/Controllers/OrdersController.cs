@@ -49,8 +49,7 @@ public class OrdersController : ControllerBase
             return BadRequest(new { message = "Yönetici (Admin) hesapları üzerinden sipariş verilemez." });
         }
 
-        var userIdFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                             ?? User.FindFirst("sub")?.Value;
+        var userIdFromToken = GetUserIdFromToken();
 
         if (string.IsNullOrEmpty(userIdFromToken))
         {
@@ -66,8 +65,7 @@ public class OrdersController : ControllerBase
     [HttpGet("user")]
     public async Task<IActionResult> GetOrdersByUser()
     {
-        var userIdFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                             ?? User.FindFirst("sub")?.Value;
+        var userIdFromToken = GetUserIdFromToken();
 
         if (string.IsNullOrEmpty(userIdFromToken))
         {
@@ -78,4 +76,26 @@ public class OrdersController : ControllerBase
         var result = await _mediator.Send(new GetOrdersByUserIdQuery(userIdFromToken));
         return Ok(result);
     }
+
+    // GET: api/Orders/user/5 (Müşterinin kendi sipariş detayı)
+    // Başka kullanıcının siparişi için 403 değil 404 döner: siparişin var olduğu bilgisi de sızdırılmaz (IDOR).
+    [HttpGet("user/{id:int}")]
+    public async Task<IActionResult> GetOrderByIdForUser(int id)
+    {
+        var userIdFromToken = GetUserIdFromToken();
+
+        if (string.IsNullOrEmpty(userIdFromToken))
+        {
+            return Unauthorized(new { message = "Geçersiz token veya kullanıcı kimliği bulunamadı." });
+        }
+
+        var order = await _mediator.Send(new GetOrderByIdQuery(id));
+        if (order == null || order.BuyerId != userIdFromToken)
+            return NotFound(new { message = "Sipariş bulunamadı." });
+
+        return Ok(order);
+    }
+
+    private string? GetUserIdFromToken() =>
+        User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
 }

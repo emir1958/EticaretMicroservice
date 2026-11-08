@@ -52,9 +52,9 @@ public class OrderSagaTestDriver
 
     public ITestHarness Harness => _factory.Services.GetTestHarness();
 
-    public async Task<CreatedOrder> CreateOrderAsync(int quantity = 1)
+    public async Task<CreatedOrder> CreateOrderAsync(int quantity = 1, string? buyerId = null)
     {
-        var buyerId = $"saga-buyer-{Guid.NewGuid():N}";
+        buyerId ??= $"saga-buyer-{Guid.NewGuid():N}";
 
         var command = new CreateOrderCommand
         {
