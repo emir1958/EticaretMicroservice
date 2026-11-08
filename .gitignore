@@ -350,6 +350,9 @@ ASALocalRun/
 # Local History for Visual Studio
 .localhistory/
 
+# Local History for VS Code (xyz.local-history extension)
+.history/
+
 # BeatPulse healthcheck temp database
 healthchecksdb
 
