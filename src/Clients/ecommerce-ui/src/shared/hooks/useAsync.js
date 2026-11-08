@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
-
 export function useAsync(asyncFn, deps) {
   // Sonuç, hangi istek için geldiğiyle birlikte saklanır: { deps, reloadCount, data, error }
   const [result, setResult] = useState(null);
   const [reloadCount, setReloadCount] = useState(0);
 
   useEffect(() => {
-
     let ignore = false;
 
     asyncFn().then(
@@ -30,7 +28,7 @@ export function useAsync(asyncFn, deps) {
     return () => {
       ignore = true;
     };
- 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, reloadCount]);
 
   // "Yükleniyor" ayrı bir state değil, türetilen değer: effect içinde senkron setState gerekmez.

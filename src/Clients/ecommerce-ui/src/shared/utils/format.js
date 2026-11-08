@@ -1,8 +1,5 @@
-
-
 export const formatPrice = (value) =>
   Number(value ?? 0).toLocaleString("tr-TR", { style: "currency", currency: "TRY" });
-
 
 const HAS_TIMEZONE = /(Z|[+-]\d{2}:?\d{2})$/;
 

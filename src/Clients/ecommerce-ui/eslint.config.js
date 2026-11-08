@@ -5,7 +5,6 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  // Flat config .gitignore'u otomatik okumaz; VS Code local history kopyalarını da hariç tut.
   globalIgnores(['dist', '.history']),
   {
     files: ['**/*.{js,jsx}'],
@@ -19,12 +18,14 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
-      // useAsync(fn, deps) çağrılarının bağımlılık listesi de useEffect gibi kontrol edilsin
       'react-hooks/exhaustive-deps': ['warn', { additionalHooks: '^useAsync$' }],
+      'react-refresh/only-export-components': [
+        'error',
+        { allowConstantExport: true, allowExportNames: ['useAuth', 'useCart'] },
+      ],
     },
   },
   {
-    // Bu dosyalar tarayıcıda değil Node.js'te (Vite/ESLint tarafından) çalışır: process, __dirname vb.
     files: ['*.config.js'],
     languageOptions: { globals: globals.node },
   },

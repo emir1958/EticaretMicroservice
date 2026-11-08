@@ -1,14 +1,11 @@
 import axios from "axios";
 import { env } from "../config/env";
 
-
 const apiClient = axios.create({
   baseURL: env.apiBaseUrl,
 });
 
-
 apiClient.interceptors.request.use((config) => {
-
   config.headers["X-Correlation-ID"] = crypto.randomUUID();
 
   const token = localStorage.getItem("token");
@@ -17,7 +14,6 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
-
 
 apiClient.interceptors.response.use(
   (response) => response,
