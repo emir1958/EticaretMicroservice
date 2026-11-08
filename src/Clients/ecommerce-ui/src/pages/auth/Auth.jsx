@@ -1,7 +1,21 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Lock, Mail, User, ShoppingBag } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { useNavigate, useLocation, Link } from "react-router-dom";
-import { Lock, Mail, User, ArrowLeft } from "lucide-react";
+import Button from "../../components/ui/Button";
+import styles from "./Auth.module.css";
+
+function Field({ label, icon: Icon, ...inputProps }) {
+  return (
+    <div>
+      <label className={styles.label}>{label}</label>
+      <div className={styles.inputWrap}>
+        <Icon size={18} className={styles.inputIcon} />
+        <input className={styles.input} required {...inputProps} />
+      </div>
+    </div>
+  );
+}
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -46,238 +60,83 @@ export default function Auth() {
     }
   };
 
+  const switchTo = (loginMode) => {
+    setIsLogin(loginMode);
+    setError(null);
+  };
+
   return (
-    <div
-      style={{
-        maxWidth: "420px",
-        margin: "60px auto",
-        padding: "32px",
-        border: "1px solid #e5e7eb",
-        borderRadius: "16px",
-        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-        fontFamily: "sans-serif",
-        background: "#fff",
-      }}
-    >
-      <Link
-        to="/"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          textDecoration: "none",
-          color: "#64748b",
-          marginBottom: "20px",
-          fontSize: "14px",
-        }}
-      >
-        <ArrowLeft size={16} /> Mağazaya Dön
-      </Link>
+    <div className={styles.wrap}>
+      <div className={styles.card}>
+        <div className={styles.heading}>
+          <span className={styles.mark}>
+            <ShoppingBag size={24} />
+          </span>
+          <h1 className={styles.title}>{isLogin ? "Tekrar hoş geldin" : "Hesap oluştur"}</h1>
+          <p className={styles.subtitle}>
+            {isLogin ? "Siparişlerine ulaşmak için giriş yap." : "Birkaç saniyede kayıt ol ve alışverişe başla."}
+          </p>
+        </div>
 
-      <div
-        style={{
-          display: "flex",
-          borderBottom: "1px solid #e2e8f0",
-          marginBottom: "24px",
-        }}
-      >
-        <button
-          onClick={() => {
-            setIsLogin(true);
-            setError(null);
-          }}
-          style={{
-            flex: 1,
-            padding: "12px",
-            border: "none",
-            background: "transparent",
-            fontWeight: isLogin ? "bold" : "normal",
-            borderBottom: isLogin ? "2px solid #2563eb" : "none",
-            color: isLogin ? "#2563eb" : "#64748b",
-            cursor: "pointer",
-          }}
-        >
-          Giriş Yap
-        </button>
-        <button
-          onClick={() => {
-            setIsLogin(false);
-            setError(null);
-          }}
-          style={{
-            flex: 1,
-            padding: "12px",
-            border: "none",
-            background: "transparent",
-            fontWeight: !isLogin ? "bold" : "normal",
-            borderBottom: !isLogin ? "2px solid #2563eb" : "none",
-            color: !isLogin ? "#2563eb" : "#64748b",
-            cursor: "pointer",
-          }}
-        >
-          Kayıt Ol
-        </button>
+        <div className={styles.tabs} role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isLogin}
+            className={`${styles.tab} ${isLogin ? styles.tabActive : ""}`}
+            onClick={() => switchTo(true)}
+          >
+            Giriş Yap
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isLogin}
+            className={`${styles.tab} ${!isLogin ? styles.tabActive : ""}`}
+            onClick={() => switchTo(false)}
+          >
+            Kayıt Ol
+          </button>
+        </div>
+
+        {error && <div className={styles.error}>{error}</div>}
+
+        <form onSubmit={handleSubmit} className={styles.form}>
+          {!isLogin && (
+            <Field
+              label="Kullanıcı Adı"
+              icon={User}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="ornek_kullanici"
+              autoComplete="username"
+            />
+          )}
+          <Field
+            label="E-Posta Adresi"
+            icon={Mail}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="ornek@mail.com"
+            autoComplete="email"
+          />
+          <Field
+            label="Şifre"
+            icon={Lock}
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete={isLogin ? "current-password" : "new-password"}
+          />
+
+          <Button type="submit" size="lg" fullWidth disabled={loading} className={styles.submit}>
+            {loading ? "İşleniyor..." : isLogin ? "Giriş Yap" : "Kayıt Ol ve Giriş Yap"}
+          </Button>
+        </form>
       </div>
-
-      {error && (
-        <div
-          style={{
-            background: "#fee2e2",
-            color: "#ef4444",
-            padding: "10px",
-            borderRadius: "8px",
-            marginBottom: "16px",
-            fontSize: "14px",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-      >
-        {!isLogin && (
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: "500",
-                marginBottom: "6px",
-                color: "#374151",
-              }}
-            >
-              Kullanıcı Adı
-            </label>
-            <div style={{ position: "relative" }}>
-              <User
-                size={18}
-                style={{
-                  position: "absolute",
-                  left: "12px",
-                  top: "12px",
-                  color: "#9ca3af",
-                }}
-              />
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="ornek_kullanici"
-                style={{
-                  width: "100%",
-                  padding: "10px 10px 10px 38px",
-                  borderRadius: "8px",
-                  border: "1px solid #d1d5db",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "13px",
-              fontWeight: "500",
-              marginBottom: "6px",
-              color: "#374151",
-            }}
-          >
-            E-Posta Adresi
-          </label>
-          <div style={{ position: "relative" }}>
-            <Mail
-              size={18}
-              style={{
-                position: "absolute",
-                left: "12px",
-                top: "12px",
-                color: "#9ca3af",
-              }}
-            />
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ornek@mail.com"
-              style={{
-                width: "100%",
-                padding: "10px 10px 10px 38px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "13px",
-              fontWeight: "500",
-              marginBottom: "6px",
-              color: "#374151",
-            }}
-          >
-            Şifre
-          </label>
-          <div style={{ position: "relative" }}>
-            <Lock
-              size={18}
-              style={{
-                position: "absolute",
-                left: "12px",
-                top: "12px",
-                color: "#9ca3af",
-              }}
-            />
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={{
-                width: "100%",
-                padding: "10px 10px 10px 38px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            background: "#2563eb",
-            color: "#fff",
-            border: "none",
-            padding: "12px",
-            borderRadius: "8px",
-            fontWeight: "bold",
-            cursor: loading ? "not-allowed" : "pointer",
-            marginTop: "8px",
-          }}
-        >
-          {loading
-            ? "İşleniyor..."
-            : isLogin
-              ? "Giriş Yap"
-              : "Kayıt Ol ve Giriş Yap"}
-        </button>
-      </form>
     </div>
   );
 }

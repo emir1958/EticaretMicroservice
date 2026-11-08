@@ -28,7 +28,9 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Repositories
         public async Task<List<Domain.Entities.Order>> GetOrdersByUserIdAsync(string userId)
         {
             // Eager Loading: Siparişleri çekerken sipariş kalemlerini (OrderItems) de dahil ediyoruz (.Include)
+            // Salt okunur liste: change tracking gereksiz (AsNoTracking)
             return await _context.Orders
+                .AsNoTracking()
                 .Include(o => o.OrderItems)
                 .Where(o => o.BuyerId == userId)
                 .OrderByDescending(o => o.CreatedDate)

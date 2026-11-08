@@ -1,26 +1,39 @@
-import React, { useState, useRef } from "react";
-import { useCart } from "../../context/CartContext";
-import { useAuth } from "../../context/AuthContext";
-import { useOrderHub } from "../../hooks/useOrderHub";
-import api from "../../services/api";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useRef } from "react";
+import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle,
   XCircle,
-  Clock,
+  Loader2,
   CreditCard,
   ShieldCheck,
   AlertTriangle,
   ShoppingBag,
+  MapPin,
 } from "lucide-react";
+import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../context/AuthContext";
+import { useOrderHub } from "../../hooks/useOrderHub";
+import api from "../../services/api";
+import Button from "../../components/ui/Button";
+import EmptyState from "../../components/ui/EmptyState";
+import { formatPrice } from "../../utils/orderStatus";
+import styles from "./Checkout.module.css";
+
+// Adres formu henüz yok: her sipariş bu demo adresle gönderilir. Ekranda da aynısı gösterilir.
+const DEMO_ADDRESS = {
+  city: "İstanbul",
+  district: "Kadıköy",
+  street: "Moda Caddesi",
+  zipCode: "34710",
+  line: "No:12 Daire:4",
+};
 
 export default function Checkout() {
   const { cart, totalAmount, clearCart } = useCart();
   // 🟢 1. isAdmin bilgisini AuthContext'ten alıyoruz
   const { user, isAdmin } = useAuth();
   const { orderStatus } = useOrderHub();
-  const navigate = useNavigate();
 
   // Kart Form State'leri
   const [cardHolder, setCardHolder] = useState("");
@@ -47,118 +60,31 @@ export default function Checkout() {
   // 🟢 2. YÖNETİCİ BLOKAJI: Admin hesabı bu sayfada sipariş veremez
   if (isAdmin) {
     return (
-      <div
-        style={{
-          maxWidth: "600px",
-          margin: "60px auto",
-          padding: "36px",
-          background: "#f8fafc",
-          border: "1px solid #cbd5e1",
-          borderRadius: "16px",
-          textAlign: "center",
-          fontFamily: "sans-serif",
-        }}
-      >
-        <div
-          style={{
-            width: "56px",
-            height: "56px",
-            background: "#fee2e2",
-            borderRadius: "50%",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: "16px",
-          }}
-        >
-          <ShieldCheck size={32} color="#b91c1c" />
-        </div>
-        <h2 style={{ margin: "0 0 12px 0", color: "#0f172a" }}>
-          Yönetici Hesabı ile Sipariş Verilemez
-        </h2>
-        <p
-          style={{
-            color: "#64748b",
-            fontSize: "14px",
-            lineHeight: "1.5",
-            marginBottom: "24px",
-          }}
-        >
-          Şu anda <strong>Admin</strong> yetkisine sahip bir hesapla oturum
-          açtınız. E-ticaret kuralları gereği yönetici hesapları üzerinden
-          sipariş oluşturulamaz.
-        </p>
-        <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-          <Link
-            to="/admin/orders"
-            style={{
-              background: "#0f172a",
-              color: "#fff",
-              padding: "10px 18px",
-              borderRadius: "8px",
-              textDecoration: "none",
-              fontWeight: "bold",
-              fontSize: "14px",
-            }}
-          >
-            Yönetici Paneline Git
-          </Link>
-          <Link
-            to="/"
-            style={{
-              background: "#fff",
-              color: "#475569",
-              border: "1px solid #cbd5e1",
-              padding: "10px 18px",
-              borderRadius: "8px",
-              textDecoration: "none",
-              fontWeight: "500",
-              fontSize: "14px",
-            }}
-          >
-            Mağazaya Dön
-          </Link>
-        </div>
-      </div>
+      <EmptyState
+        icon={ShieldCheck}
+        title="Yönetici hesabı ile sipariş verilemez"
+        text="Şu anda Admin yetkisine sahip bir hesapla oturum açtınız. Yönetici hesapları üzerinden sipariş oluşturulamaz."
+        action={
+          <div className={styles.resultActions}>
+            <Button to="/admin/orders">Yönetici Paneline Git</Button>
+            <Button to="/" variant="secondary">
+              Mağazaya Dön
+            </Button>
+          </div>
+        }
+      />
     );
   }
 
   // 🟢 3. SEPET BOŞ VE SİPARİŞ HENÜZ VERİLMEDİYSE UYARI
   if (cart.length === 0 && !createdOrderId) {
     return (
-      <div
-        style={{
-          maxWidth: "500px",
-          margin: "60px auto",
-          padding: "36px",
-          textAlign: "center",
-          fontFamily: "sans-serif",
-        }}
-      >
-        <ShoppingBag
-          size={48}
-          color="#94a3b8"
-          style={{ marginBottom: "16px" }}
-        />
-        <h3 style={{ color: "#1e293b", margin: "0 0 8px 0" }}>Sepetiniz Boş</h3>
-        <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "20px" }}>
-          Ödeme yapabilmek için sepetinize en az bir ürün eklemelisiniz.
-        </p>
-        <Link
-          to="/"
-          style={{
-            background: "#2563eb",
-            color: "#fff",
-            padding: "10px 20px",
-            borderRadius: "8px",
-            textDecoration: "none",
-            fontWeight: "bold",
-            fontSize: "14px",
-          }}
-        >
-          Alışverişe Başla
-        </Link>
-      </div>
+      <EmptyState
+        icon={ShoppingBag}
+        title="Sepetiniz boş"
+        text="Ödeme yapabilmek için sepetinize en az bir ürün eklemelisiniz."
+        action={<Button to="/">Alışverişe Başla</Button>}
+      />
     );
   }
 
@@ -181,13 +107,7 @@ export default function Checkout() {
 
     const payload = {
       buyerId: user?.id,
-      address: {
-        city: "İstanbul",
-        district: "Kadıköy",
-        street: "Moda Caddesi",
-        zipCode: "34710",
-        line: "No:12 Daire:4",
-      },
+      address: DEMO_ADDRESS,
       payment: {
         paymentToken: paymentToken,
       },
@@ -235,336 +155,172 @@ export default function Checkout() {
     }
   };
 
-  return (
-    <div
-      style={{
-        maxWidth: "800px",
-        margin: "30px auto",
-        padding: "24px",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <Link
-        to="/"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          textDecoration: "none",
-          color: "#2563eb",
-          marginBottom: "20px",
-        }}
-      >
-        <ArrowLeft size={18} /> Mağazaya Dön
-      </Link>
+  // Sipariş verildi: SignalR'dan gelen canlı duruma göre sonuç ekranı
+  if (createdOrderId) {
+    const isLive = orderStatus && orderStatus.orderId === createdOrderId;
+    const isCompleted = isLive && (orderStatus.status === "Completed" || orderStatus.status === "Tamamlandı");
+    const isCanceled = isLive && !isCompleted;
 
-      <h2>Sipariş ve Ödeme Ekranı</h2>
-
-      {createdOrderId ? (
+    return (
+      <div className={styles.result}>
         <div
-          style={{
-            background: "#f8fafc",
-            border: "1px solid #cbd5e1",
-            borderRadius: "12px",
-            padding: "24px",
-            marginTop: "20px",
-          }}
+          className={`${styles.resultIcon} ${
+            isCompleted ? styles.iconSuccess : isCanceled ? styles.iconDanger : styles.iconPending
+          }`}
         >
-          <h3 style={{ margin: "0 0 12px 0" }}>
-            Siparişiniz Alındı! (No: #{createdOrderId})
-          </h3>
-          <p style={{ color: "#64748b", fontSize: "14px" }}>
-            Event-Driven Saga devrede. Stok rezervasyonu ve ödeme adımları
-            işleniyor...
-          </p>
+          {isCompleted ? <CheckCircle size={32} /> : isCanceled ? <XCircle size={32} /> : <Loader2 size={32} />}
+        </div>
+        <h1 className={styles.resultTitle}>
+          {isCompleted ? "Siparişiniz onaylandı!" : isCanceled ? "Sipariş iptal edildi" : "Siparişiniz alındı"}
+        </h1>
+        <p className={styles.resultText}>
+          {isCompleted
+            ? "Stok ayrıldı ve ödemeniz başarıyla onaylandı."
+            : isCanceled
+              ? orderStatus.message || "Siparişiniz tamamlanamadı."
+              : "Stok ve ödeme adımları işleniyor, sonuç birkaç saniye içinde burada görünecek."}
+        </p>
+        <span className={styles.orderNo}>Sipariş No #{createdOrderId}</span>
+        <div className={styles.resultActions}>
+          <Button to={`/orders/${createdOrderId}`}>Sipariş detayına git</Button>
+          <Button to="/" variant="secondary">
+            Alışverişe devam et
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-          <div
-            style={{
-              marginTop: "20px",
-              padding: "16px",
-              background: "#fff",
-              borderRadius: "8px",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            <h4>Canlı Sipariş Durumu (SignalR):</h4>
-            {orderStatus && orderStatus.orderId === createdOrderId ? (
-              orderStatus.status === "Completed" ||
-              orderStatus.status === "Tamamlandı" ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginTop: "12px",
-                  }}
-                >
-                  <CheckCircle color="#10b981" size={32} />
-                  <div>
-                    <strong style={{ color: "#10b981" }}>
-                      Ödeme ve Sipariş Başarıyla Tamamlandı!
-                    </strong>
-                    <p
-                      style={{ margin: 0, fontSize: "14px", color: "#64748b" }}
-                    >
-                      Stok rezerve edildi ve ödeme başarıyla onaylandı.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginTop: "12px",
-                  }}
-                >
-                  <XCircle color="#ef4444" size={32} />
-                  <div>
-                    <strong style={{ color: "#ef4444" }}>
-                      Sipariş İptal Edildi
-                    </strong>
-                    <p
-                      style={{ margin: 0, fontSize: "14px", color: "#64748b" }}
-                    >
-                      {orderStatus.message ||
-                        "Telafi işlemi (compensation) yapıldı."}
-                    </p>
-                  </div>
-                </div>
-              )
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  marginTop: "12px",
-                  color: "#f59e0b",
-                }}
-              >
-                <Clock size={24} />
-                <span>Beklemede: Servisler arası mesajlaşma sürüyor...</span>
+  return (
+    <>
+      <Link to="/" className={styles.back}>
+        <ArrowLeft size={16} /> Mağazaya dön
+      </Link>
+      <h1 className={styles.title}>Ödeme</h1>
+
+      <form onSubmit={handleCreateOrder} className={styles.layout}>
+        <div>
+          <section className={styles.panel}>
+            <h2 className={styles.panelTitle}>
+              <CreditCard size={20} /> Kart bilgileri
+            </h2>
+
+            {errorMessage && (
+              <div className={styles.error}>
+                <AlertTriangle size={18} /> {errorMessage}
               </div>
             )}
-          </div>
-        </div>
-      ) : (
-        <form onSubmit={handleCreateOrder}>
-          {errorMessage && (
-            <div
-              style={{
-                background: "#fee2e2",
-                border: "1px solid #ef4444",
-                color: "#b91c1c",
-                padding: "12px",
-                borderRadius: "8px",
-                marginBottom: "16px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <AlertTriangle size={18} /> {errorMessage}
-            </div>
-          )}
 
-          <div
-            style={{
-              background: "#fff",
-              border: "1px solid #e2e8f0",
-              borderRadius: "10px",
-              padding: "20px",
-              marginBottom: "20px",
-            }}
-          >
-            <h4
-              style={{
-                margin: "0 0 16px 0",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                color: "#334155",
-              }}
-            >
-              <CreditCard size={20} color="#2563eb" /> Kart Bilgileri (Fake
-              Payment)
-            </h4>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  color: "#64748b",
-                  marginBottom: "4px",
-                }}
-              >
-                Kart Üzerindeki İsim
-              </label>
+            <div className={styles.field}>
+              <label className={styles.label}>Kart üzerindeki isim</label>
               <input
+                className={styles.input}
                 type="text"
                 required
                 placeholder="Ad Soyad"
                 value={cardHolder}
                 onChange={(e) => setCardHolder(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  boxSizing: "border-box",
-                }}
+                autoComplete="cc-name"
               />
             </div>
 
-            <div style={{ marginBottom: "14px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  color: "#64748b",
-                  marginBottom: "4px",
-                }}
-              >
-                Kart Numarası
-              </label>
+            <div className={styles.field}>
+              <label className={styles.label}>Kart numarası</label>
               <input
+                className={`${styles.input} ${styles.cardNumber}`}
                 type="text"
+                inputMode="numeric"
                 required
                 placeholder="0000 0000 0000 0000"
                 value={cardNumber}
-                onChange={(e) =>
-                  setCardNumber(formatCardNumber(e.target.value))
-                }
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  boxSizing: "border-box",
-                  letterSpacing: "2px",
-                }}
+                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                autoComplete="cc-number"
               />
-              <small style={{ color: "#94a3b8", fontSize: "11px" }}>
-                💡 Test: Sonu <strong>0000</strong> (Limit Yetersiz) veya{" "}
-                <strong>9999</strong> (İnternete Kapalı) girilirse Saga hata
-                simülasyonu çalışır.
+              <small className={styles.hint}>
+                Test: sonu <strong>0000</strong> (limit yetersiz) veya <strong>9999</strong> (internete kapalı) olan kart
+                ödeme hatası senaryosunu çalıştırır.
               </small>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "12px",
-              }}
-            >
+            <div className={styles.row}>
               <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    color: "#64748b",
-                    marginBottom: "4px",
-                  }}
-                >
-                  Son Kullanma (AA/YY)
-                </label>
+                <label className={styles.label}>Son kullanma (AA/YY)</label>
                 <input
+                  className={styles.input}
                   type="text"
+                  inputMode="numeric"
                   required
                   placeholder="AA/YY"
                   value={expiry}
                   onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "6px",
-                    border: "1px solid #cbd5e1",
-                    boxSizing: "border-box",
-                  }}
+                  autoComplete="cc-exp"
                 />
               </div>
               <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    color: "#64748b",
-                    marginBottom: "4px",
-                  }}
-                >
-                  CVV
-                </label>
+                <label className={styles.label}>CVV</label>
                 <input
+                  className={styles.input}
                   type="password"
+                  inputMode="numeric"
                   required
                   maxLength={3}
                   placeholder="•••"
                   value={cvv}
                   onChange={(e) => setCvv(e.target.value.replace(/\D/g, ""))}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "6px",
-                    border: "1px solid #cbd5e1",
-                    boxSizing: "border-box",
-                  }}
+                  autoComplete="cc-csc"
                 />
               </div>
             </div>
+          </section>
+
+          <section className={styles.panel}>
+            <h2 className={styles.panelTitle}>
+              <MapPin size={20} /> Teslimat adresi
+            </h2>
+            <p className={styles.address}>
+              {DEMO_ADDRESS.street} {DEMO_ADDRESS.line}
+              <br />
+              {DEMO_ADDRESS.district} / {DEMO_ADDRESS.city} {DEMO_ADDRESS.zipCode}
+            </p>
+            <span className={styles.demoTag}>Demo adres</span>
+          </section>
+        </div>
+
+        <aside className={`${styles.panel} ${styles.summary}`}>
+          <h2 className={styles.panelTitle}>
+            <ShoppingBag size={20} /> Sipariş özeti
+          </h2>
+          {cart.map((item) => (
+            <div key={item.id} className={styles.summaryItem}>
+              {item.imageUrl ? (
+                <img src={item.imageUrl} alt={item.name} className={styles.thumb} />
+              ) : (
+                <div className={styles.thumb} />
+              )}
+              <div className={styles.itemInfo}>
+                <div className={styles.itemName}>{item.name}</div>
+                <div className={styles.itemMeta}>
+                  {item.quantity} × {formatPrice(item.price)}
+                </div>
+              </div>
+              <span className={styles.itemTotal}>{formatPrice(item.price * item.quantity)}</span>
+            </div>
+          ))}
+
+          <div className={styles.totalRow}>
+            <span>Ödenecek tutar</span>
+            <span className={styles.totalAmount}>{formatPrice(totalAmount)}</span>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderTop: "2px solid #e2e8f0",
-              paddingTop: "16px",
-              marginBottom: "20px",
-            }}
-          >
-            <span style={{ fontSize: "18px", fontWeight: "bold" }}>
-              Ödenecek Tutar:
-            </span>
-            <span
-              style={{ fontSize: "22px", fontWeight: "bold", color: "#10b981" }}
-            >
-              {totalAmount} TL
-            </span>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting || cart.length === 0}
-            style={{
-              width: "100%",
-              background:
-                isSubmitting || cart.length === 0 ? "#94a3b8" : "#2563eb",
-              color: "#fff",
-              border: "none",
-              padding: "14px",
-              borderRadius: "8px",
-              fontSize: "16px",
-              fontWeight: "bold",
-              cursor:
-                isSubmitting || cart.length === 0 ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            <ShieldCheck size={20} />
-            {isSubmitting
-              ? "Sipariş ve Ödeme İşleniyor..."
-              : "Ödemeyi Tamamla ve Siparişi Ver"}
-          </button>
-        </form>
-      )}
-    </div>
+          <Button type="submit" size="lg" fullWidth disabled={isSubmitting || cart.length === 0}>
+            <ShieldCheck size={18} />
+            {isSubmitting ? "Sipariş işleniyor..." : "Ödemeyi tamamla"}
+          </Button>
+          <p className={styles.secure}>
+            <ShieldCheck size={14} /> Demo ödeme: karttan yalnızca son 4 hane kullanılır
+          </p>
+        </aside>
+      </form>
+    </>
   );
 }

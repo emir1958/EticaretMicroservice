@@ -1,11 +1,22 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { ArrowLeft, Package, Minus, Plus, ShoppingCart } from "lucide-react";
 import api from "../../services/api";
 import { useCart } from "../../context/CartContext";
-import { ArrowLeft, Package, Minus, Plus } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import ProductCard from "../../components/ProductCard";
+import Button from "../../components/ui/Button";
+import { formatPrice } from "../../utils/orderStatus";
+import styles from "./ProductDetail.module.css";
+
+// Başka bir ürüne geçildiğinde (ilginizi çekebilir) sayfa id ile key'lenir: React component'i yeniden oluşturur,
+// adet ve yükleme durumu gibi tüm state kendiliğinden sıfırlanır.
 export default function ProductDetail() {
   const { id } = useParams();
+  return <ProductDetailContent key={id} id={id} />;
+}
+
+function ProductDetailContent({ id }) {
   const { isAdmin } = useAuth();
   const [product, setProduct] = useState(null);
   const [stockCount, setStockCount] = useState(0);
@@ -16,7 +27,6 @@ export default function ProductDetail() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
       try {
         const [prodRes, stockRes, allProdsRes] = await Promise.all([
           api.get(`/api/Products/${id}`),
@@ -48,20 +58,12 @@ export default function ProductDetail() {
     };
 
     fetchData();
-    setQuantity(1);
   }, [id]);
 
-  if (loading)
-    return (
-      <div style={{ padding: "40px", textAlign: "center" }}>Yükleniyor...</div>
-    );
-  if (!product)
-    return (
-      <div style={{ padding: "40px", textAlign: "center" }}>
-        Ürün bulunamadı.
-      </div>
-    );
+  if (loading) return <div className={styles.state}>Yükleniyor...</div>;
+  if (!product) return <div className={styles.state}>Ürün bulunamadı.</div>;
 
+  const isOutOfStock = stockCount <= 0;
   const handleAdd = () => {
     if (quantity < stockCount) setQuantity((q) => q + 1);
   };
@@ -70,295 +72,68 @@ export default function ProductDetail() {
   };
 
   return (
-    <div
-      style={{
-        maxWidth: "1000px",
-        margin: "40px auto",
-        padding: "24px",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <Link
-        to="/"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          textDecoration: "none",
-          color: "#2563eb",
-          marginBottom: "24px",
-        }}
-      >
-        <ArrowLeft size={18} /> Mağazaya Dön
+    <>
+      <Link to="/" className={styles.back}>
+        <ArrowLeft size={16} /> Mağazaya dön
       </Link>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "40px",
-          flexWrap: "wrap",
-          marginBottom: "60px",
-        }}
-      >
-        {/* Görsel Alanı */}
-        <div
-          style={{
-            flex: "1 1 400px",
-            background: "#f9fafb",
-            borderRadius: "16px",
-            overflow: "hidden",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: "400px",
-            position: "relative",
-          }}
-        >
-          {stockCount <= 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "16px",
-                left: "16px",
-                background: "#dc2626",
-                color: "#fff",
-                fontSize: "14px",
-                fontWeight: "bold",
-                padding: "6px 14px",
-                borderRadius: "6px",
-                zIndex: 2,
-                letterSpacing: "0.5px",
-              }}
-            >
-              TÜKENDİ
-            </div>
-          )}
-
-          {product.imageUrl ? (
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                filter:
-                  stockCount <= 0 ? "grayscale(70%) opacity(0.85)" : "none",
-              }}
-            />
-          ) : (
-            <Package size={80} color="#9ca3af" />
-          )}
+      <section className={styles.product}>
+        <div className={`${styles.media} ${isOutOfStock ? styles.outOfStock : ""}`}>
+          {isOutOfStock && <span className={styles.soldOut}>TÜKENDİ</span>}
+          {product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : <Package size={80} />}
         </div>
-        {/* Detaylar */}
-        <div
-          style={{
-            flex: "1 1 300px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-          }}
-        >
-          <h1
-            style={{ fontSize: "32px", margin: "0 0 16px 0", color: "#0f172a" }}
-          >
-            {product.name}
-          </h1>
-          <p
-            style={{
-              color: "#475569",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              marginBottom: "24px",
-            }}
-          >
-            {product.description ||
-              "Bu ürün için henüz bir açıklama girilmemiştir."}
-          </p>
-          <div
-            style={{
-              fontSize: "32px",
-              fontWeight: "bold",
-              color: "#0f766e",
-              marginBottom: "12px",
-            }}
-          >
-            {product.price} TL
-          </div>
-          <p
-            style={{
-              margin: "0 0 24px 0",
-              color: stockCount > 0 ? "#10b981" : "#ef4444",
-              fontWeight: "600",
-              fontSize: "15px",
-            }}
-          >
-            {stockCount > 0
-              ? `✓ Stokta var (${stockCount} adet)`
-              : "✗ Stokta yok"}
-          </p>
 
-          {/* Miktar Seçici */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "16px",
-              marginBottom: "24px",
-            }}
-          >
-            <span
-              style={{ fontSize: "14px", fontWeight: "600", color: "#334155" }}
-            >
-              Adet:
-            </span>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                border: "1px solid #cbd5e1",
-                borderRadius: "8px",
-                overflow: "hidden",
-              }}
-            >
-              <button
-                onClick={handleSub}
-                disabled={quantity <= 1}
-                style={{
-                  padding: "12px 16px",
-                  background: "#f8fafc",
-                  border: "none",
-                  cursor: quantity <= 1 ? "not-allowed" : "pointer",
-                }}
-              >
+        <div className={styles.info}>
+          <h1 className={styles.name}>{product.name}</h1>
+          <p className={styles.description}>
+            {product.description || "Bu ürün için henüz bir açıklama girilmemiştir."}
+          </p>
+          <div className={styles.price}>{formatPrice(product.price)}</div>
+          <span className={`${styles.stock} ${isOutOfStock ? styles.noStock : styles.inStock}`}>
+            {isOutOfStock ? "Stokta yok" : `Stokta var · ${stockCount} adet`}
+          </span>
+
+          <div className={styles.divider} />
+
+          <div className={styles.purchase}>
+            <div className={styles.stepper}>
+              <button type="button" onClick={handleSub} disabled={quantity <= 1} aria-label="Adedi azalt">
                 <Minus size={16} />
               </button>
-              <div
-                style={{
-                  width: "40px",
-                  textAlign: "center",
-                  fontWeight: "bold",
-                  fontSize: "16px",
-                }}
-              >
-                {quantity}
-              </div>
-              <button
-                onClick={handleAdd}
-                disabled={quantity >= stockCount}
-                style={{
-                  padding: "12px 16px",
-                  background: "#f8fafc",
-                  border: "none",
-                  cursor: quantity >= stockCount ? "not-allowed" : "pointer",
-                }}
-              >
+              <span className={styles.quantity}>{quantity}</span>
+              <button type="button" onClick={handleAdd} disabled={quantity >= stockCount} aria-label="Adedi artır">
                 <Plus size={16} />
               </button>
             </div>
-          </div>
 
-          <button
-            onClick={() =>
-              !isAdmin && addToCart({ ...product, id: product.id }, quantity)
-            }
-            disabled={stockCount === 0 || isAdmin}
-            style={{
-              background: isAdmin
-                ? "#94a3b8"
+            <Button
+              size="lg"
+              className={styles.addButton}
+              variant={isAdmin || isOutOfStock ? "secondary" : "primary"}
+              onClick={() => !isAdmin && addToCart({ ...product, id: product.id }, quantity)}
+              disabled={stockCount === 0 || isAdmin}
+            >
+              <ShoppingCart size={18} />
+              {isAdmin
+                ? "Yönetici hesabı ile sipariş verilemez"
                 : stockCount === 0
-                  ? "#cbd5e1"
-                  : "#2563eb",
-              color: "#fff",
-              border: "none",
-              padding: "16px",
-              borderRadius: "8px",
-              fontSize: "16px",
-              fontWeight: "bold",
-              cursor: stockCount === 0 || isAdmin ? "not-allowed" : "pointer",
-              transition: "0.2s",
-            }}
-          >
-            {isAdmin
-              ? "Yönetici Hesabı ile Sipariş Verilemez"
-              : stockCount === 0
-                ? "Tükendi"
-                : "Sepete Ekle"}
-          </button>
+                  ? "Tükendi"
+                  : "Sepete Ekle"}
+            </Button>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Diğer Ürünler Alanı */}
       {otherProducts.length > 0 && (
-        <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "40px" }}>
-          <h3
-            style={{ margin: "0 0 20px 0", fontSize: "20px", color: "#0f172a" }}
-          >
-            Bunlar da İlginizi Çekebilir
-          </h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-              gap: "20px",
-            }}
-          >
+        <section className={styles.related}>
+          <h2 className={styles.sectionTitle}>Bunlar da ilginizi çekebilir</h2>
+          <div className={styles.relatedGrid}>
             {otherProducts.map((op) => (
-              <Link
-                key={op.id}
-                to={`/product/${op.id}`}
-                style={{
-                  textDecoration: "none",
-                  color: "inherit",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "12px",
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    height: "140px",
-                    background: "#f8fafc",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {op.imageUrl ? (
-                    <img
-                      src={op.imageUrl}
-                      alt={op.name}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    <Package color="#cbd5e1" size={40} />
-                  )}
-                </div>
-                <div
-                  style={{
-                    padding: "16px",
-                    display: "flex",
-                    flexDirection: "column",
-                    flex: 1,
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <h4 style={{ margin: "0 0 8px 0", fontSize: "15px" }}>
-                    {op.name}
-                  </h4>
-                  <strong style={{ color: "#0f766e" }}>{op.price} TL</strong>
-                </div>
-              </Link>
+              <ProductCard key={op.id} product={op} showDescription={false} />
             ))}
           </div>
-        </div>
+        </section>
       )}
-    </div>
+    </>
   );
 }
