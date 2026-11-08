@@ -1,229 +1,95 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import api from "../../services/api";
-import { ArrowLeft, User, MapPin, Package } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, MapPin, Package, User } from "lucide-react";
+import { getErrorMessage } from "../../../lib/apiClient";
+import { useAsync } from "../../../shared/hooks/useAsync";
+import Button from "../../../shared/components/Button";
+import EmptyState from "../../../shared/components/EmptyState";
+import { formatDate, formatPrice } from "../../../shared/utils/format";
+import { getOrder } from "../../orders/api";
+import OrderStatusBadge from "../../orders/components/OrderStatusBadge";
+import ui from "../admin.module.css";
+import styles from "./AdminOrderDetailPage.module.css";
 
-export default function AdminOrderDetail() {
+export default function AdminOrderDetailPage() {
   const { id } = useParams();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: order, error, isLoading } = useAsync(() => getOrder(id), [id]);
 
-  useEffect(() => {
-    api
-      .get(`/api/Orders/${id}`)
-      .then((res) => {
-        setOrder(res.data?.data || res.data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Sipariş detayı alınamadı", err);
-        setLoading(false);
-      });
-  }, [id]);
+  if (isLoading) return <p className={ui.state}>Yükleniyor...</p>;
 
-  if (loading)
+  if (error) {
     return (
-      <div style={{ padding: "40px", textAlign: "center" }}>Yükleniyor...</div>
+      <EmptyState
+        icon={Package}
+        title={
+          error.response?.status === 404 ? "Sipariş bulunamadı." : getErrorMessage(error, "Sipariş getirilemedi.")
+        }
+        action={<Button to="/admin/orders">Siparişlere dön</Button>}
+      />
     );
-  if (!order)
-    return (
-      <div style={{ padding: "40px", textAlign: "center" }}>
-        Sipariş bulunamadı.
-      </div>
-    );
+  }
 
-  const items = order.orderItems || [];
-  const address = order.address || {};
+  const items = order.orderItems ?? [];
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div
-      style={{
-        maxWidth: "800px",
-        margin: "30px auto",
-        padding: "24px",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <Link
-        to="/admin/orders"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          textDecoration: "none",
-          color: "#2563eb",
-          marginBottom: "20px",
-        }}
-      >
-        <ArrowLeft size={18} /> Siparişlere Dön
+    <>
+      <Link to="/admin/orders" className={ui.back}>
+        <ArrowLeft size={16} /> Siparişler
       </Link>
 
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: "12px",
-          padding: "24px",
-          marginBottom: "24px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            borderBottom: "1px solid #e2e8f0",
-            paddingBottom: "16px",
-            marginBottom: "16px",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: "0 0 4px 0" }}>Sipariş #{order.id}</h2>
-            <span style={{ color: "#64748b", fontSize: "14px" }}>
-              {new Date(order.createdAt).toLocaleString("tr-TR")}
-            </span>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <span
-              style={{
-                background: "#dcfce7",
-                color: "#166534",
-                padding: "6px 12px",
-                borderRadius: "20px",
-                fontWeight: "bold",
-                fontSize: "14px",
-              }}
-            >
-              {order.orderStatus || order.status || "Tamamlandı"}
-            </span>
-            <div
-              style={{ marginTop: "8px", fontSize: "20px", fontWeight: "bold" }}
-            >
-              {order.totalPrice || order.totalAmount} TL
-            </div>
-          </div>
+      <div className={ui.header}>
+        <div>
+          <h1 className={ui.title}>Sipariş #{order.id}</h1>
+          <p className={ui.subtitle}>{formatDate(order.createdDate)}</p>
         </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "24px",
-          }}
-        >
-          <div
-            style={{
-              background: "#f8fafc",
-              padding: "16px",
-              borderRadius: "8px",
-            }}
-          >
-            <h3
-              style={{
-                margin: "0 0 12px 0",
-                fontSize: "15px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              <User size={16} /> Müşteri Bilgileri
-            </h3>
-            <p style={{ margin: "0 0 4px 0", fontSize: "14px" }}>
-              <strong>Müşteri ID:</strong> {order.buyerId}
-            </p>
-          </div>
-          <div
-            style={{
-              background: "#f8fafc",
-              padding: "16px",
-              borderRadius: "8px",
-            }}
-          >
-            <h3
-              style={{
-                margin: "0 0 12px 0",
-                fontSize: "15px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              <MapPin size={16} /> Teslimat Adresi
-            </h3>
-            <p style={{ margin: "0", fontSize: "14px", color: "#475569" }}>
-              {address.line} {address.street}
-              <br />
-              {address.district} / {address.city}
-              <br />
-              {address.zipCode}
-            </p>
-          </div>
-        </div>
+        <OrderStatusBadge status={order.orderStatus} />
       </div>
 
-      <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <Package size={20} /> Sipariş Edilen Ürünler
-      </h3>
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: "12px",
-          overflow: "hidden",
-        }}
-      >
-        {items.map((item, index) => (
-          <div
-            key={index}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "16px",
-              borderBottom:
-                index !== items.length - 1 ? "1px solid #f1f5f9" : "none",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <div
-                style={{
-                  width: "50px",
-                  height: "50px",
-                  background: "#f1f5f9",
-                  borderRadius: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Package size={24} color="#94a3b8" />
-              </div>
+      <div className={styles.layout}>
+        <section className={ui.panel}>
+          <h2 className={ui.panelTitle}>
+            <Package size={20} /> Ürünler
+          </h2>
+          {items.map((item) => (
+            <div key={item.productId} className={styles.item}>
               <div>
-                <h4 style={{ margin: "0 0 4px 0" }}>
-                  {item.productName || item.productId}
-                </h4>
-                <span style={{ color: "#64748b", fontSize: "13px" }}>
-                  Birim Fiyat: {item.price} TL
-                </span>
+                <div className={styles.itemName}>{item.productName || item.productId}</div>
+                <div className={ui.muted}>
+                  {item.quantity} × {formatPrice(item.price)}
+                </div>
               </div>
+              <strong>{formatPrice(item.price * item.quantity)}</strong>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#475569",
-                  marginBottom: "4px",
-                }}
-              >
-                Miktar: <strong>{item.quantity}</strong>
-              </div>
-              <div style={{ fontWeight: "bold", color: "#0f766e" }}>
-                {item.price * item.quantity} TL
-              </div>
-            </div>
+          ))}
+          <div className={styles.total}>
+            <span>Toplam ({itemCount} ürün)</span>
+            <span>{formatPrice(order.totalPrice)}</span>
           </div>
-        ))}
+        </section>
+
+        <div className={styles.side}>
+          <section className={ui.panel}>
+            <h2 className={ui.panelTitle}>
+              <User size={20} /> Müşteri
+            </h2>
+            <p className={ui.muted}>Müşteri kimliği</p>
+            <p className={`${ui.mono} ${styles.breakAll}`}>{order.buyerId}</p>
+          </section>
+
+          {order.address && (
+            <section className={ui.panel}>
+              <h2 className={ui.panelTitle}>
+                <MapPin size={20} /> Teslimat adresi
+              </h2>
+              <p className={ui.muted}>
+                {order.address.street} {order.address.line}
+                <br />
+                {order.address.district} / {order.address.city} {order.address.zipCode}
+              </p>
+            </section>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

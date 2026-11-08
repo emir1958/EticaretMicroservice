@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import * as signalR from "@microsoft/signalr";
+import { env } from "../../config/env";
 
 export function useOrderHub() {
   const [orderStatus, setOrderStatus] = useState(null);
@@ -9,7 +10,7 @@ export function useOrderHub() {
     let isMounted = true;
 
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl("http://localhost:5000/orderhub", {
+      .withUrl(env.orderHubUrl, {
         accessTokenFactory: () => localStorage.getItem("token") || "",
       })
       .withAutomaticReconnect()

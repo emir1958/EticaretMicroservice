@@ -1,28 +1,33 @@
-import React from "react";
-import { Navigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { ShieldAlert } from "lucide-react";
+import { useAuth } from "../AuthContext";
+import Button from "../../../shared/components/Button";
+import EmptyState from "../../../shared/components/EmptyState";
+import styles from "./AdminRoute.module.css";
 
-export default function AdminRoute({ children }) {
-  const { isAuthenticated, isAdmin, loading } = useAuth();
+// Yönetim paneli route'larını saran guard route (bkz. ProtectedRoute).
+// Not: Bu yalnızca arayüzü gizler. Asıl yetki kontrolü backend'de ([Authorize(Roles = "Admin")]).
+export default function AdminRoute() {
+  const { isAuthenticated, isAdmin } = useAuth();
+  const location = useLocation();
 
-  if (loading) {
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" state={{ from: location }} replace />;
+  }
+
+  // Render saf olmalı: alert() gibi yan etkiler burada yapılmaz, durum ekranda gösterilir.
+  if (!isAdmin) {
     return (
-      <div style={{ padding: "40px", textAlign: "center" }}>
-        Yetki kontrol ediliyor...
+      <div className={styles.forbidden}>
+        <EmptyState
+          icon={ShieldAlert}
+          title="Bu sayfaya erişim yetkiniz yok"
+          text="Yönetim paneli yalnızca yönetici hesaplarına açıktır."
+          action={<Button to="/">Mağazaya dön</Button>}
+        />
       </div>
     );
   }
 
-  // Giriş yapmamışsa Admin Login'e yönlendir
-  if (!isAuthenticated) {
-    return <Navigate to="/admin/login" replace />;
-  }
-
-  // Giriş yapmış ama Admin değilse ana sayfaya yönlendir
-  if (!isAdmin) {
-    alert("Bu sayfaya erişim yetkiniz bulunmamaktadır (Yalnızca Admin).");
-    return <Navigate to="/" replace />;
-  }
-
-  return children;
+  return <Outlet />;
 }

@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { X, Trash2, ShoppingBag, CheckCircle } from "lucide-react";
-import { useCart } from "../context/CartContext";
-import { useAuth } from "../context/AuthContext";
-import Button from "./ui/Button";
-import EmptyState from "./ui/EmptyState";
-import { formatPrice } from "../utils/orderStatus";
+import { useCart } from "../CartContext";
+import { useAuth } from "../../auth/AuthContext";
+import Button from "../../../shared/components/Button";
+import EmptyState from "../../../shared/components/EmptyState";
+import { formatPrice } from "../../../shared/utils/format";
 import styles from "./CartDrawer.module.css";
 
 export default function CartDrawer() {

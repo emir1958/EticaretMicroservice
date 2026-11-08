@@ -1,27 +1,16 @@
-import { useEffect, useState } from "react";
+import { useAsync } from "../../../shared/hooks/useAsync";
 import { Link } from "react-router-dom";
 import { ChevronRight, Package } from "lucide-react";
-import api from "../../services/api";
-import OrderStatusBadge from "../../components/OrderStatusBadge";
-import Button from "../../components/ui/Button";
-import EmptyState from "../../components/ui/EmptyState";
-import { formatDate, formatPrice } from "../../utils/orderStatus";
-import styles from "./MyOrders.module.css";
+import { getErrorMessage } from "../../../lib/apiClient";
+import { getMyOrders } from "../api";
+import OrderStatusBadge from "../components/OrderStatusBadge";
+import Button from "../../../shared/components/Button";
+import EmptyState from "../../../shared/components/EmptyState";
+import { formatDate, formatPrice } from "../../../shared/utils/format";
+import styles from "./MyOrdersPage.module.css";
 
-export default function MyOrders() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    api
-      .get("/api/orders/user")
-      .then((res) => setOrders(Array.isArray(res.data) ? res.data : []))
-      .catch((err) =>
-        setError(err.response?.data?.message || "Siparişleriniz şu anda getirilemiyor."),
-      )
-      .finally(() => setLoading(false));
-  }, []);
+export default function MyOrdersPage() {
+  const { data: orders = [], error, isLoading } = useAsync(getMyOrders, []);
 
   return (
     <>
@@ -30,10 +19,10 @@ export default function MyOrders() {
         <p className={styles.subtitle}>Verdiğin tüm siparişler ve güncel durumları.</p>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <p className={styles.state}>Yükleniyor...</p>
       ) : error ? (
-        <p className={styles.error}>{error}</p>
+        <p className={styles.error}>{getErrorMessage(error, "Siparişleriniz şu anda getirilemiyor.")}</p>
       ) : orders.length === 0 ? (
         <EmptyState
           icon={Package}

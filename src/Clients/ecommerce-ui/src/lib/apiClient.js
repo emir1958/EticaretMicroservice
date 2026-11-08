@@ -1,37 +1,50 @@
 import axios from "axios";
+import { env } from "../config/env";
 
-const api = axios.create({
-  baseURL: "http://localhost:5000", // Gateway Adresimiz
+// Uygulamanın tek HTTP istemcisi. Bileşenler bunu doğrudan kullanmaz;
+// her feature kendi api.js dosyasında endpoint fonksiyonlarını tanımlar.
+const apiClient = axios.create({
+  baseURL: env.apiBaseUrl,
 });
 
-// Request Interceptor: Her istek öncesi Token ekler
-api.interceptors.request.use(
-  (config) => {
+// Request Interceptor: her isteğe correlation id ve (varsa) token eklenir
+apiClient.interceptors.request.use((config) => {
+  // Backend loglarında bu isteğin izini sürmek için benzersiz id
+  config.headers["X-Correlation-ID"] = crypto.randomUUID();
 
-//  Her isteğe frontend'den benzersiz bir UUID basılır
-    config.headers["X-Correlation-ID"] = crypto.randomUUID();
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// 🟢 Response Interceptor: 401 durumunda token'ı temizleyip logine yönlendirir
-api.interceptors.response.use(
+// Response Interceptor: 401'de token temizlenir ve giriş sayfasına yönlendirilir.
+// Bu kod React dışında çalıştığı için router state yerine ?redirect= kullanır (bkz. AuthPage).
+apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
-      if (!window.location.pathname.includes("/auth") && !window.location.pathname.includes("/admin/login")) {
-        window.location.href = `/auth?redirect=${encodeURIComponent(window.location.pathname)}`;
+      const path = window.location.pathname;
+      if (!path.startsWith("/auth") && !path.startsWith("/admin/login")) {
+        window.location.href = `/auth?redirect=${encodeURIComponent(path)}`;
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
-export default api;
+// Backend'in iki hata şekli var:
+//  - Controller'lar:           { message }
+//  - Exception middleware'i:   ProblemDetails { title, detail, errors? }  (errors: alan → mesaj[])
+// Bileşenler hata cevabını kendileri ayrıştırmaz, bu fonksiyonu kullanır.
+export function getErrorMessage(error, fallback = "Beklenmeyen bir hata oluştu.") {
+  const data = error?.response?.data;
+  if (data?.errors && typeof data.errors === "object") {
+    return Object.values(data.errors).flat().join(" | ");
+  }
+  return data?.message || data?.detail || fallback;
+}
+
+export default apiClient;

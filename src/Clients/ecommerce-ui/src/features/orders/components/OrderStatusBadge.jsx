@@ -1,4 +1,4 @@
-import { getOrderStatusView } from "../utils/orderStatus";
+import { getOrderStatusView } from "../orderStatus";
 import styles from "./OrderStatusBadge.module.css";
 
 export default function OrderStatusBadge({ status }) {

@@ -18,6 +18,13 @@
   --color-text-secondary: #475569;
   --color-text-muted: #94a3b8;
 
+  /* Yönetim paneli kenar çubuğu (koyu zemin) */
+  --color-sidebar-bg: #0f172a;
+  --color-sidebar-hover: #1e293b;
+  --color-sidebar-text: #cbd5e1;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-accent: #818cf8;
+
   /* Durum renkleri */
   --color-success: #047857;
   --color-success-soft: #d1fae5;
@@ -60,5 +67,6 @@
   /* Yerleşim */
   --container-width: 1200px;
   --header-height: 68px;
+  --sidebar-width: 248px;
   --transition: 150ms ease;
 }

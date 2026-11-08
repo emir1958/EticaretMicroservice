@@ -1,23 +1,22 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Lock, Mail, User, ShoppingBag } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import Button from "../../components/ui/Button";
-import styles from "./Auth.module.css";
+import { useAuth } from "../AuthContext";
+import { getErrorMessage } from "../../../lib/apiClient";
+import Alert from "../../../shared/components/Alert";
+import Button from "../../../shared/components/Button";
+import FormField from "../../../shared/components/FormField";
+import styles from "./AuthPage.module.css";
 
-function Field({ label, icon: Icon, ...inputProps }) {
-  return (
-    <div>
-      <label className={styles.label}>{label}</label>
-      <div className={styles.inputWrap}>
-        <Icon size={18} className={styles.inputIcon} />
-        <input className={styles.input} required {...inputProps} />
-      </div>
-    </div>
-  );
+// Sadece site içi yolları kabul eder. "//evil.com" veya "/\evil.com" gibi değerler
+// tarayıcı tarafından başka bir domain olarak yorumlanır (open redirect), bunları reddeder.
+function safeInternalPath(value) {
+  if (typeof value !== "string") return null;
+  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return null;
+  return value;
 }
 
-export default function Auth() {
+export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -29,7 +28,16 @@ export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || "/";
+  // Girişten sonra nereye dönüleceği iki yoldan gelebilir:
+  // - ProtectedRoute: router state (location.state.from)
+  // - CartDrawer ve api.js 401 interceptor'ı: ?redirect= query parametresi
+  //   (api.js React dışında çalıştığı için router state taşıyamaz)
+  const stateFrom = location.state?.from;
+  const redirectParam = new URLSearchParams(location.search).get("redirect");
+  const from =
+    safeInternalPath(stateFrom && `${stateFrom.pathname}${stateFrom.search ?? ""}`) ||
+    safeInternalPath(redirectParam) ||
+    "/";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,12 +57,7 @@ export default function Auth() {
       }
     } catch (err) {
       console.error("Auth Hatası:", err);
-      setError(
-        err.response?.data?.Message ||
-          err.response?.data?.message ||
-          err.response?.data?.detail ||
-          "Giriş yapılamadı.",
-      );
+      setError(getErrorMessage(err, "Giriş yapılamadı."));
     } finally {
       setLoading(false);
     }
@@ -99,11 +102,12 @@ export default function Auth() {
           </button>
         </div>
 
-        {error && <div className={styles.error}>{error}</div>}
+        {error && <Alert className={styles.error}>{error}</Alert>}
 
         <form onSubmit={handleSubmit} className={styles.form}>
           {!isLogin && (
-            <Field
+            <FormField
+              required
               label="Kullanıcı Adı"
               icon={User}
               type="text"
@@ -113,7 +117,8 @@ export default function Auth() {
               autoComplete="username"
             />
           )}
-          <Field
+          <FormField
+            required
             label="E-Posta Adresi"
             icon={Mail}
             type="email"
@@ -122,7 +127,8 @@ export default function Auth() {
             placeholder="ornek@mail.com"
             autoComplete="email"
           />
-          <Field
+          <FormField
+            required
             label="Şifre"
             icon={Lock}
             type="password"

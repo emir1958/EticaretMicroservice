@@ -1,11 +1,12 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { LogIn, LogOut, Package, ShieldCheck, ShoppingBag, ShoppingCart } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import { useCart } from "../../context/CartContext";
-import Button from "../ui/Button";
+import { useAuth } from "../../features/auth/AuthContext";
+import { useCart } from "../../features/cart/CartContext";
+import CartDrawer from "../../features/cart/components/CartDrawer";
+import Button from "../../shared/components/Button";
 import styles from "./CustomerLayout.module.css";
 
-// Müşteri sayfalarının ortak iskeleti: sabit header, içerik alanı, footer.
+// Müşteri sayfalarının ortak iskeleti: sabit header, içerik alanı, sepet çekmecesi, footer.
 // Router'da layout route olarak kullanılır; sayfa içeriği <Outlet /> yerine gelir.
 export default function CustomerLayout() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
@@ -75,6 +76,8 @@ export default function CustomerLayout() {
       <main className={styles.main}>
         <Outlet />
       </main>
+
+      <CartDrawer />
 
       <footer className={styles.footer}>
         <div className={styles.footerInner}>© {new Date().getFullYear()} E-Ticaret · Mikroservis demo projesi</div>

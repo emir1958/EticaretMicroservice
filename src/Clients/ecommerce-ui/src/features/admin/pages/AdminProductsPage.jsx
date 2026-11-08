@@ -1,577 +1,178 @@
-import React, { useState, useEffect } from "react";
-import api from "../../services/api";
-import AdminLayout from "../../components/AdminLayout";
-import { Link } from "react-router-dom";
-import {
-  ArrowLeft,
-  PlusCircle,
-  Edit,
-  Trash2,
-  X,
-  Image as ImageIcon,
-} from "lucide-react";
+import { useState } from "react";
+import { Edit, Image as ImageIcon, Package, Trash2 } from "lucide-react";
+import { getErrorMessage } from "../../../lib/apiClient";
+import { useAsync } from "../../../shared/hooks/useAsync";
+import Alert from "../../../shared/components/Alert";
+import Button from "../../../shared/components/Button";
+import EmptyState from "../../../shared/components/EmptyState";
+import { formatPrice } from "../../../shared/utils/format";
+import { deleteProduct, getProductsWithStock } from "../../catalog/api";
+import ProductForm from "../components/ProductForm";
+import ui from "../admin.module.css";
+import styles from "./AdminProductsPage.module.css";
 
-export default function AdminProduct() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null);
-  const [error, setError] = useState(null);
+const LOW_STOCK = 5;
 
-  // Form State
-  const [editingId, setEditingId] = useState(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [stock, setStock] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+function stockClass(count) {
+  if (count <= 0) return styles.stockOut;
+  if (count <= LOW_STOCK) return styles.stockLow;
+  return styles.stockOk;
+}
 
-  // 🟢 1. Ürünleri Catalog'dan, Gerçek Stokları Stock.Api'den Çekip Birleştiriyoruz
-  const fetchProducts = async () => {
-    try {
-      const [prodRes, stockRes] = await Promise.all([
-        api.get("/api/Products"),
-        api.get("/api/stocks").catch(() => ({ data: [] })),
-      ]);
+// Sayfa üç şeyi yönetir: ürün listesi, hangi ürünün düzenlendiği, silme onayı.
+// Formun kendi state'i ve kaydetme işi ProductForm'da.
+export default function AdminProductsPage() {
+  // reload: kaydetme/silme sonrası listeyi yeniden çeker; yenilenirken eski liste ekranda kalır
+  const { data: products = [], error: loadError, isLoading, reload } = useAsync(getProductsWithStock, []);
 
-      const productList = Array.isArray(prodRes.data)
-        ? prodRes.data
-        : prodRes.data?.data || [];
+  const [editingProduct, setEditingProduct] = useState(null);
+  // Yeni ürün eklendikten sonra boş bir formla başlamak için form "oturumu" sayacı (bkz. formKey)
+  const [newFormCount, setNewFormCount] = useState(0);
+  const [notice, setNotice] = useState(null); // { tone: "success" | "danger", text }
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
-      const stockList = Array.isArray(stockRes.data) ? stockRes.data : [];
-      const stockMap = new Map(
-        stockList.map((s) => [s.productId, s.availableStock]),
-      );
+  // key değişince React eski formu atar, yenisini başlangıç değerleriyle kurar
+  const formKey = editingProduct ? `edit-${editingProduct.id}` : `new-${newFormCount}`;
 
-      // Catalog ürünlerine StockDb'deki gerçek AvailableStock değerini eşliyoruz
-      const mergedProducts = productList.map((p) => ({
-        ...p,
-        availableStock: stockMap.has(p.id) ? stockMap.get(p.id) : 0,
-      }));
-
-      setProducts(mergedProducts);
-    } catch (err) {
-      console.error("Ürünler getirilemedi:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const resetForm = () => {
-    setEditingId(null);
-    setName("");
-    setDescription("");
-    setPrice("");
-    setStock("");
-    setImageUrl("");
-  };
-
-  // 🟢 2. Düzenleye Basıldığında StockDb'den Anlık Sorgu Atıyoruz
-  const handleEditClick = async (p) => {
-    setEditingId(p.id);
-    setName(p.name);
-    setDescription(p.description || "");
-    setPrice(p.price);
-    setImageUrl(p.imageUrl || "");
-    setStock(p.availableStock ?? 0); // Varsayılan birleştirilmiş stok
-
+  const startEdit = (product) => {
+    setEditingProduct(product);
+    setNotice(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
-
-    // En güncel StockDb değerini tekil sorguyla garantiye al
-    try {
-      const res = await api.get(`/api/stocks/${p.id}`);
-      if (res.data?.availableStock !== undefined) {
-        setStock(res.data.availableStock);
-      }
-    } catch (err) {
-      console.warn("Tekil stok çekilemedi, listedeki değer kullanılıyor:", err);
-    }
   };
 
-  // 🟢 3. Kaydet'e Basıldığında Catalog ve Stock.Api Ayrı Ayrı Güncellenir
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage(null);
-    setError(null);
+  const handleSaved = (text) => {
+    setEditingProduct(null);
+    setNewFormCount((count) => count + 1);
+    setNotice({ tone: "success", text });
+    reload();
+  };
 
-    const stockNumber = parseInt(stock, 10) || 0;
-
+  const confirmDelete = async (id) => {
+    setDeletingId(id);
     try {
-      if (editingId) {
-        // A. Catalog Servisi: Ürün Metaverilerini Güncelle
-        await api.put(`/api/Products/${editingId}`, {
-          name: name.trim(),
-          description: description.trim(),
-          price: parseFloat(price),
-          imageUrl: imageUrl.trim(),
-        });
-
-        // B. Stock Servisi: Gerçek Stoğu StockDb Üzerinde Güncelle
-        await api.put(`/api/stocks/${editingId}`, {
-          availableStock: stockNumber,
-        });
-
-        setMessage("Ürün bilgileri ve StockDb stoğu başarıyla güncellendi.");
-      } else {
-        // Yeni Ürün Ekleme (Catalog başlangıç stoğunu event ile Stock'a fırlatır)
-        await api.post("/api/Products", {
-          name: name.trim(),
-          description: description.trim(),
-          price: parseFloat(price),
-          imageUrl: imageUrl.trim(),
-          initialStock: stockNumber,
-        });
-        setMessage("Yeni ürün başarıyla eklendi.");
-      }
-
-      resetForm();
-      fetchProducts();
+      await deleteProduct(id);
+      if (editingProduct?.id === id) setEditingProduct(null);
+      setNotice({ tone: "success", text: "Ürün silindi." });
+      reload();
     } catch (err) {
-      console.error("İşlem hatası:", err);
-      setError(err.response?.data?.message || "İşlem gerçekleştirilemedi.");
+      console.error("Ürün silinemedi:", err);
+      setNotice({ tone: "danger", text: getErrorMessage(err, "Ürün silinirken bir hata oluştu.") });
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Bu ürünü silmek istediğinize emin misiniz?")) return;
-
-    try {
-      await api.delete(`/api/Products/${id}`);
-      setMessage("Ürün silindi.");
-      fetchProducts();
-    } catch (err) {
-      console.error("Silme hatası:", err);
-      setError(
-        err.response?.data?.message || "Ürün silinirken bir hata oluştu.",
-      );
+      setDeletingId(null);
+      setPendingDeleteId(null);
     }
   };
 
   return (
-    <AdminLayout>
-      <div
-        style={{
-          maxWidth: "960px",
-          margin: "30px auto",
-          padding: "24px",
-          fontFamily: "sans-serif",
-        }}
-      >
-        <Link
-          to="/"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            textDecoration: "none",
-            color: "#2563eb",
-            marginBottom: "20px",
-          }}
-        >
-          <ArrowLeft size={18} /> Mağazaya Dön
-        </Link>
-
-        <h2 style={{ margin: "0 0 20px 0" }}>⚙️ Ürün Yönetim Paneli</h2>
-
-        {message && (
-          <div
-            style={{
-              background: "#dcfce7",
-              color: "#15803d",
-              padding: "12px",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
-            {message}
-          </div>
-        )}
-        {error && (
-          <div
-            style={{
-              background: "#fee2e2",
-              color: "#b91c1c",
-              padding: "12px",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {/* Form Alanı */}
-        <div
-          style={{
-            background: "#f8fafc",
-            border: "1px solid #e2e8f0",
-            borderRadius: "12px",
-            padding: "20px",
-            marginBottom: "32px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "16px",
-            }}
-          >
-            <h3
-              style={{
-                margin: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "18px",
-              }}
-            >
-              {editingId ? (
-                <Edit size={20} color="#2563eb" />
-              ) : (
-                <PlusCircle size={20} color="#10b981" />
-              )}
-              {editingId ? "Ürünü Düzenle" : "Yeni Ürün Ekle"}
-            </h3>
-            {editingId && (
-              <button
-                onClick={resetForm}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  border: "none",
-                  background: "transparent",
-                  color: "#64748b",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                }}
-              >
-                <X size={16} /> Düzenlemeyi İptal Et
-              </button>
-            )}
-          </div>
-
-          <form
-            onSubmit={handleSubmit}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr 1fr",
-              gap: "16px",
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  marginBottom: "4px",
-                }}
-              >
-                Ürün Adı
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Örn: Logi MX Master 3S"
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  marginBottom: "4px",
-                }}
-              >
-                Fiyat (TL)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="3499.00"
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  marginBottom: "4px",
-                }}
-              >
-                {editingId ? "Güncel Stok (StockDb)" : "Başlangıç Stoğu"}
-              </label>
-              <input
-                type="number"
-                required
-                value={stock}
-                onChange={(e) => setStock(e.target.value)}
-                placeholder="100"
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "span 3" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  marginBottom: "4px",
-                }}
-              >
-                Görsel URL
-              </label>
-              <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://images.unsplash.com/photo-..."
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "span 3" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  marginBottom: "4px",
-                }}
-              >
-                Açıklama
-              </label>
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Kısa ürün açıklaması..."
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "span 3" }}>
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  background: editingId ? "#2563eb" : "#10b981",
-                  color: "#fff",
-                  border: "none",
-                  padding: "12px 24px",
-                  borderRadius: "8px",
-                  fontWeight: "bold",
-                  cursor: loading ? "not-allowed" : "pointer",
-                }}
-              >
-                {loading
-                  ? "İşleniyor..."
-                  : editingId
-                    ? "Değişiklikleri Kaydet"
-                    : "Ürünü Kaydet"}
-              </button>
-            </div>
-          </form>
+    <>
+      <div className={ui.header}>
+        <div>
+          <h1 className={ui.title}>Ürün Yönetimi</h1>
+          <p className={ui.subtitle}>Katalogdaki ürünler ve Stock servisindeki güncel stokları.</p>
         </div>
+      </div>
 
-        {/* Ürün Listesi */}
-        <h3 style={{ marginBottom: "12px" }}>
-          Katalogdaki Ürünler ({products.length})
-        </h3>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            background: "#fff",
-            border: "1px solid #e2e8f0",
-            borderRadius: "8px",
-            overflow: "hidden",
-          }}
-        >
-          <thead>
-            <tr
-              style={{
-                background: "#f1f5f9",
-                textAlign: "left",
-                fontSize: "13px",
-                color: "#475569",
-              }}
-            >
-              <th style={{ padding: "12px" }}>Görsel</th>
-              <th style={{ padding: "12px" }}>Ürün Adı</th>
-              <th style={{ padding: "12px" }}>Açıklama</th>
-              <th style={{ padding: "12px" }}>Fiyat</th>
-              {/* 🟢 Stok Kolonu Eklendi */}
-              <th style={{ padding: "12px" }}>Mevcut Stok</th>
-              <th style={{ padding: "12px", textAlign: "right" }}>İşlemler</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.length === 0 ? (
+      {notice && (
+        <Alert tone={notice.tone} className={ui.alert}>
+          {notice.text}
+        </Alert>
+      )}
+
+      <ProductForm
+        key={formKey}
+        product={editingProduct}
+        onSaved={handleSaved}
+        onCancel={() => setEditingProduct(null)}
+      />
+
+      <h2 className={styles.listTitle}>
+        Katalogdaki ürünler {!isLoading && <span className={ui.muted}>({products.length})</span>}
+      </h2>
+
+      {isLoading && products.length === 0 ? (
+        <p className={ui.state}>Yükleniyor...</p>
+      ) : loadError ? (
+        <Alert>{getErrorMessage(loadError, "Ürünler getirilemedi.")}</Alert>
+      ) : products.length === 0 ? (
+        <EmptyState icon={Package} title="Henüz ürün yok" text="Yukarıdaki formla ilk ürünü ekleyebilirsin." />
+      ) : (
+        <div className={ui.tableWrap}>
+          <table className={ui.table}>
+            <thead>
               <tr>
-                <td
-                  colSpan={6}
-                  style={{
-                    padding: "24px",
-                    textAlign: "center",
-                    color: "#64748b",
-                  }}
-                >
-                  Kayıtlı ürün bulunamadı.
-                </td>
+                <th>
+                  <span className="visually-hidden">Görsel</span>
+                </th>
+                <th>Ürün</th>
+                <th>Fiyat</th>
+                <th>Stok</th>
+                <th className={ui.alignRight}>
+                  <span className="visually-hidden">İşlemler</span>
+                </th>
               </tr>
-            ) : (
-              products.map((p) => (
-                <tr
-                  key={p.id}
-                  style={{
-                    borderBottom: "1px solid #f1f5f9",
-                    fontSize: "14px",
-                  }}
-                >
-                  <td style={{ padding: "12px", width: "50px" }}>
-                    {p.imageUrl ? (
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name}
-                        style={{
-                          width: "44px",
-                          height: "44px",
-                          objectFit: "cover",
-                          borderRadius: "6px",
-                        }}
-                      />
+            </thead>
+            <tbody>
+              {products.map((product) => (
+                <tr key={product.id} className={editingProduct?.id === product.id ? styles.editingRow : undefined}>
+                  <td className={styles.thumbCell}>
+                    {product.imageUrl ? (
+                      <img src={product.imageUrl} alt="" className={styles.thumb} loading="lazy" />
                     ) : (
-                      <div
-                        style={{
-                          width: "44px",
-                          height: "44px",
-                          background: "#f1f5f9",
-                          borderRadius: "6px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <ImageIcon size={18} color="#94a3b8" />
+                      <div className={styles.thumb}>
+                        <ImageIcon size={18} />
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: "12px", fontWeight: "600" }}>
-                    {p.name}
+                  <td>
+                    <div className={ui.strong}>{product.name}</div>
+                    <div className={`${ui.muted} ${styles.description}`}>{product.description || "—"}</div>
                   </td>
-                  <td style={{ padding: "12px", color: "#64748b" }}>
-                    {p.description || "-"}
-                  </td>
-                  <td
-                    style={{
-                      padding: "12px",
-                      fontWeight: "bold",
-                      color: "#0f766e",
-                    }}
-                  >
-                    {p.price} TL
-                  </td>
-                  {/* 🟢 StockDb'den Gelen Canlı Stok Değeri */}
-                  <td style={{ padding: "12px" }}>
-                    <span
-                      style={{
-                        background:
-                          p.availableStock > 0 ? "#dcfce7" : "#fee2e2",
-                        color: p.availableStock > 0 ? "#15803d" : "#b91c1c",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        fontWeight: "bold",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {p.availableStock} Adet
+                  <td className={`${ui.strong} ${ui.nowrap}`}>{formatPrice(product.price)}</td>
+                  <td>
+                    <span className={`${styles.stock} ${stockClass(product.availableStock)}`}>
+                      {product.availableStock} adet
                     </span>
                   </td>
-                  <td style={{ padding: "12px", textAlign: "right" }}>
-                    <button
-                      onClick={() => handleEditClick(p)}
-                      style={{
-                        background: "#e0f2fe",
-                        color: "#0369a1",
-                        border: "none",
-                        padding: "6px 10px",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        marginRight: "8px",
-                      }}
-                    >
-                      <Edit size={14} /> Düzenle
-                    </button>
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      style={{
-                        background: "#fee2e2",
-                        color: "#b91c1c",
-                        border: "none",
-                        padding: "6px 10px",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <Trash2 size={14} /> Sil
-                    </button>
+                  <td className={ui.alignRight}>
+                    {pendingDeleteId === product.id ? (
+                      // Silme geri alınamaz: tarayıcının confirm() penceresi yerine satır içinde onay
+                      <div className={styles.actions}>
+                        <span className={styles.confirmText}>Silinsin mi?</span>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          disabled={deletingId === product.id}
+                          onClick={() => confirmDelete(product.id)}
+                        >
+                          {deletingId === product.id ? "Siliniyor..." : "Evet, sil"}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setPendingDeleteId(null)}>
+                          Vazgeç
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className={styles.actions}>
+                        <Button variant="secondary" size="sm" onClick={() => startEdit(product)}>
+                          <Edit size={14} /> Düzenle
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPendingDeleteId(product.id)}
+                          aria-label={`${product.name} ürününü sil`}
+                        >
+                          <Trash2 size={14} /> Sil
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </AdminLayout>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }

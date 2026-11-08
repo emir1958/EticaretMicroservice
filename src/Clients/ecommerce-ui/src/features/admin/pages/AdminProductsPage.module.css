@@ -1,0 +1,72 @@
+.listTitle {
+  margin: var(--space-8) 0 var(--space-4);
+  font-size: var(--font-size-lg);
+}
+
+.thumbCell {
+  width: 64px;
+}
+
+.thumb {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+/* Uzun açıklama tabloyu genişletmesin: iki satırda kesilir */
+.description {
+  display: -webkit-box;
+  max-width: 420px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: var(--font-size-xs);
+}
+
+.stock {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stockOk {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.stockLow {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.stockOut {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.confirmText {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+/* Formda düzenlenen ürün tabloda da belli olsun */
+.editingRow td {
+  background: var(--color-primary-soft);
+}

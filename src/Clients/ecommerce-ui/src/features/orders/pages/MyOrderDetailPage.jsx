@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useAsync } from "../../../shared/hooks/useAsync";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Package, X } from "lucide-react";
-import api from "../../services/api";
-import { useOrderHub } from "../../hooks/useOrderHub";
-import OrderStatusBadge from "../../components/OrderStatusBadge";
-import EmptyState from "../../components/ui/EmptyState";
-import Button from "../../components/ui/Button";
-import { formatDate, formatPrice, getOrderStatusView } from "../../utils/orderStatus";
-import styles from "./MyOrderDetail.module.css";
+import { getErrorMessage } from "../../../lib/apiClient";
+import { getMyOrder } from "../api";
+import { useOrderHub } from "../useOrderHub";
+import OrderStatusBadge from "../components/OrderStatusBadge";
+import EmptyState from "../../../shared/components/EmptyState";
+import Button from "../../../shared/components/Button";
+import { formatDate, formatPrice } from "../../../shared/utils/format";
+import { getOrderStatusView } from "../orderStatus";
+import styles from "./MyOrderDetailPage.module.css";
 
 // Siparişin hangi aşamada olduğu: alındı → ödeme → tamamlandı (iptalde ödeme adımı kırmızı)
 function OrderSteps({ status }) {
@@ -36,47 +38,23 @@ function OrderSteps({ status }) {
   );
 }
 
-export default function MyOrderDetail() {
+export default function MyOrderDetailPage() {
   const { id } = useParams();
-  // Sonuç hangi id için yüklendiğiyle birlikte tutulur; "yükleniyor" ayrı state değil, buradan türetilir
-  const [result, setResult] = useState({ id: null, order: null, error: null });
+  // Hızla başka siparişe geçilirse eski cevabın yeni sayfanın üzerine yazmamasını useAsync sağlar
+  const { data: order, error, isLoading } = useAsync(() => getMyOrder(id), [id]);
   const { orderStatus: liveStatus } = useOrderHub();
-
-  useEffect(() => {
-    // Kullanıcı hızla başka siparişe geçerse eski isteğin geç gelen cevabı yeni sayfanın üzerine yazmasın
-    let ignore = false;
-    api
-      .get(`/api/orders/user/${id}`)
-      .then((res) => {
-        if (!ignore) setResult({ id, order: res.data, error: null });
-      })
-      .catch((err) => {
-        if (ignore) return;
-        const error =
-          err.response?.status === 404
-            ? "Sipariş bulunamadı."
-            : err.response?.data?.message || "Sipariş şu anda getirilemiyor.";
-        setResult({ id, order: null, error });
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [id]);
-
-  const loading = result.id !== id;
-  const { order, error } = result;
 
   // Sayfa açıkken sipariş tamamlanır veya iptal edilirse SignalR bildirimi API'den gelen durumun yerine geçer
   const isLiveForThisOrder = liveStatus && Number(liveStatus.orderId) === Number(id);
   const status = isLiveForThisOrder ? liveStatus.status : order?.orderStatus;
 
-  if (loading) return <p className={styles.state}>Yükleniyor...</p>;
+  if (isLoading) return <p className={styles.state}>Yükleniyor...</p>;
 
   if (error) {
     return (
       <EmptyState
         icon={Package}
-        title={error}
+        title={error.response?.status === 404 ? "Sipariş bulunamadı." : getErrorMessage(error, "Sipariş şu anda getirilemiyor.")}
         text="Sipariş numarasını kontrol edin veya siparişlerinize dönün."
         action={<Button to="/orders">Siparişlerime dön</Button>}
       />

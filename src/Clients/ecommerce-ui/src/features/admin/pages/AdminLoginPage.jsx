@@ -1,183 +1,93 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
-import { ShieldCheck, Mail, Lock } from "lucide-react";
+import { useState } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, Lock, Mail, ShieldCheck } from "lucide-react";
+import { getErrorMessage } from "../../../lib/apiClient";
+import Alert from "../../../shared/components/Alert";
+import Button from "../../../shared/components/Button";
+import FormField from "../../../shared/components/FormField";
+import { useAuth } from "../../auth/AuthContext";
+import styles from "./AdminLoginPage.module.css";
 
-export default function AdminLogin() {
+export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login } = useAuth();
+  const { login, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // AdminRoute buraya yönlendirirken gidilmek istenen sayfayı state ile taşır
+  const from = location.state?.from?.pathname || "/admin/orders";
+
+  // Zaten yönetici olarak giriş yapılmışsa form gösterilmez
+  if (isAdmin) return <Navigate to={from} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setIsSubmitting(true);
 
     try {
       const loggedUser = await login(email, password);
       if (!loggedUser.isAdmin) {
-        setError("Yetkisiz Giriş: Bu hesap Admin yetkisine sahip değildir.");
+        // Yönetici olmayan hesap burada oturum açık bırakılmaz: kullanıcı reddedildiğini görürken
+        // arka planda müşteri olarak giriş yapmış kalmamalı.
+        logout();
+        setError("Bu hesap yönetici yetkisine sahip değil.");
+        setIsSubmitting(false);
         return;
       }
-      navigate("/admin/orders");
+      navigate(from, { replace: true });
     } catch (err) {
-      setError(
-        err.response?.data?.message || err.message || "Giriş başarısız.",
-      );
-    } finally {
-      setLoading(false);
+      setError(getErrorMessage(err, "Giriş başarısız."));
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#0f172a",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: "#1e293b",
-          padding: "36px",
-          borderRadius: "16px",
-          width: "100%",
-          maxWidth: "400px",
-          color: "#fff",
-          border: "1px solid #334155",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "24px" }}>
-          <ShieldCheck
-            size={48}
-            color="#3b82f6"
-            style={{ margin: "0 auto 12px auto" }}
+    <div className={styles.wrap}>
+      <div className={styles.card}>
+        <div className={styles.heading}>
+          <span className={styles.mark}>
+            <ShieldCheck size={24} />
+          </span>
+          <h1 className={styles.title}>Yönetim Paneli</h1>
+          <p className={styles.subtitle}>Devam etmek için yönetici hesabınla giriş yap.</p>
+        </div>
+
+        {error && <Alert className={styles.alert}>{error}</Alert>}
+
+        <form onSubmit={handleSubmit} className={styles.form}>
+          <FormField
+            label="E-Posta"
+            icon={Mail}
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="admin@eticaret.com"
+            autoComplete="username"
           />
-          <h2 style={{ margin: 0, fontSize: "22px" }}>Admin Paneli Girişi</h2>
-        </div>
+          <FormField
+            label="Şifre"
+            icon={Lock}
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="current-password"
+          />
+          <Button type="submit" size="lg" fullWidth disabled={isSubmitting}>
+            {isSubmitting ? "Giriş yapılıyor..." : "Giriş yap"}
+          </Button>
+        </form>
 
-        {error && (
-          <div
-            style={{
-              background: "#ef444420",
-              border: "1px solid #ef4444",
-              color: "#f87171",
-              padding: "10px",
-              borderRadius: "8px",
-              fontSize: "13px",
-              marginBottom: "16px",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <div style={{ marginBottom: "16px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "13px",
-              color: "#94a3b8",
-              marginBottom: "6px",
-            }}
-          >
-            E-Posta
-          </label>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "#0f172a",
-              border: "1px solid #475569",
-              padding: "10px 12px",
-              borderRadius: "8px",
-            }}
-          >
-            <Mail size={16} color="#64748b" />
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@eticaret.com"
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#fff",
-                width: "100%",
-                outline: "none",
-              }}
-            />
-          </div>
-        </div>
-
-        <div style={{ marginBottom: "24px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "13px",
-              color: "#94a3b8",
-              marginBottom: "6px",
-            }}
-          >
-            Şifre
-          </label>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "#0f172a",
-              border: "1px solid #475569",
-              padding: "10px 12px",
-              borderRadius: "8px",
-            }}
-          >
-            <Lock size={16} color="#64748b" />
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#fff",
-                width: "100%",
-                outline: "none",
-              }}
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: "100%",
-            background: "#2563eb",
-            color: "#fff",
-            border: "none",
-            padding: "12px",
-            borderRadius: "8px",
-            fontWeight: "bold",
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? "Giriş yapılıyor..." : "Yönetici Girişi Yap"}
-        </button>
-      </form>
+        <Link to="/" className={styles.back}>
+          <ArrowLeft size={16} /> Mağazaya dön
+        </Link>
+      </div>
     </div>
   );
 }

@@ -1,109 +1,123 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useRef,
-} from "react";
-import api from "../services/api";
-import { useAuth } from "./AuthContext";
+import { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "../auth/AuthContext";
+import * as basketApi from "./api";
 
 const CartContext = createContext();
 
+// ---------------------------------------------------------------------------
+// Saklama (localStorage) yardımcıları: React'ten bağımsız, saf fonksiyonlar.
+// Sunucu ↔ UI dönüşümü ./api.js'te.
+// ---------------------------------------------------------------------------
+const GUEST_KEY = "ecommerce_cart_guest";
+const userKey = (userId) => `ecommerce_cart_${userId}`;
+
+function readStoredCart(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return []; // Bozuk JSON uygulamayı çökertmesin
+  }
+}
+
+function writeStoredCart(key, items) {
+  localStorage.setItem(key, JSON.stringify(items));
+}
+
+// Girişte misafir sepeti kullanıcının sunucudaki sepetiyle birleşir; aynı ürünün adetleri toplanır.
+function mergeCarts(serverItems, guestItems) {
+  const merged = new Map(serverItems.map((item) => [item.id, item]));
+  for (const guest of guestItems) {
+    const existing = merged.get(guest.id);
+    merged.set(guest.id, existing ? { ...existing, quantity: existing.quantity + guest.quantity } : guest);
+  }
+  return [...merged.values()];
+}
+
+async function pushBasket(userId, items) {
+  try {
+    await basketApi.saveBasket(userId, items);
+  } catch (err) {
+    console.error("Redis sepet senkronizasyon hatası:", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
 export const CartProvider = ({ children }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const userId = user?.id;
 
-  const [cart, setCart] = useState([]);
+  const [guestCart, setGuestCart] = useState(() => readStoredCart(GUEST_KEY));
+  // Kullanıcı sepeti hangi kullanıcıya ait olduğuyla birlikte tutulur: A çıkıp B girerse
+  // B'nin sepeti yüklenene kadar A'nınki bir an bile gösterilmez.
+  const [userCart, setUserCart] = useState({ userId: null, items: [] });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const isInitialMount = useRef(true);
 
-  // 🟢 1. KULLANICI DEĞİŞTİĞİNDE VEYA ÇIKIŞ YAPILDIĞINDA SEPETİ YÖNETME
+  // Gösterilen sepet state değil, türetilen değer. Çıkışta ayrıca "sıfırlama" gerekmez:
+  // userId yoksa misafir sepeti görünür. Girişten sonra sunucu sepeti gelene kadar da misafir sepeti görünür.
+  const isUserCartLoaded = Boolean(userId) && userCart.userId === userId;
+  const cart = isUserCartLoaded ? userCart.items : guestCart;
+
+  // Kullanıcı giriş yaptığında (veya sayfa giriş yapılmış hâlde açıldığında) sunucu sepetini yükle
+  // ve misafir sepetini içine kat. Effect'in işi tam olarak bu: dış sistemle (Basket API) senkronizasyon.
   useEffect(() => {
-    const loadBasket = async () => {
-      if (isAuthenticated && userId) {
-        try {
-          // Redis'ten kullanıcının kendi sepetini çekiyoruz
-          const res = await api.get("/api/Basket");
-          const backendItems = res.data?.items || res.data?.Items || [];
+    if (!userId) return;
+    let ignore = false;
 
-          const mappedCart = backendItems.map((item) => ({
-            id: item.productId || item.ProductId || item.id,
-            name: item.productName || item.ProductName || item.name,
-            price:
-              item.price ?? item.Price ?? item.unitPrice ?? item.UnitPrice ?? 0,
-            quantity: item.quantity || item.Quantity || 1,
-            imageUrl:
-              item.imageUrl ||
-              item.ImageUrl ||
-              item.pictureUrl ||
-              item.PictureUrl ||
-              "",
-          }));
+    const load = async () => {
+      let serverItems;
+      try {
+        serverItems = await basketApi.getBasket();
+      } catch (err) {
+        console.warn("Redis'ten sepet çekilemedi, yerel kopya kullanılıyor:", err);
+        serverItems = readStoredCart(userKey(userId));
+      }
+      // Cevap gelene kadar kullanıcı değiştiyse (veya StrictMode effect'i iki kez çalıştırdıysa) sonucu at.
+      // Kontrol, misafir sepetine dokunmadan önce yapılır; yoksa merge iki kez uygulanırdı.
+      if (ignore) return;
 
-          setCart(mappedCart);
-          localStorage.setItem(
-            `ecommerce_cart_${userId}`,
-            JSON.stringify(mappedCart),
-          );
-        } catch (err) {
-          console.warn(
-            "Redis'ten sepet çekilemedi, yerel hafıza kontrol ediliyor:",
-            err,
-          );
-          const cached = localStorage.getItem(`ecommerce_cart_${userId}`);
-          setCart(cached ? JSON.parse(cached) : []);
-        }
-      } else {
-        // Kullanıcı giriş yapmamışsa (Misafir modu)
-        const guestCart = localStorage.getItem("ecommerce_cart_guest");
-        setCart(guestCart ? JSON.parse(guestCart) : []);
+      const guestItems = readStoredCart(GUEST_KEY);
+      const merged = mergeCarts(serverItems, guestItems);
+
+      setUserCart({ userId, items: merged });
+      writeStoredCart(userKey(userId), merged);
+
+      if (guestItems.length > 0) {
+        localStorage.removeItem(GUEST_KEY);
+        setGuestCart([]);
+        pushBasket(userId, merged);
       }
     };
 
-    loadBasket();
-  }, [userId, isAuthenticated]);
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [userId]);
 
-  // 🟢 2. REDIS VE LOCALSTORAGE'A SENKRONİZASYON YARDIMCISI
-  const syncBasket = async (updatedCart) => {
-    const storageKey = userId
-      ? `ecommerce_cart_${userId}`
-      : "ecommerce_cart_guest";
-    localStorage.setItem(storageKey, JSON.stringify(updatedCart));
-
-    // Kullanıcı giriş yapmışsa Redis'e (Basket.Api) gönder
-    if (isAuthenticated && userId) {
-      try {
-        await api.post("/api/Basket", {
-          userId: userId,
-          items: updatedCart.map((i) => ({
-            productId: i.id,
-            productName: i.name,
-            price: i.price,
-            unitPrice: i.price,
-            quantity: i.quantity,
-            imageUrl: i.imageUrl,
-            pictureUrl: i.imageUrl,
-          })),
-        });
-      } catch (err) {
-        console.error("Redis sepet senkronizasyon hatası:", err);
-      }
+  // Tüm değişiklikler buradan geçer: önce yeni sepet saf olarak hesaplanır, sonra state'e
+  // ve saklama yerine yazılır. Yan etki (HTTP) setState updater'ının içinde değil, burada.
+  const commitCart = (nextItems) => {
+    if (userId) {
+      setUserCart({ userId, items: nextItems });
+      writeStoredCart(userKey(userId), nextItems);
+      pushBasket(userId, nextItems);
+    } else {
+      setGuestCart(nextItems);
+      writeStoredCart(GUEST_KEY, nextItems);
     }
   };
 
-  // 🟢 3. SEPETE EKLEME
   const addToCart = (product, addQty = 1) => {
     const targetId = product.id || product._id;
     if (!targetId) return;
 
-    setCart((prev) => {
-      let updated;
-      const existing = prev.find((item) => item.id === targetId);
-
-      if (existing) {
-        updated = prev.map((item) =>
+    const existing = cart.find((item) => item.id === targetId);
+    const nextItems = existing
+      ? cart.map((item) =>
           item.id === targetId
             ? {
                 ...item,
@@ -113,10 +127,9 @@ export const CartProvider = ({ children }) => {
                 quantity: item.quantity + addQty,
               }
             : item,
-        );
-      } else {
-        updated = [
-          ...prev,
+        )
+      : [
+          ...cart,
           {
             id: targetId,
             name: product.name || "Ürün",
@@ -125,11 +138,8 @@ export const CartProvider = ({ children }) => {
             quantity: addQty,
           },
         ];
-      }
 
-      syncBasket(updated);
-      return updated;
-    });
+    commitCart(nextItems);
 
     setSuccessMessage("Ürün sepetinize başarıyla eklendi.");
     setTimeout(() => {
@@ -138,52 +148,36 @@ export const CartProvider = ({ children }) => {
     }, 800);
   };
 
-  // 🟢 4. SEPETTEN ÇIKARMA
   const removeFromCart = (id) => {
-    setCart((prev) => {
-      const updated = prev.filter((item) => item.id !== id);
-      syncBasket(updated);
-      return updated;
-    });
+    commitCart(cart.filter((item) => item.id !== id));
   };
 
-  // 🟢 5. MİKTAR GÜNCELLEME
   const updateQuantity = (id, quantity) => {
     if (quantity <= 0) {
       removeFromCart(id);
       return;
     }
-
-    setCart((prev) => {
-      const updated = prev.map((item) =>
-        item.id === id ? { ...item, quantity } : item,
-      );
-      syncBasket(updated);
-      return updated;
-    });
+    commitCart(cart.map((item) => (item.id === id ? { ...item, quantity } : item)));
   };
 
-  // 🟢 6. SEPETİ TEMİZLEME
+  // Sipariş verildikten sonra çağrılır. Sunucuda boş sepet yazmak yerine sepet silinir.
   const clearCart = async () => {
-    setCart([]);
-    const storageKey = userId
-      ? `ecommerce_cart_${userId}`
-      : "ecommerce_cart_guest";
-    localStorage.removeItem(storageKey);
+    if (!userId) {
+      setGuestCart([]);
+      localStorage.removeItem(GUEST_KEY);
+      return;
+    }
 
-    if (isAuthenticated && userId) {
-      try {
-        await api.delete("/api/Basket");
-      } catch (err) {
-        console.error("Redis sepet silme hatası:", err);
-      }
+    setUserCart({ userId, items: [] });
+    localStorage.removeItem(userKey(userId));
+    try {
+      await basketApi.deleteBasket();
+    } catch (err) {
+      console.error("Redis sepet silme hatası:", err);
     }
   };
 
-  const totalAmount = cart.reduce(
-    (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
-    0,
-  );
+  const totalAmount = cart.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
 
   return (
     <CartContext.Provider
@@ -204,4 +198,6 @@ export const CartProvider = ({ children }) => {
   );
 };
 
+// Bkz. AuthContext.jsx: hook provider ile bilinçli olarak aynı dosyada.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useCart = () => useContext(CartContext);

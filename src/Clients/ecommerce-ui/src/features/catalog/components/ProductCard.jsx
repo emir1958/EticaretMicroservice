@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Package } from "lucide-react";
-import { formatPrice } from "../utils/orderStatus";
+import { formatPrice } from "../../../shared/utils/format";
 import styles from "./ProductCard.module.css";
 
 // Ürün listesi ve "ilginizi çekebilir" bölümünde ortak kart. action: fiyatın yanındaki buton (opsiyonel).

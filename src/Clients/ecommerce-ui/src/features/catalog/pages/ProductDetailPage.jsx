@@ -1,67 +1,50 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useAsync } from "../../../shared/hooks/useAsync";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Package, Minus, Plus, ShoppingCart } from "lucide-react";
-import api from "../../services/api";
-import { useCart } from "../../context/CartContext";
-import { useAuth } from "../../context/AuthContext";
-import ProductCard from "../../components/ProductCard";
-import Button from "../../components/ui/Button";
-import { formatPrice } from "../../utils/orderStatus";
-import styles from "./ProductDetail.module.css";
+import { getAvailableStock, getProduct, getProducts } from "../api";
+import { useCart } from "../../cart/CartContext";
+import { useAuth } from "../../auth/AuthContext";
+import ProductCard from "../components/ProductCard";
+import Button from "../../../shared/components/Button";
+import { formatPrice } from "../../../shared/utils/format";
+import styles from "./ProductDetailPage.module.css";
+
+// Bu ekranın ihtiyacı üç isteğin birleşimi; api.js fonksiyonlarını bir araya getirir, HTTP bilmez.
+async function loadProductDetail(id) {
+  const [product, stockCount, allProducts] = await Promise.all([
+    getProduct(id),
+    // Stok servisi yanıt vermezse ürün yine gösterilir, stokta yok olarak
+    getAvailableStock(id).catch((err) => {
+      console.warn("Stok servisi yanıt vermedi:", err);
+      return 0;
+    }),
+    getProducts(),
+  ]);
+  return {
+    product,
+    stockCount,
+    otherProducts: allProducts.filter((p) => p.id !== id).slice(0, 4),
+  };
+}
 
 // Başka bir ürüne geçildiğinde (ilginizi çekebilir) sayfa id ile key'lenir: React component'i yeniden oluşturur,
-// adet ve yükleme durumu gibi tüm state kendiliğinden sıfırlanır.
-export default function ProductDetail() {
+// adet gibi kullanıcının girdiği state kendiliğinden sıfırlanır.
+export default function ProductDetailPage() {
   const { id } = useParams();
   return <ProductDetailContent key={id} id={id} />;
 }
 
 function ProductDetailContent({ id }) {
   const { isAdmin } = useAuth();
-  const [product, setProduct] = useState(null);
-  const [stockCount, setStockCount] = useState(0);
-  const [otherProducts, setOtherProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [quantity, setQuantity] = useState(1);
   const { addToCart } = useCart();
+  const [quantity, setQuantity] = useState(1);
+  const { data, isLoading } = useAsync(() => loadProductDetail(id), [id]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [prodRes, stockRes, allProdsRes] = await Promise.all([
-          api.get(`/api/Products/${id}`),
-          api.get(`/api/stocks/${id}`).catch((err) => {
-            console.warn("Stok servisi yanıt vermedi:", err);
-            return { data: null };
-          }),
-          api.get(`/api/Products`),
-        ]);
+  if (isLoading) return <div className={styles.state}>Yükleniyor...</div>;
+  if (!data) return <div className={styles.state}>Ürün bulunamadı.</div>;
 
-        setProduct(prodRes.data?.data || prodRes.data);
-
-        // 🟢 availableStock veya AvailableStock kontrolü
-        const stockData = stockRes.data?.data || stockRes.data;
-        const count =
-          stockData?.availableStock ?? stockData?.AvailableStock ?? 0;
-        setStockCount(count);
-
-        const allList = Array.isArray(allProdsRes.data)
-          ? allProdsRes.data
-          : allProdsRes.data?.data || [];
-
-        setOtherProducts(allList.filter((p) => p.id !== id).slice(0, 4));
-      } catch (err) {
-        console.error("Veriler alınamadı", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [id]);
-
-  if (loading) return <div className={styles.state}>Yükleniyor...</div>;
-  if (!product) return <div className={styles.state}>Ürün bulunamadı.</div>;
+  const { product, stockCount, otherProducts } = data;
 
   const isOutOfStock = stockCount <= 0;
   const handleAdd = () => {

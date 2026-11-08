@@ -7,18 +7,20 @@ import {
   Loader2,
   CreditCard,
   ShieldCheck,
-  AlertTriangle,
   ShoppingBag,
   MapPin,
 } from "lucide-react";
-import { useCart } from "../../context/CartContext";
-import { useAuth } from "../../context/AuthContext";
-import { useOrderHub } from "../../hooks/useOrderHub";
-import api from "../../services/api";
-import Button from "../../components/ui/Button";
-import EmptyState from "../../components/ui/EmptyState";
-import { formatPrice } from "../../utils/orderStatus";
-import styles from "./Checkout.module.css";
+import { useCart } from "../../cart/CartContext";
+import { useAuth } from "../../auth/AuthContext";
+import { useOrderHub } from "../useOrderHub";
+import { getErrorMessage } from "../../../lib/apiClient";
+import { createOrder } from "../api";
+import Alert from "../../../shared/components/Alert";
+import Button from "../../../shared/components/Button";
+import EmptyState from "../../../shared/components/EmptyState";
+import FormField from "../../../shared/components/FormField";
+import { formatPrice } from "../../../shared/utils/format";
+import styles from "./CheckoutPage.module.css";
 
 // Adres formu henüz yok: her sipariş bu demo adresle gönderilir. Ekranda da aynısı gösterilir.
 const DEMO_ADDRESS = {
@@ -29,10 +31,9 @@ const DEMO_ADDRESS = {
   line: "No:12 Daire:4",
 };
 
-export default function Checkout() {
+export default function CheckoutPage() {
   const { cart, totalAmount, clearCart } = useCart();
-  // 🟢 1. isAdmin bilgisini AuthContext'ten alıyoruz
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const { orderStatus } = useOrderHub();
 
   // Kart Form State'leri
@@ -101,56 +102,27 @@ export default function Checkout() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    // 🟢 DÜZELTİLDİ: cleanCard yerine tanımladığınız rawCard kullanıldı
-    const last4 = rawCard.slice(-4);
-    const paymentToken = `tok_card_${last4}`;
-
-    const payload = {
-      buyerId: user?.id,
-      address: DEMO_ADDRESS,
-      payment: {
-        paymentToken: paymentToken,
-      },
-      orderItems: cart.map((item) => ({
-        productId: item.id,
-        productName: item.name,
-        price: item.price,
-        quantity: item.quantity,
-      })),
-    };
+    // Demo ödeme: karttan yalnızca son 4 hane kullanılır (sağlayıcı entegrasyonu roadmap Faz 2).
+    // Alıcı gönderilmez: backend kullanıcıyı token'dan alır, istemcinin beyanına güvenmez.
+    const paymentToken = `tok_card_${rawCard.slice(-4)}`;
 
     try {
-      const response = await api.post("/api/orders", payload, {
-        headers: {
-          "Idempotency-Key": idempotencyKeyRef.current,
-        },
-      });
-      setCreatedOrderId(response.data?.orderId || response.data);
+      const orderId = await createOrder(
+        { address: DEMO_ADDRESS, paymentToken, items: cart },
+        idempotencyKeyRef.current,
+      );
+      setCreatedOrderId(orderId);
       clearCart();
     } catch (err) {
       console.error("Sipariş oluşturma hatası:", err);
 
-      // 🟢 Backend'deki [Idempotent] filter 409 Conflict dönerse:
-      if (err.response?.status === 409) {
-        setErrorMessage(
-          "Siparişiniz şu anda işleniyor, lütfen art arda tıklamayınız.",
-        );
-        setIsSubmitting(false);
-        return;
-      }
-      // Kullanıcı hatalı bir işlem yaptıysa (400 Bad Request vb.) bir sonraki deneme için yeni anahtar üret
-      idempotencyKeyRef.current = crypto.randomUUID();
-
-      const backendErrors = err.response?.data?.errors;
-      let detailMsg = err.response?.data?.detail || err.response?.data?.message;
-
-      if (backendErrors) {
-        detailMsg = Object.values(backendErrors).flat().join(" | ");
+      // 409: aynı anahtarla bir istek hâlâ işleniyor ([Idempotent] filtresi). Anahtar korunur ki
+      // tekrar denemede ikinci sipariş oluşmasın. Diğer hatalarda bir sonraki deneme yeni bir istektir.
+      if (err.response?.status !== 409) {
+        idempotencyKeyRef.current = crypto.randomUUID();
       }
 
-      setErrorMessage(
-        detailMsg || "Sipariş oluşturulurken bir hata meydana geldi.",
-      );
+      setErrorMessage(getErrorMessage(err, "Sipariş oluşturulurken bir hata meydana geldi."));
       setIsSubmitting(false);
     }
   };
@@ -205,71 +177,60 @@ export default function Checkout() {
               <CreditCard size={20} /> Kart bilgileri
             </h2>
 
-            {errorMessage && (
-              <div className={styles.error}>
-                <AlertTriangle size={18} /> {errorMessage}
-              </div>
-            )}
+            {errorMessage && <Alert className={styles.field}>{errorMessage}</Alert>}
 
-            <div className={styles.field}>
-              <label className={styles.label}>Kart üzerindeki isim</label>
-              <input
-                className={styles.input}
-                type="text"
-                required
-                placeholder="Ad Soyad"
-                value={cardHolder}
-                onChange={(e) => setCardHolder(e.target.value)}
-                autoComplete="cc-name"
-              />
-            </div>
+            <FormField
+              className={styles.field}
+              label="Kart üzerindeki isim"
+              type="text"
+              required
+              placeholder="Ad Soyad"
+              value={cardHolder}
+              onChange={(e) => setCardHolder(e.target.value)}
+              autoComplete="cc-name"
+            />
 
-            <div className={styles.field}>
-              <label className={styles.label}>Kart numarası</label>
-              <input
-                className={`${styles.input} ${styles.cardNumber}`}
+            <FormField
+              className={styles.field}
+              inputClassName={styles.cardNumber}
+              label="Kart numarası"
+              type="text"
+              inputMode="numeric"
+              required
+              placeholder="0000 0000 0000 0000"
+              value={cardNumber}
+              onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+              autoComplete="cc-number"
+              hint={
+                <>
+                  Test: sonu <strong>0000</strong> (limit yetersiz) veya <strong>9999</strong> (internete kapalı) olan
+                  kart ödeme hatası senaryosunu çalıştırır.
+                </>
+              }
+            />
+
+            <div className={styles.row}>
+              <FormField
+                label="Son kullanma (AA/YY)"
                 type="text"
                 inputMode="numeric"
                 required
-                placeholder="0000 0000 0000 0000"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                autoComplete="cc-number"
+                placeholder="AA/YY"
+                value={expiry}
+                onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+                autoComplete="cc-exp"
               />
-              <small className={styles.hint}>
-                Test: sonu <strong>0000</strong> (limit yetersiz) veya <strong>9999</strong> (internete kapalı) olan kart
-                ödeme hatası senaryosunu çalıştırır.
-              </small>
-            </div>
-
-            <div className={styles.row}>
-              <div>
-                <label className={styles.label}>Son kullanma (AA/YY)</label>
-                <input
-                  className={styles.input}
-                  type="text"
-                  inputMode="numeric"
-                  required
-                  placeholder="AA/YY"
-                  value={expiry}
-                  onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-                  autoComplete="cc-exp"
-                />
-              </div>
-              <div>
-                <label className={styles.label}>CVV</label>
-                <input
-                  className={styles.input}
-                  type="password"
-                  inputMode="numeric"
-                  required
-                  maxLength={3}
-                  placeholder="•••"
-                  value={cvv}
-                  onChange={(e) => setCvv(e.target.value.replace(/\D/g, ""))}
-                  autoComplete="cc-csc"
-                />
-              </div>
+              <FormField
+                label="CVV"
+                type="password"
+                inputMode="numeric"
+                required
+                maxLength={3}
+                placeholder="•••"
+                value={cvv}
+                onChange={(e) => setCvv(e.target.value.replace(/\D/g, ""))}
+                autoComplete="cc-csc"
+              />
             </div>
           </section>
 

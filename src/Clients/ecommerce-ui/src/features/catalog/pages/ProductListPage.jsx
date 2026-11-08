@@ -1,57 +1,17 @@
-import { useEffect, useState } from "react";
+import { useAsync } from "../../../shared/hooks/useAsync";
 import { Package } from "lucide-react";
-import api from "../../services/api";
-import { useCart } from "../../context/CartContext";
-import { useAuth } from "../../context/AuthContext";
-import ProductCard from "../../components/ProductCard";
-import Button from "../../components/ui/Button";
-import EmptyState from "../../components/ui/EmptyState";
-import styles from "./ProductList.module.css";
+import { getProductsWithStock } from "../api";
+import { useCart } from "../../cart/CartContext";
+import { useAuth } from "../../auth/AuthContext";
+import ProductCard from "../components/ProductCard";
+import Button from "../../../shared/components/Button";
+import EmptyState from "../../../shared/components/EmptyState";
+import styles from "./ProductListPage.module.css";
 
-export default function ProductList() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
+export default function ProductListPage() {
+  const { data: products = [], error, isLoading } = useAsync(getProductsWithStock, []);
   const { addToCart } = useCart();
   const { isAdmin } = useAuth();
-
-  useEffect(() => {
-    // 🟢 Catalog ürünleri ile StockDb canlı stoklarını paralel çekip birleştiriyoruz
-    Promise.all([
-      api.get("/api/Products"),
-      api.get("/api/stocks").catch((err) => {
-        console.warn("Stok servisi yanıt vermedi:", err);
-        return { data: [] };
-      }),
-    ])
-      .then(([prodRes, stockRes]) => {
-        const productList = Array.isArray(prodRes.data)
-          ? prodRes.data
-          : prodRes.data?.data || [];
-
-        const stockList = Array.isArray(stockRes.data) ? stockRes.data : [];
-        const stockMap = new Map(
-          stockList.map((s) => [s.productId, s.availableStock]),
-        );
-
-        // Her ürüne güncel availableStock değerini ekliyoruz
-        const mergedList = productList.map((p) => ({
-          ...p,
-          availableStock: stockMap.has(p.id) ? stockMap.get(p.id) : 0,
-        }));
-
-        setProducts(mergedList);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Katalog çekme hatası:", err);
-        setError(
-          "Ürünler yüklenirken bir hata oluştu. Gateway veya Catalog servisi çalışıyor mu?",
-        );
-        setLoading(false);
-      });
-  }, []);
 
   return (
     <>
@@ -60,12 +20,16 @@ export default function ProductList() {
           <h1 className={styles.heroTitle}>Keşfetmeye başla</h1>
           <p className={styles.heroText}>Stoktaki ürünleri incele, sepetine ekle ve siparişini saniyeler içinde ver.</p>
         </div>
-        {!loading && !error && <span className={styles.count}>{products.length} ürün</span>}
+        {!isLoading && !error && <span className={styles.count}>{products.length} ürün</span>}
       </section>
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error && (
+        <div className={styles.error}>
+          Ürünler yüklenirken bir hata oluştu. Gateway veya Catalog servisi çalışıyor mu?
+        </div>
+      )}
 
-      {loading ? (
+      {isLoading ? (
         <div className={styles.grid}>
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className={styles.skeleton} />

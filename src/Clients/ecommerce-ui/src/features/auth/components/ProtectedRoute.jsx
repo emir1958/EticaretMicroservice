@@ -1,15 +1,20 @@
-import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../AuthContext";
 
-export default function ProtectedRoute({ children }) {
+// Giriş gerektiren route'ları saran "guard route". Router'da çocuk route'ların üstüne konur:
+//
+//   <Route element={<ProtectedRoute />}>
+//     <Route path="/checkout" element={<CheckoutPage />} />
+//   </Route>
+//
+// Giriş yoksa /auth'a yönlendirir ve gelinen yeri state ile taşır (AuthPage girişten sonra oraya döner).
+export default function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
 
   if (!isAuthenticated) {
-    // Giriş yapılmamışsa login sayfasına yönlendir, geldiği yeri state ile aktar
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  return children;
+  return <Outlet />;
 }
