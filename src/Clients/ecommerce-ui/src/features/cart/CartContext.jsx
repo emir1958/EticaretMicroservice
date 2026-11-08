@@ -4,10 +4,6 @@ import * as basketApi from "./api";
 
 const CartContext = createContext();
 
-// ---------------------------------------------------------------------------
-// Saklama (localStorage) yardımcıları: React'ten bağımsız, saf fonksiyonlar.
-// Sunucu ↔ UI dönüşümü ./api.js'te.
-// ---------------------------------------------------------------------------
 const GUEST_KEY = "ecommerce_cart_guest";
 const userKey = (userId) => `ecommerce_cart_${userId}`;
 
@@ -24,12 +20,16 @@ function writeStoredCart(key, items) {
   localStorage.setItem(key, JSON.stringify(items));
 }
 
-// Girişte misafir sepeti kullanıcının sunucudaki sepetiyle birleşir; aynı ürünün adetleri toplanır.
 function mergeCarts(serverItems, guestItems) {
   const merged = new Map(serverItems.map((item) => [item.id, item]));
   for (const guest of guestItems) {
     const existing = merged.get(guest.id);
-    merged.set(guest.id, existing ? { ...existing, quantity: existing.quantity + guest.quantity } : guest);
+    merged.set(
+      guest.id,
+      existing
+        ? { ...existing, quantity: existing.quantity + guest.quantity }
+        : guest,
+    );
   }
   return [...merged.values()];
 }
@@ -42,9 +42,6 @@ async function pushBasket(userId, items) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Provider
-// ---------------------------------------------------------------------------
 export const CartProvider = ({ children }) => {
   const { user } = useAuth();
   const userId = user?.id;
@@ -56,13 +53,9 @@ export const CartProvider = ({ children }) => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Gösterilen sepet state değil, türetilen değer. Çıkışta ayrıca "sıfırlama" gerekmez:
-  // userId yoksa misafir sepeti görünür. Girişten sonra sunucu sepeti gelene kadar da misafir sepeti görünür.
   const isUserCartLoaded = Boolean(userId) && userCart.userId === userId;
   const cart = isUserCartLoaded ? userCart.items : guestCart;
 
-  // Kullanıcı giriş yaptığında (veya sayfa giriş yapılmış hâlde açıldığında) sunucu sepetini yükle
-  // ve misafir sepetini içine kat. Effect'in işi tam olarak bu: dış sistemle (Basket API) senkronizasyon.
   useEffect(() => {
     if (!userId) return;
     let ignore = false;
@@ -72,11 +65,13 @@ export const CartProvider = ({ children }) => {
       try {
         serverItems = await basketApi.getBasket();
       } catch (err) {
-        console.warn("Redis'ten sepet çekilemedi, yerel kopya kullanılıyor:", err);
+        console.warn(
+          "Redis'ten sepet çekilemedi, yerel kopya kullanılıyor:",
+          err,
+        );
         serverItems = readStoredCart(userKey(userId));
       }
-      // Cevap gelene kadar kullanıcı değiştiyse (veya StrictMode effect'i iki kez çalıştırdıysa) sonucu at.
-      // Kontrol, misafir sepetine dokunmadan önce yapılır; yoksa merge iki kez uygulanırdı.
+
       if (ignore) return;
 
       const guestItems = readStoredCart(GUEST_KEY);
@@ -98,8 +93,6 @@ export const CartProvider = ({ children }) => {
     };
   }, [userId]);
 
-  // Tüm değişiklikler buradan geçer: önce yeni sepet saf olarak hesaplanır, sonra state'e
-  // ve saklama yerine yazılır. Yan etki (HTTP) setState updater'ının içinde değil, burada.
   const commitCart = (nextItems) => {
     if (userId) {
       setUserCart({ userId, items: nextItems });
@@ -157,10 +150,11 @@ export const CartProvider = ({ children }) => {
       removeFromCart(id);
       return;
     }
-    commitCart(cart.map((item) => (item.id === id ? { ...item, quantity } : item)));
+    commitCart(
+      cart.map((item) => (item.id === id ? { ...item, quantity } : item)),
+    );
   };
 
-  // Sipariş verildikten sonra çağrılır. Sunucuda boş sepet yazmak yerine sepet silinir.
   const clearCart = async () => {
     if (!userId) {
       setGuestCart([]);
@@ -177,7 +171,10 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const totalAmount = cart.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+  const totalAmount = cart.reduce(
+    (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
+    0,
+  );
 
   return (
     <CartContext.Provider
@@ -198,6 +195,4 @@ export const CartProvider = ({ children }) => {
   );
 };
 
-// Bkz. AuthContext.jsx: hook provider ile bilinçli olarak aynı dosyada.
-// eslint-disable-next-line react-refresh/only-export-components
 export const useCart = () => useContext(CartContext);

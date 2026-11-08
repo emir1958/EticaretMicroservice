@@ -8,11 +8,14 @@ import Button from "../../../shared/components/Button";
 import FormField from "../../../shared/components/FormField";
 import styles from "./AuthPage.module.css";
 
-// Sadece site içi yolları kabul eder. "//evil.com" veya "/\evil.com" gibi değerler
-// tarayıcı tarafından başka bir domain olarak yorumlanır (open redirect), bunları reddeder.
 function safeInternalPath(value) {
   if (typeof value !== "string") return null;
-  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return null;
+  if (
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.startsWith("/\\")
+  )
+    return null;
   return value;
 }
 
@@ -28,14 +31,12 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Girişten sonra nereye dönüleceği iki yoldan gelebilir:
-  // - ProtectedRoute: router state (location.state.from)
-  // - CartDrawer ve api.js 401 interceptor'ı: ?redirect= query parametresi
-  //   (api.js React dışında çalıştığı için router state taşıyamaz)
   const stateFrom = location.state?.from;
   const redirectParam = new URLSearchParams(location.search).get("redirect");
   const from =
-    safeInternalPath(stateFrom && `${stateFrom.pathname}${stateFrom.search ?? ""}`) ||
+    safeInternalPath(
+      stateFrom && `${stateFrom.pathname}${stateFrom.search ?? ""}`,
+    ) ||
     safeInternalPath(redirectParam) ||
     "/";
 
@@ -49,9 +50,8 @@ export default function AuthPage() {
         await login(email, password);
         navigate(from, { replace: true });
       } else {
-        // Kayıt isteği (RegisterDto: username, email, password)
         await register(username, email, password);
-        // Kayıt başarılı olduğunda kullanıcıyı bekletmeden otomatik login yapıyoruz
+
         await login(email, password);
         navigate(from, { replace: true });
       }
@@ -75,9 +75,13 @@ export default function AuthPage() {
           <span className={styles.mark}>
             <ShoppingBag size={24} />
           </span>
-          <h1 className={styles.title}>{isLogin ? "Tekrar hoş geldin" : "Hesap oluştur"}</h1>
+          <h1 className={styles.title}>
+            {isLogin ? "Tekrar hoş geldin" : "Hesap oluştur"}
+          </h1>
           <p className={styles.subtitle}>
-            {isLogin ? "Siparişlerine ulaşmak için giriş yap." : "Birkaç saniyede kayıt ol ve alışverişe başla."}
+            {isLogin
+              ? "Siparişlerine ulaşmak için giriş yap."
+              : "Birkaç saniyede kayıt ol ve alışverişe başla."}
           </p>
         </div>
 
@@ -138,8 +142,18 @@ export default function AuthPage() {
             autoComplete={isLogin ? "current-password" : "new-password"}
           />
 
-          <Button type="submit" size="lg" fullWidth disabled={loading} className={styles.submit}>
-            {loading ? "İşleniyor..." : isLogin ? "Giriş Yap" : "Kayıt Ol ve Giriş Yap"}
+          <Button
+            type="submit"
+            size="lg"
+            fullWidth
+            disabled={loading}
+            className={styles.submit}
+          >
+            {loading
+              ? "İşleniyor..."
+              : isLogin
+                ? "Giriş Yap"
+                : "Kayıt Ol ve Giriş Yap"}
           </Button>
         </form>
       </div>

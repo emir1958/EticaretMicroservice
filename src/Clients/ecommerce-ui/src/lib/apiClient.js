@@ -1,15 +1,14 @@
 import axios from "axios";
 import { env } from "../config/env";
 
-// Uygulamanın tek HTTP istemcisi. Bileşenler bunu doğrudan kullanmaz;
-// her feature kendi api.js dosyasında endpoint fonksiyonlarını tanımlar.
+
 const apiClient = axios.create({
   baseURL: env.apiBaseUrl,
 });
 
-// Request Interceptor: her isteğe correlation id ve (varsa) token eklenir
+
 apiClient.interceptors.request.use((config) => {
-  // Backend loglarında bu isteğin izini sürmek için benzersiz id
+
   config.headers["X-Correlation-ID"] = crypto.randomUUID();
 
   const token = localStorage.getItem("token");
@@ -19,8 +18,7 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response Interceptor: 401'de token temizlenir ve giriş sayfasına yönlendirilir.
-// Bu kod React dışında çalıştığı için router state yerine ?redirect= kullanır (bkz. AuthPage).
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {

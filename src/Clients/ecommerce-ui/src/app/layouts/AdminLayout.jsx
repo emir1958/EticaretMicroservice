@@ -1,5 +1,11 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { ArrowLeft, LayoutDashboard, LogOut, Package, ShoppingCart } from "lucide-react";
+import {
+  ArrowLeft,
+  LayoutDashboard,
+  LogOut,
+  Package,
+  ShoppingCart,
+} from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import styles from "./AdminLayout.module.css";
 
@@ -8,14 +14,12 @@ const MENU = [
   { to: "/admin/products", label: "Ürün Yönetimi", icon: Package },
 ];
 
-// Yönetim paneli sayfalarının ortak iskeleti: kenar çubuğu + içerik alanı.
-// Router'da layout route olarak kullanılır (bkz. AppRoutes): sayfa içeriği <Outlet /> yerine gelir,
-// bu yüzden sayfalar kendilerini <AdminLayout> ile sarmaz.
 export default function AdminLayout() {
   const { user, logout } = useAuth();
 
   // NavLink aktif route'u kendisi bilir: /admin/orders/5 açıkken "Siparişler" de aktif görünür
-  const linkClass = ({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`;
+  const linkClass = ({ isActive }) =>
+    `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`;
 
   return (
     <div className={styles.shell}>

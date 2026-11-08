@@ -22,24 +22,33 @@ export default function CartDrawer() {
 
   return (
     <>
-      {/* 🟢 Başarı Bildirimi (Toast) */}
       {successMessage && !isCartOpen && (
         <div className={styles.toast} role="status">
-          <CheckCircle size={18} className={styles.toastIcon} /> {successMessage}
+          <CheckCircle size={18} className={styles.toastIcon} />{" "}
+          {successMessage}
         </div>
       )}
 
-      {/* 🟢 Sepet Çekmecesi (Drawer) */}
       {isCartOpen && (
         <>
-          <div className={styles.overlay} onClick={() => setIsCartOpen(false)} />
+          <div
+            className={styles.overlay}
+            onClick={() => setIsCartOpen(false)}
+          />
           <aside className={styles.drawer} aria-label="Sepetim">
             <div className={styles.header}>
               <h2 className={styles.title}>
                 <ShoppingBag size={22} /> Sepetim
-                {cart.length > 0 && <span className={styles.countPill}>{cart.length}</span>}
+                {cart.length > 0 && (
+                  <span className={styles.countPill}>{cart.length}</span>
+                )}
               </h2>
-              <button type="button" className={styles.close} onClick={() => setIsCartOpen(false)} aria-label="Kapat">
+              <button
+                type="button"
+                className={styles.close}
+                onClick={() => setIsCartOpen(false)}
+                aria-label="Kapat"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -57,7 +66,11 @@ export default function CartDrawer() {
                 cart.map((item) => (
                   <div key={item.id} className={styles.item}>
                     {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} className={styles.thumb} />
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className={styles.thumb}
+                      />
                     ) : (
                       <div className={styles.thumb} />
                     )}
@@ -87,7 +100,9 @@ export default function CartDrawer() {
                   <span>{formatPrice(totalAmount)}</span>
                 </div>
                 {isAdmin ? (
-                  <div className={styles.adminNote}>Yönetici hesapları ile sipariş oluşturulamaz.</div>
+                  <div className={styles.adminNote}>
+                    Yönetici hesapları ile sipariş oluşturulamaz.
+                  </div>
                 ) : (
                   <Button
                     size="lg"
