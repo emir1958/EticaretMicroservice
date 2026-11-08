@@ -144,7 +144,8 @@ shared, lib, config   <──   features   <──   app
 ## Komutlar
 
 ```bash
-npm run dev      # Geliştirme sunucusu (VITE_API_URL yoksa http://localhost:5000)
+npm run dev      # Geliştirme sunucusu, her zaman :5173 (backend CORS bu origin'e izin verir; port doluysa hata verir)
+                 # VITE_API_URL yoksa http://localhost:5000
 npm run lint     # ESLint
 npm run build    # Production build (VITE_API_URL zorunlu)
 ```

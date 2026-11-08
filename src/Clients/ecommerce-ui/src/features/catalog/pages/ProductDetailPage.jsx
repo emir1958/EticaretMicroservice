@@ -47,10 +47,10 @@ function ProductDetailContent({ id }) {
   const { product, stockCount, otherProducts } = data;
 
   const isOutOfStock = stockCount <= 0;
-  const handleAdd = () => {
+  const increaseQuantity = () => {
     if (quantity < stockCount) setQuantity((q) => q + 1);
   };
-  const handleSub = () => {
+  const decreaseQuantity = () => {
     if (quantity > 1) setQuantity((q) => q - 1);
   };
 
@@ -80,11 +80,11 @@ function ProductDetailContent({ id }) {
 
           <div className={styles.purchase}>
             <div className={styles.stepper}>
-              <button type="button" onClick={handleSub} disabled={quantity <= 1} aria-label="Adedi azalt">
+              <button type="button" onClick={decreaseQuantity} disabled={quantity <= 1} aria-label="Adedi azalt">
                 <Minus size={16} />
               </button>
               <span className={styles.quantity}>{quantity}</span>
-              <button type="button" onClick={handleAdd} disabled={quantity >= stockCount} aria-label="Adedi artır">
+              <button type="button" onClick={increaseQuantity} disabled={quantity >= stockCount} aria-label="Adedi artır">
                 <Plus size={16} />
               </button>
             </div>
@@ -93,7 +93,7 @@ function ProductDetailContent({ id }) {
               size="lg"
               className={styles.addButton}
               variant={isAdmin || isOutOfStock ? "secondary" : "primary"}
-              onClick={() => !isAdmin && addToCart({ ...product, id: product.id }, quantity)}
+              onClick={() => !isAdmin && addToCart(product, quantity)}
               disabled={stockCount === 0 || isAdmin}
             >
               <ShoppingCart size={18} />
