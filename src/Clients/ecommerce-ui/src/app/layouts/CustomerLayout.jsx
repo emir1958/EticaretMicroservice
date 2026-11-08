@@ -1,20 +1,26 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { LogIn, LogOut, Package, ShieldCheck, ShoppingBag, ShoppingCart } from "lucide-react";
+import {
+  LogIn,
+  LogOut,
+  Package,
+  ShieldCheck,
+  ShoppingBag,
+  ShoppingCart,
+} from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { useCart } from "../../features/cart/CartContext";
 import CartDrawer from "../../features/cart/components/CartDrawer";
 import Button from "../../shared/components/Button";
 import styles from "./CustomerLayout.module.css";
 
-// Müşteri sayfalarının ortak iskeleti: sabit header, içerik alanı, sepet çekmecesi, footer.
-// Router'da layout route olarak kullanılır; sayfa içeriği <Outlet /> yerine gelir.
 export default function CustomerLayout() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const { cart, setIsCartOpen } = useCart();
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const displayName = user?.username || user?.email || "Hesabım";
 
-  const navLinkClass = ({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`;
+  const navLinkClass = ({ isActive }) =>
+    `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`;
 
   return (
     <div className={styles.shell}>
@@ -48,7 +54,13 @@ export default function CustomerLayout() {
                   <span className={styles.avatar}>{displayName.charAt(0)}</span>
                   <span className={styles.hideOnMobile}>{displayName}</span>
                 </div>
-                <button type="button" className={styles.iconButton} onClick={logout} title="Çıkış yap" aria-label="Çıkış yap">
+                <button
+                  type="button"
+                  className={styles.iconButton}
+                  onClick={logout}
+                  title="Çıkış yap"
+                  aria-label="Çıkış yap"
+                >
                   <LogOut size={18} />
                 </button>
               </>
@@ -66,7 +78,9 @@ export default function CustomerLayout() {
                 aria-label={`Sepet, ${cartCount} ürün`}
               >
                 <ShoppingCart size={18} />
-                {cartCount > 0 && <span className={styles.cartCount}>{cartCount}</span>}
+                {cartCount > 0 && (
+                  <span className={styles.cartCount}>{cartCount}</span>
+                )}
               </button>
             )}
           </nav>
@@ -80,7 +94,9 @@ export default function CustomerLayout() {
       <CartDrawer />
 
       <footer className={styles.footer}>
-        <div className={styles.footerInner}>© {new Date().getFullYear()} E-Ticaret · Mikroservis demo projesi</div>
+        <div className={styles.footerInner}>
+          © {new Date().getFullYear()} E-Ticaret · Mikroservis demo projesi
+        </div>
       </footer>
     </div>
   );

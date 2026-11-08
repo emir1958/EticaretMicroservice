@@ -34,7 +34,6 @@ public class CustomerOrderQueryTests
         dto.TotalPrice.Should().Be(OrderSagaTestDriver.ProductPrice * 2);
     }
 
-    // Var olan ama başkasına ait sipariş, hiç olmayan siparişle aynı yanıtı almalı
     [Fact]
     public async Task GetOtherUsersOrderDetail_ReturnsNotFound()
     {
