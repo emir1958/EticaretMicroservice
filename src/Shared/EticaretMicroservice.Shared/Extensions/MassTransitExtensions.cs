@@ -7,6 +7,18 @@ public static class MassTransitExtensions
 {
     public static void ConfigureSharedRetryAndDeadLetter(this IRabbitMqBusFactoryConfigurator cfg, IBusRegistrationContext context)
     {
+        cfg.UseDelayedRedelivery(r =>
+        {
+            r.Intervals(
+                TimeSpan.FromSeconds(15),
+                TimeSpan.FromMinutes(1)
+            );
+
+            r.Ignore<ArgumentNullException>();
+            r.Ignore<InvalidCastException>();
+            r.Ignore<FormatException>();
+        });
+
         cfg.UseMessageRetry(retry =>
         {
             retry.Exponential(
@@ -19,19 +31,6 @@ public static class MassTransitExtensions
             retry.Ignore<ArgumentNullException>();
             retry.Ignore<InvalidCastException>();
             retry.Ignore<FormatException>();
-        });
-
-       
-        cfg.UseDelayedRedelivery(r =>
-        {
-            r.Intervals(
-                TimeSpan.FromSeconds(15),
-                TimeSpan.FromMinutes(1)
-            );
-
-            r.Ignore<ArgumentNullException>();
-            r.Ignore<InvalidCastException>();
-            r.Ignore<FormatException>();
         });
     }
 }

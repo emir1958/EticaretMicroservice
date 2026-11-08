@@ -2,11 +2,15 @@ using System.Net.Http.Json;
 using EticaretMicroservice.Services.Order.Application.Commands;
 using EticaretMicroservice.Services.Order.Application.Dtos;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
+using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Domain.Enums;
+using EticaretMicroservice.Services.Order.Domain.ValueObjects;
+using EticaretMicroservice.Services.Order.Infrastructure.BackgroundServices;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Shared.Events;
 using MassTransit;
 using MassTransit.Testing;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -25,15 +29,23 @@ public class OrderSagaTestDriver
     private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan SettleDelay = TimeSpan.FromSeconds(2);
 
-    private readonly OrderApiFactory _factory;
+    private readonly WebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
 
-    public OrderSagaTestDriver(OrderApiFactory factory)
+    public OrderSagaTestDriver(OrderApiFactory factory) : this(factory, factory.CatalogRepoMock)
+    {
+    }
+
+    // Timeout senaryoları için: OrderApiFactory.ShortTimeoutApi (aynı DB, kendi bus'ı ve harness'ı)
+    public static OrderSagaTestDriver WithShortTimeout(OrderApiFactory factory) =>
+        new(factory.ShortTimeoutApi, factory.CatalogRepoMock);
+
+    private OrderSagaTestDriver(WebApplicationFactory<Program> factory, Mock<ICatalogRepository> catalogRepoMock)
     {
         _factory = factory;
         _client = factory.CreateClient();
 
-        _factory.CatalogRepoMock
+        catalogRepoMock
             .Setup(x => x.GetProductByIdAsync(It.Is<string>(id => id.StartsWith(ProductPrefix)), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string id, CancellationToken _) => new CatalogProductDto(id, "Saga Test Ürünü", "Açıklama", ProductPrice));
     }
@@ -66,6 +78,22 @@ public class OrderSagaTestDriver
 
         // Saga anahtarı sunucuda üretilir; diğer servislerin event'leri bu değeri taşır
         return new CreatedOrder(body!.OrderId, await GetCorrelationIdAsync(body.OrderId), buyerId);
+    }
+
+    // Order satırını OrderCreated yayınlamadan (outbox'a dokunmadan) yazar: saga'yı test kendisi başlatır.
+    // Saga'nın timeout'u gerçek bir siparişi iptal edebilsin diye sahte OrderId yerine kullanılır.
+    public async Task<CreatedOrder> CreateOrderWithoutSagaAsync()
+    {
+        var buyerId = $"saga-buyer-{Guid.NewGuid():N}";
+        var order = new Services.Order.Domain.Entities.Order(buyerId, new Address("İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1"), Guid.NewGuid());
+        order.AddOrderItem($"{ProductPrefix}{Guid.NewGuid():N}", "Saga Test Ürünü", ProductPrice, 1);
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        return new CreatedOrder(order.Id, order.CorrelationId, buyerId);
     }
 
     public async Task<Guid> GetCorrelationIdAsync(int orderId)
@@ -114,6 +142,10 @@ public class OrderSagaTestDriver
             Message = "Kart reddedildi"
         });
 
+    // Zamanlayıcı dışından gelen (token'sız) timeout mesajı: erken/başıboş teslimi simüle eder
+    public Task PaymentTimeoutAsync(CreatedOrder order) =>
+        Harness.Bus.Publish(new PaymentTimeoutExpired { CorrelationId = order.CorrelationId });
+
     public async Task<OrderStatus> GetStatusAsync(int orderId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -124,8 +156,56 @@ public class OrderSagaTestDriver
             .SingleAsync();
     }
 
+    public Task OrderCreatedAsync(CreatedOrder order) =>
+        Harness.Bus.Publish(new OrderCreatedEvent
+        {
+            CorrelationId = order.CorrelationId,
+            OrderId = order.OrderId,
+            BuyerId = order.BuyerId,
+            PaymentToken = "tok_saga_test"
+        });
+
+    public async Task<OrderState?> GetSagaAsync(Guid correlationId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        return await dbContext.Set<OrderState>().AsNoTracking().SingleOrDefaultAsync(s => s.CorrelationId == correlationId);
+    }
+
+    public OrderTimeoutSweeper Sweeper => _factory.Services.GetRequiredService<OrderTimeoutSweeper>();
+
+    // Zamanlanmış timeout mesajının kaybolduğu durumu simüle eder: instance'ın son tarihi geçmişe çekilir
+    public async Task SetSagaExpiresAtAsync(Guid correlationId, DateTime expiresAt)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        await dbContext.Set<OrderState>()
+            .Where(s => s.CorrelationId == correlationId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ExpiresAt, expiresAt));
+    }
+
+    public async Task<int> CountSagasForOrderAsync(int orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        return await dbContext.Set<OrderState>().CountAsync(s => s.OrderId == orderId);
+    }
+
+    public Task WaitForSagaStateAsync(CreatedOrder order, string expectedState) =>
+        WaitUntilAsync(async () => (await GetSagaAsync(order.CorrelationId))?.CurrentState == expectedState,
+            $"OrderId {order.OrderId} saga durumu '{expectedState}' olmalı");
+
     public int ReceivedDownstreamCount<T>(Func<T, bool> filter) where T : class =>
         Harness.Consumed.Select<T>().Count(m => filter(m.Context.Message));
+
+    // Harness.Consumed kayıtları MessageId ile tutar: aynı mesajı hem saga hem sink tükettiğinde tek kayıt kalır.
+    // Saga'nın kaç kez başarıyla işlediğini saymak için bus'a bir consume observer bağlanır.
+    public SagaConsumeCounter<T> CountSagaConsumes<T>(Func<T, bool> filter) where T : class
+    {
+        var counter = new SagaConsumeCounter<T>(filter);
+        Harness.Bus.ConnectConsumeMessageObserver(counter);
+        return counter;
+    }
 
     public Task WaitForStatusAsync(CreatedOrder order, OrderStatus expected) =>
         WaitUntilAsync(async () => await GetStatusAsync(order.OrderId) == expected,

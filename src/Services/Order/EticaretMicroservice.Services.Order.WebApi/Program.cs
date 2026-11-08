@@ -1,9 +1,11 @@
 ﻿using EticaretMicroservice.Services.Order.Application.Behaviors;
-using EticaretMicroservice.Services.Order.Application.Consumers;
 using EticaretMicroservice.Services.Order.Application.Hubs;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
+using EticaretMicroservice.Services.Order.Application.Sagas;
 using EticaretMicroservice.Services.Order.Application.Validators;
 using EticaretMicroservice.Services.Order.Infrastructure.BackgroundServices;
+using EticaretMicroservice.Services.Order.Infrastructure.Messaging;
+using EticaretMicroservice.Services.Order.Infrastructure.Notifications;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Services.Order.Infrastructure.Repositories;
 using EticaretMicroservice.Shared.Extensions;
@@ -29,6 +31,7 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
 
 // 2. Repository Injection
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IOrderNotifier, SignalROrderNotifier>();
 
 // 3. MediatR & FluentValidation Pipeline Behavior Kaydı
 builder.Services.AddMediatR(cfg =>
@@ -41,21 +44,12 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddValidatorsFromAssemblyContaining<CreateOrderCommandValidator>();
 
 // 4. MassTransit, RabbitMQ & Transactional Outbox
+builder.Services.Configure<OrderSagaOptions>(builder.Configuration.GetSection(OrderSagaOptions.SectionName));
+
 builder.Services.AddMassTransit(x =>
 {
-    x.AddConsumer<PaymentCompletedEventConsumer>();
-    x.AddConsumer<PaymentFailedEventConsumer>();
-    x.AddConsumer<StockFailedEventConsumer>();
-
-    // Outbox: Event'leri önce SQL'e atomik kaydeder
-    x.AddEntityFrameworkOutbox<OrderDbContext>(o =>
-    {
-        o.UseSqlServer();
-        o.UseBusOutbox();
-        o.DuplicateDetectionWindow = TimeSpan.FromMinutes(5);
-    });
-
-    x.SetKebabCaseEndpointNameFormatter();
+    // Order saga'sı (OrderStateMachine) + EF saga repository + Transactional Outbox
+    x.AddOrderMessaging();
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -71,20 +65,12 @@ builder.Services.AddMassTransit(x =>
 
         cfg.ConfigureSharedRetryAndDeadLetter(context);
 
-        cfg.ReceiveEndpoint("order-stock-failed-queue", e =>
-        {
-            e.ConfigureConsumer<StockFailedEventConsumer>(context);
-        });
+        // Saga'nın ödeme timeout'u (Schedule) RabbitMQ delayed exchange ile teslim edilir.
+        // Broker'da rabbitmq_delayed_message_exchange plugin'i etkin olmalıdır.
+        cfg.UseDelayedMessageScheduler();
 
-        cfg.ReceiveEndpoint("order-payment-failed-queue", e =>
-        {
-            e.ConfigureConsumer<PaymentFailedEventConsumer>(context);
-        });
-
-        cfg.ReceiveEndpoint("order-payment-completed-queue", e =>
-        {
-            e.ConfigureConsumer<PaymentCompletedEventConsumer>(context);
-        });
+        // Saga endpoint'i (order-saga) ve outbox callback'i buradan uygulanır
+        cfg.ConfigureEndpoints(context);
     });
 });
 
@@ -110,7 +96,10 @@ builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration, signalRHubPath: "/orderhub");
 
 builder.Services.AddSignalR();
-builder.Services.AddHostedService<OrderTimeoutWorker>();
+
+// Kaçan saga timeout'ları için emniyet ağı. Singleton olarak da kayıtlı: integration testler taramayı doğrudan tetikler.
+builder.Services.AddSingleton<OrderTimeoutSweeper>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<OrderTimeoutSweeper>());
 
 // 8. Health Check Servis Kaydı
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";

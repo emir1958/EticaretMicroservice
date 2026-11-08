@@ -8,7 +8,9 @@ public class OrderState : SagaStateMachineInstance
 {
     // Order.CorrelationId ile aynı değer; Stock/Payment event'leri bu değerle eşleşir
     public Guid CorrelationId { get; set; }
-    public string CurrentState { get; set; } = string.Empty;
+    // Yeni instance'ta null olmalı: MassTransit null'ı "Initial" sayar, string.Empty'yi ise tanımsız durum adı
+    // olarak okuyup UnknownStateException fırlatır. Kayıt anında her zaman dolu olduğu için kolon NOT NULL kalır.
+    public string CurrentState { get; set; } = null!;
 
     public int OrderId { get; set; }
     public string BuyerId { get; set; } = string.Empty;
@@ -21,6 +23,8 @@ public class OrderState : SagaStateMachineInstance
     // Ödeme gelirse zamanlanmış timeout mesajını iptal edebilmek için
     public Guid? PaymentTimeoutTokenId { get; set; }
 
-    // Optimistic concurrency: aynı instance'a eşzamanlı iki event yazamaz
+    // Yedek savunma: saga Pessimistic modda olduğu için birincil koruma satır kilididir (UPDLOCK) ve saga yolunda bu kontrol
+    // başarısız olamaz. EF yine de her UPDATE'e "WHERE RowVersion = @okunan" ekler; kilit almadan OrderStates'e yazan
+    // başka bir kod/elle düzeltme saga'nın yazısını sessizce ezemez.
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

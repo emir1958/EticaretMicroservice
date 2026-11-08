@@ -3,6 +3,10 @@
 public interface IPaymentService
 {
     (bool IsSuccess, string FailReason) ProcessPayment(string paymentToken, decimal totalPrice);
+
+    // Gerçek bir sağlayıcıda OrderId idempotency anahtarı olarak gönderilmeli: DB commit'i başarısız olup mesaj
+    // yeniden işlenirse aynı iade ikinci kez yapılmamalı.
+    (bool IsSuccess, string FailReason) RefundPayment(int orderId, string paymentToken, decimal amount);
 }
 
 public class FakePaymentService : IPaymentService
@@ -33,6 +37,17 @@ public class FakePaymentService : IPaymentService
         }
 
         // Tüm kontrollerden geçtiyse ödeme başarılı
+        return (true, string.Empty);
+    }
+
+    // Simülasyon: daha önce başarıyla çekilmiş bir ödemenin iadesi her zaman kabul edilir
+    public (bool IsSuccess, string FailReason) RefundPayment(int orderId, string paymentToken, decimal amount)
+    {
+        if (amount <= 0)
+        {
+            return (false, "İade tutarı geçersiz!");
+        }
+
         return (true, string.Empty);
     }
 }

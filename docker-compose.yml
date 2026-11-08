@@ -55,7 +55,10 @@
 
   # 3️⃣ RabbitMQ Mesaj Kuyruğu
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    # rabbitmq:3.13-management-alpine + delayed message exchange plugin (Order saga timeout'u için)
+    build:
+      context: ./infra/rabbitmq
+    image: eticaret-rabbitmq:3.13-delayed
     container_name: rabbitmq_bus
     ports:
       - "5672:5672"
