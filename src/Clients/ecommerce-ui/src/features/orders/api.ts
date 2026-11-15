@@ -1,11 +1,9 @@
 import apiClient from "../../lib/apiClient";
+import type { NewOrder, Order } from "./types";
 
-// Order.Api ile konuşan tek yer.
-
-// idempotencyKey: aynı sipariş isteği (çift tıklama, ağ tekrarı) iki kez oluşturulmasın diye
-// backend'deki [Idempotent] filtresine gönderilir. Dönen değer yeni siparişin id'si.
-export async function createOrder({ address, paymentToken, items }, idempotencyKey) {
-  const { data } = await apiClient.post(
+// Aynı istek iki kez gelirse (çift tıklama, ağ tekrarı) backend'deki [Idempotent] filtresi ikinci siparişi engeller
+export async function createOrder({ address, paymentToken, items }: NewOrder, idempotencyKey: string) {
+  const { data } = await apiClient.post<{ orderId: number }>(
     "/api/orders",
     {
       address,
@@ -22,25 +20,22 @@ export async function createOrder({ address, paymentToken, items }, idempotencyK
   return data.orderId;
 }
 
-// Müşteri: yalnızca token'daki kullanıcının siparişleri (backend başkasının siparişine 404 döner)
 export async function getMyOrders() {
-  const { data } = await apiClient.get("/api/orders/user");
+  const { data } = await apiClient.get<Order[]>("/api/orders/user");
   return data;
 }
 
-export async function getMyOrder(id) {
-  const { data } = await apiClient.get(`/api/orders/user/${id}`);
+export async function getMyOrder(id: number) {
+  const { data } = await apiClient.get<Order>(`/api/orders/user/${id}`);
   return data;
 }
-
-// --- Yönetim (admin) ---
 
 export async function getAllOrders() {
-  const { data } = await apiClient.get("/api/orders");
+  const { data } = await apiClient.get<Order[]>("/api/orders");
   return data;
 }
 
-export async function getOrder(id) {
-  const { data } = await apiClient.get(`/api/orders/${id}`);
+export async function getOrder(id: number) {
+  const { data } = await apiClient.get<Order>(`/api/orders/${id}`);
   return data;
 }

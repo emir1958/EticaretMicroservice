@@ -6,19 +6,19 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  config.headers["X-Correlation-ID"] = crypto.randomUUID();
+  config.headers.set("X-Correlation-ID", crypto.randomUUID());
 
   const token = localStorage.getItem("token");
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    config.headers.set("Authorization", `Bearer ${token}`);
   }
   return config;
 });
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
       localStorage.removeItem("token");
       const path = window.location.pathname;
       if (!path.startsWith("/auth") && !path.startsWith("/admin/login")) {
@@ -29,13 +29,19 @@ apiClient.interceptors.response.use(
   },
 );
 
-// Backend'in iki hata şekli var:
-//  - Controller'lar:           { message }
-//  - Exception middleware'i:   ProblemDetails { title, detail, errors? }  (errors: alan → mesaj[])
-// Bileşenler hata cevabını kendileri ayrıştırmaz, bu fonksiyonu kullanır.
-export function getErrorMessage(error, fallback = "Beklenmeyen bir hata oluştu.") {
-  const data = error?.response?.data;
-  if (data?.errors && typeof data.errors === "object") {
+// Controller'lar { message }, exception middleware'i ProblemDetails döner
+interface ErrorBody {
+  message?: string;
+  title?: string;
+  detail?: string;
+  errors?: Record<string, string[]>;
+}
+
+export function getErrorMessage(error: unknown, fallback = "Beklenmeyen bir hata oluştu."): string {
+  if (!axios.isAxiosError<ErrorBody>(error)) return fallback;
+
+  const data = error.response?.data;
+  if (data?.errors) {
     return Object.values(data.errors).flat().join(" | ");
   }
   return data?.message || data?.detail || fallback;

@@ -1,11 +1,20 @@
 import apiClient from "../../lib/apiClient";
+import type { CartItem } from "./types";
 
-// Basket.Api (Redis) ile konuşan tek yer.
-// Sunucu: { userId, items: [{ productId, productName, price, quantity, imageUrl }] }
-// UI:     [{ id, name, price, quantity, imageUrl }]
-// Dönüşüm burada yapılır; CartContext yalnızca UI şeklini bilir.
+interface BasketItem {
+  productId: string;
+  productName: string;
+  price: number;
+  quantity: number;
+  imageUrl: string | null;
+}
 
-const toCartItem = (item) => ({
+interface CustomerBasket {
+  userId: string;
+  items: BasketItem[];
+}
+
+const toCartItem = (item: BasketItem): CartItem => ({
   id: item.productId,
   name: item.productName,
   price: item.price,
@@ -13,7 +22,7 @@ const toCartItem = (item) => ({
   imageUrl: item.imageUrl ?? "",
 });
 
-const toBasketItem = (item) => ({
+const toBasketItem = (item: CartItem): BasketItem => ({
   productId: item.id,
   productName: item.name,
   price: item.price,
@@ -23,12 +32,13 @@ const toBasketItem = (item) => ({
 
 // Sepeti olmayan kullanıcı için backend boş sepet döner (404 değil)
 export async function getBasket() {
-  const { data } = await apiClient.get("/api/basket");
+  const { data } = await apiClient.get<CustomerBasket>("/api/basket");
   return data.items.map(toCartItem);
 }
 
-export async function saveBasket(userId, items) {
-  await apiClient.post("/api/basket", { userId, items: items.map(toBasketItem) });
+export async function saveBasket(userId: string, items: CartItem[]) {
+  const basket: CustomerBasket = { userId, items: items.map(toBasketItem) };
+  await apiClient.post("/api/basket", basket);
 }
 
 export async function deleteBasket() {

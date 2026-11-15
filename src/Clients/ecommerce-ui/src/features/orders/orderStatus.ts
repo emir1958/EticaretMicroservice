@@ -1,14 +1,18 @@
-// Sipariş durumunun ekranda nasıl görüneceği.
-// API enum adını döner (Beklemede, Tamamlandı, IptalEdildi), SignalR ise Completed / Canceled gönderir;
-// ikisi de aynı etikete eşlenir.
-// tone, OrderStatusBadge'deki CSS sınıfını seçer (renkler CSS'te)
-const STATUS_VIEW = {
+export type StatusTone = "pending" | "completed" | "canceled" | "unknown";
+
+export interface StatusView {
+  label: string;
+  tone: StatusTone;
+}
+
+const STATUS_VIEW: Record<Exclude<StatusTone, "unknown">, StatusView> = {
   pending: { label: "Ödeme Bekleniyor", tone: "pending" },
   completed: { label: "Tamamlandı", tone: "completed" },
   canceled: { label: "İptal Edildi", tone: "canceled" },
 };
 
-const STATUS_KEYS = {
+// API enum adını (Beklemede, Tamamlandı, IptalEdildi), SignalR ise saga durumunu (Completed, Canceled) gönderir
+const STATUS_KEYS: Partial<Record<string, keyof typeof STATUS_VIEW>> = {
   Beklemede: "pending",
   Pending: "pending",
   Tamamlandı: "completed",
@@ -17,6 +21,7 @@ const STATUS_KEYS = {
   Canceled: "canceled",
 };
 
-export function getOrderStatusView(status) {
-  return STATUS_VIEW[STATUS_KEYS[status]] ?? { label: status || "Bilinmiyor", tone: "unknown" };
+export function getOrderStatusView(status: string | null | undefined): StatusView {
+  const key = status ? STATUS_KEYS[status] : undefined;
+  return key ? STATUS_VIEW[key] : { label: status || "Bilinmiyor", tone: "unknown" };
 }
