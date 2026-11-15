@@ -5,10 +5,11 @@ import { getErrorMessage, getErrorStatus } from "../../../lib/apiClient";
 import { getMyOrder } from "../api";
 import { useOrderHub } from "../useOrderHub";
 import OrderStatusBadge from "../components/OrderStatusBadge";
+import Alert from "../../../shared/components/Alert";
 import EmptyState from "../../../shared/components/EmptyState";
 import { ButtonLink } from "../../../shared/components/Button";
 import { formatDate, formatPrice } from "../../../shared/utils/format";
-import { getOrderStatusView } from "../orderStatus";
+import { getOrderStatusView, PAYMENT_STATUS_LABEL } from "../orderStatus";
 import styles from "./MyOrderDetailPage.module.css";
 
 // Siparişin hangi aşamada olduğu: alındı → ödeme → tamamlandı (iptalde ödeme adımı kırmızı)
@@ -97,11 +98,21 @@ export default function MyOrderDetailPage() {
         </section>
 
         <div className={styles.side}>
+          {order.paymentStatus === "IadeEdildi" && (
+            <Alert tone="success">
+              Ödemeniz ({formatPrice(order.totalPrice)}) {formatDate(order.refundedAt)} tarihinde iade edildi.
+            </Alert>
+          )}
+
           <section className={styles.panel}>
             <h2 className={styles.panelTitle}>Özet</h2>
             <div className={styles.summaryRow}>
               <span>Ürün adedi</span>
               <span>{order.orderItems?.reduce((sum, item) => sum + item.quantity, 0) ?? 0}</span>
+            </div>
+            <div className={styles.summaryRow}>
+              <span>Ödeme</span>
+              <span>{PAYMENT_STATUS_LABEL[order.paymentStatus]}</span>
             </div>
             <div className={styles.summaryTotal}>
               <span>Toplam</span>

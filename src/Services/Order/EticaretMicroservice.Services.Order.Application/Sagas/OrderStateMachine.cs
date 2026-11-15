@@ -6,8 +6,6 @@ using Microsoft.Extensions.Options;
 
 namespace EticaretMicroservice.Services.Order.Application.Sagas;
 
-// Sipariş sürecinin tek sahibi. Her durum için hangi event'in ne yapacağı burada açıkça tanımlıdır;
-// tanımsız bir durum/event çifti MassTransit tarafından hata sayılır, bu yüzden "yoksay" kararları da yazılır.
 public class OrderStateMachine : MassTransitStateMachine<OrderState>
 {
     public State AwaitingStock { get; private set; } = null!;
@@ -20,6 +18,7 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
     public Event<StockFailedEvent> StockFailed { get; private set; } = null!;
     public Event<PaymentCompletedEvent> PaymentCompleted { get; private set; } = null!;
     public Event<PaymentFailedEvent> PaymentFailed { get; private set; } = null!;
+    public Event<PaymentRefundedEvent> PaymentRefunded { get; private set; } = null!;
 
     public Schedule<OrderState, PaymentTimeoutExpired> PaymentTimeout { get; private set; } = null!;
 
@@ -31,16 +30,14 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
 
         Event(() => OrderCreated, x => x.CorrelateById(ctx => ctx.Message.CorrelationId));
 
-        // Stock/Payment cevabı, saga OrderCreated'ı işlemeden önce gelebilir (paralel kuyruklar).
-        // Instance yoksa mesaj hata sayılır ve retry ile instance oluştuktan sonra yeniden işlenir.
+      
         Event(() => StockReserved, x => { x.CorrelateById(ctx => ctx.Message.CorrelationId); x.OnMissingInstance(m => m.Fault()); });
         Event(() => StockFailed, x => { x.CorrelateById(ctx => ctx.Message.CorrelationId); x.OnMissingInstance(m => m.Fault()); });
         Event(() => PaymentCompleted, x => { x.CorrelateById(ctx => ctx.Message.CorrelationId); x.OnMissingInstance(m => m.Fault()); });
         Event(() => PaymentFailed, x => { x.CorrelateById(ctx => ctx.Message.CorrelationId); x.OnMissingInstance(m => m.Fault()); });
+        Event(() => PaymentRefunded, x => { x.CorrelateById(ctx => ctx.Message.CorrelationId); x.OnMissingInstance(m => m.Fault()); });
 
-        // Zamanlanmış mesaj saga'nın kendi kuyruğuna gelir (RabbitMQ'da delayed exchange). Token PaymentTimeoutTokenId'de tutulur;
-        // Unschedule token'ı temizler, bu yüzden iptal edilemeyen (delayed exchange iptal desteklemez) eski mesajlar
-        // MassTransit tarafından "güncel değil" sayılıp Received event'ine dönüştürülmez.
+       
         Schedule(() => PaymentTimeout, x => x.PaymentTimeoutTokenId, s =>
         {
             s.Delay = paymentTimeout;
@@ -91,10 +88,8 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             Ignore(StockReserved),
             Ignore(StockFailed));
 
-        // Ödeme süresi doldu. Stok cevabı hiç gelmemiş siparişler de iptal edilir (eski OrderTimeoutWorker davranışı).
+
         During(AwaitingStock, AwaitingPayment,
-            // ExpiresAt emniyet kontrolü: süre henüz dolmadıysa (erken teslim, node'lar arası saat farkı) iptal edilmez,
-            // kalan süre için yeniden zamanlanır.
             When(PaymentTimeout.Received, ctx => !IsExpired(ctx.Saga))
                 .Schedule(PaymentTimeout, ctx => new PaymentTimeoutExpired { CorrelationId = ctx.Saga.CorrelationId },
                     ctx => ctx.Saga.ExpiresAt!.Value),
@@ -108,7 +103,6 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 }))
                 .TransitionTo(Canceled));
 
-        // Terminal durumlar: kopya, sıra dışı veya geç gelen event'ler sonucu değiştirmez
         During(Completed,
             Ignore(OrderCreated),
             Ignore(StockReserved),
@@ -118,17 +112,16 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             Ignore(PaymentTimeout.Received));
 
         During(Canceled,
-            // Sipariş iptal edildikten sonra (örn. timeout) ödeme tamamlandı: müşteriden çekilen para iade edilir, sipariş iptal kalır.
-            // Payment iadeyi yalnızca Success durumundaki ödeme için yapar; kopya komut zararsızdır.
             When(PaymentCompleted)
+                .Activity(x => x.OfType<RecordPaymentActivity>())
                 .PublishAsync(ctx => ctx.Init<RefundPaymentCommand>(new
                 {
                     ctx.Saga.CorrelationId,
                     ctx.Saga.OrderId,
                     Reason = "Sipariş iptal edildikten sonra ödeme alındı."
                 })),
-            // Timeout stok cevabından önce gelirse Stock rezervasyonu iptalden sonra yapmış olabilir: tekrar iade istenir.
-            // Stock tarafında iade siparişin aktif rezervasyonlarına göre yapıldığı için kopya istek zararsızdır.
+            When(PaymentRefunded)
+                .Activity(x => x.OfType<RecordPaymentActivity>()),
             When(StockReserved)
                 .PublishAsync(ctx => ctx.Init<ReleaseStockCommand>(new
                 {
@@ -142,6 +135,5 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             Ignore(PaymentTimeout.Received));
     }
 
-    // ExpiresAt'i olmayan instance (Step 4 öncesinde oluşmuş) için timeout'a güvenilir
     private static bool IsExpired(OrderState saga) => saga.ExpiresAt is null || saga.ExpiresAt <= DateTime.UtcNow;
 }

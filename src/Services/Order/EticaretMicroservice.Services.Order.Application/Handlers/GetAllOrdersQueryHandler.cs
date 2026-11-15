@@ -28,6 +28,8 @@ public class GetAllOrdersQueryHandler : IRequestHandler<GetAllOrdersQuery, List<
             BuyerId = o.BuyerId,
             CreatedDate = o.CreatedDate,
             OrderStatus = o.OrderStatus.ToString(),
+            PaymentStatus = o.PaymentStatus.ToString(),
+            RefundedAt = o.RefundedAt,
             TotalPrice = o.GetTotalPrice,
             Address = new AddressDto
             {

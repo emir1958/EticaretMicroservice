@@ -142,6 +142,30 @@ public class OrderSagaTestDriver
             Message = "Kart reddedildi"
         });
 
+    public Task PaymentRefundedAsync(CreatedOrder order, DateTime refundedAt) =>
+        Harness.Bus.Publish(new PaymentRefundedEvent
+        {
+            CorrelationId = order.CorrelationId,
+            OrderId = order.OrderId,
+            Amount = ProductPrice,
+            CreatedAt = refundedAt
+        });
+
+    public async Task<(PaymentStatus Status, DateTime? RefundedAt)> GetPaymentAsync(int orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var payment = await dbContext.Orders.AsNoTracking()
+            .Where(o => o.Id == orderId)
+            .Select(o => new { o.PaymentStatus, o.RefundedAt })
+            .SingleAsync();
+        return (payment.PaymentStatus, payment.RefundedAt);
+    }
+
+    public Task WaitForPaymentStatusAsync(CreatedOrder order, PaymentStatus expected) =>
+        WaitUntilAsync(async () => (await GetPaymentAsync(order.OrderId)).Status == expected,
+            $"OrderId {order.OrderId} ödeme durumu '{expected}' olmalı");
+
     // Zamanlayıcı dışından gelen (token'sız) timeout mesajı: erken/başıboş teslimi simüle eder
     public Task PaymentTimeoutAsync(CreatedOrder order) =>
         Harness.Bus.Publish(new PaymentTimeoutExpired { CorrelationId = order.CorrelationId });

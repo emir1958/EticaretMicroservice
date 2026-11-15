@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, MapPin, Package, User } from "lucide-react";
+import { ArrowLeft, CreditCard, MapPin, Package, User } from "lucide-react";
 import { getErrorMessage, getErrorStatus } from "../../../lib/apiClient";
 import { useAsync } from "../../../shared/hooks/useAsync";
 import { ButtonLink } from "../../../shared/components/Button";
@@ -7,6 +7,7 @@ import EmptyState from "../../../shared/components/EmptyState";
 import { formatDate, formatPrice } from "../../../shared/utils/format";
 import { getOrder } from "../../orders/api";
 import OrderStatusBadge from "../../orders/components/OrderStatusBadge";
+import { PAYMENT_STATUS_LABEL } from "../../orders/orderStatus";
 import ui from "../admin.module.css";
 import styles from "./AdminOrderDetailPage.module.css";
 
@@ -74,6 +75,16 @@ export default function AdminOrderDetailPage() {
             </h2>
             <p className={ui.muted}>Müşteri kimliği</p>
             <p className={`${ui.mono} ${styles.breakAll}`}>{order.buyerId}</p>
+          </section>
+
+          <section className={ui.panel}>
+            <h2 className={ui.panelTitle}>
+              <CreditCard size={20} /> Ödeme
+            </h2>
+            <p className={ui.strong}>{PAYMENT_STATUS_LABEL[order.paymentStatus]}</p>
+            {order.paymentStatus === "IadeEdildi" && (
+              <p className={ui.muted}>İade tarihi: {formatDate(order.refundedAt)}</p>
+            )}
           </section>
 
           {order.address && (

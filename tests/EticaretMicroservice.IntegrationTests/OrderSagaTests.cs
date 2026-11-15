@@ -165,6 +165,69 @@ public class OrderSagaTests
         (await TimeoutDriver.GetStatusAsync(order.OrderId)).Should().Be(OrderStatus.IptalEdildi);
     }
 
+    // --- Ödeme durumu ---
+
+    [Fact]
+    public async Task PaymentCompleted_MarksPaymentReceived()
+    {
+        var order = await _driver.CreateOrderAsync();
+
+        await _driver.StockReservedAsync(order);
+        await _driver.PaymentCompletedAsync(order);
+
+        await _driver.WaitForPaymentStatusAsync(order, PaymentStatus.Alindi);
+    }
+
+    [Fact]
+    public async Task PaymentFailed_MarksPaymentFailed()
+    {
+        var order = await _driver.CreateOrderAsync();
+
+        await _driver.StockReservedAsync(order);
+        await _driver.PaymentFailedAsync(order);
+
+        await _driver.WaitForPaymentStatusAsync(order, PaymentStatus.Basarisiz);
+    }
+
+    // Timeout'tan sonra gelen ödeme iade edilince müşteri bunu sipariş detayında görebilmeli
+    [Fact]
+    public async Task PaymentRefundedAfterLatePayment_MarksOrderRefunded()
+    {
+        var order = await CreateCanceledOrderWithLatePaymentAsync();
+        var refundedAt = new DateTime(2026, 11, 15, 10, 0, 0, DateTimeKind.Utc);
+
+        await TimeoutDriver.PaymentRefundedAsync(order, refundedAt);
+
+        await TimeoutDriver.WaitForPaymentStatusAsync(order, PaymentStatus.IadeEdildi);
+        (await TimeoutDriver.GetPaymentAsync(order.OrderId)).RefundedAt.Should().Be(refundedAt);
+        (await TimeoutDriver.GetStatusAsync(order.OrderId)).Should().Be(OrderStatus.IptalEdildi);
+    }
+
+    [Fact]
+    public async Task DuplicatePaymentRefunded_KeepsFirstRefundDate()
+    {
+        var order = await CreateCanceledOrderWithLatePaymentAsync();
+        var firstRefund = new DateTime(2026, 11, 15, 10, 0, 0, DateTimeKind.Utc);
+        await TimeoutDriver.PaymentRefundedAsync(order, firstRefund);
+        await TimeoutDriver.WaitForPaymentStatusAsync(order, PaymentStatus.IadeEdildi);
+
+        await TimeoutDriver.PaymentRefundedAsync(order, firstRefund.AddMinutes(5));
+        await OrderSagaTestDriver.SettleAsync();
+
+        (await TimeoutDriver.GetPaymentAsync(order.OrderId)).RefundedAt.Should().Be(firstRefund);
+    }
+
+    private async Task<CreatedOrder> CreateCanceledOrderWithLatePaymentAsync()
+    {
+        var order = await TimeoutDriver.CreateOrderAsync();
+        await TimeoutDriver.StockReservedAsync(order);
+        await TimeoutDriver.WaitForStatusAsync(order, OrderStatus.IptalEdildi);
+
+        await TimeoutDriver.PaymentCompletedAsync(order);
+        await TimeoutDriver.WaitForPaymentStatusAsync(order, PaymentStatus.Alindi);
+        return order;
+    }
+
     // Sıra dışı (out-of-order) gelen StockFailed, tamamlanmış bir siparişi iptal etmemeli.
     [Fact]
     public async Task StockFailedAfterCompletion_DoesNotCancelCompletedOrder()

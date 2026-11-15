@@ -1,3 +1,12 @@
+import type { PaymentStatus } from "./types";
+
+export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
+  Alinmadi: "Alınmadı",
+  Alindi: "Alındı",
+  Basarisiz: "Başarısız",
+  IadeEdildi: "İade edildi",
+};
+
 export type StatusTone = "pending" | "completed" | "canceled" | "unknown";
 
 export interface StatusView {

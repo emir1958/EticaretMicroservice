@@ -35,7 +35,8 @@ public class CancelOrderActivity :
 
     public async Task Execute(BehaviorContext<OrderState, PaymentFailedEvent> context, IBehavior<OrderState, PaymentFailedEvent> next)
     {
-        await CancelAsync(context.Saga, $"Ödeme Başarısız: {context.Message.Message}", context.CancellationToken);
+        var order = await CancelAsync(context.Saga, $"Ödeme Başarısız: {context.Message.Message}", context.CancellationToken);
+        order.TryMarkPaymentFailed();
 
         await next.Execute(context);
     }
@@ -47,7 +48,7 @@ public class CancelOrderActivity :
         await next.Execute(context);
     }
 
-    private async Task CancelAsync(OrderState saga, string message, CancellationToken cancellationToken)
+    private async Task<Domain.Entities.Order> CancelAsync(OrderState saga, string message, CancellationToken cancellationToken)
     {
         var order = await _orderRepository.GetByIdAsync(saga.OrderId)
             ?? throw new InvalidOperationException($"OrderId {saga.OrderId} için sipariş bulunamadı.");
@@ -57,10 +58,11 @@ public class CancelOrderActivity :
             // Order'ı yalnızca saga değiştirir; buraya düşmek saga ile Order'ın ayrıştığını gösterir
             _logger.LogWarning("[CorrelationId: {CorrelationId}] OrderId {OrderId} zaten '{Status}' durumunda.",
                 saga.CorrelationId, order.Id, order.OrderStatus);
-            return;
+            return order;
         }
 
         await _notifier.NotifyOrderStateAsync(saga.BuyerId, order.Id, "Canceled", message, cancellationToken);
+        return order;
     }
 
     public Task Faulted<TException>(BehaviorExceptionContext<OrderState, StockFailedEvent, TException> context,

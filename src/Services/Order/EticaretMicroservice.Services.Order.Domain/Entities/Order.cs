@@ -22,6 +22,8 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
         private readonly List<OrderItem> _orderItems = new();
         public IReadOnlyCollection<OrderItem> OrderItems => _orderItems.AsReadOnly();
         public OrderStatus OrderStatus { get; private set; } = OrderStatus.Beklemede;
+        public PaymentStatus PaymentStatus { get; private set; } = PaymentStatus.Alinmadi;
+        public DateTime? RefundedAt { get; private set; }
         public byte[] RowVersion { get; private set; } = Array.Empty<byte>();
         private Order() { }
 
@@ -73,6 +75,41 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
             }
 
             OrderStatus = OrderStatus.Tamamlandı;
+            return true;
+        }
+
+        public bool TryMarkPaymentReceived()
+        {
+            if (PaymentStatus != PaymentStatus.Alinmadi)
+            {
+                return false;
+            }
+
+            PaymentStatus = PaymentStatus.Alindi;
+            return true;
+        }
+
+        public bool TryMarkPaymentFailed()
+        {
+            if (PaymentStatus != PaymentStatus.Alinmadi)
+            {
+                return false;
+            }
+
+            PaymentStatus = PaymentStatus.Basarisiz;
+            return true;
+        }
+
+        // Yalnızca alınmış ödeme iade edilebilir; kopya iade bildirimi ilk tarihi değiştirmez
+        public bool TryMarkRefunded(DateTime refundedAt)
+        {
+            if (PaymentStatus != PaymentStatus.Alindi)
+            {
+                return false;
+            }
+
+            PaymentStatus = PaymentStatus.IadeEdildi;
+            RefundedAt = refundedAt;
             return true;
         }
     }

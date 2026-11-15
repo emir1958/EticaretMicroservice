@@ -30,6 +30,8 @@ namespace EticaretMicroservice.Services.Order.Application.Handlers
                 BuyerId = o.BuyerId,
                 CreatedDate = o.CreatedDate,
                 OrderStatus = o.OrderStatus.ToString(),
+                PaymentStatus = o.PaymentStatus.ToString(),
+                RefundedAt = o.RefundedAt,
                 TotalPrice = o.GetTotalPrice,
                 Address = new AddressDto
                 {

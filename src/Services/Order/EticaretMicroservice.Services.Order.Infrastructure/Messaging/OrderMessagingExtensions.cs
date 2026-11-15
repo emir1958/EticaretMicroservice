@@ -15,6 +15,7 @@ public static class OrderMessagingExtensions
     {
         x.AddScoped<CompleteOrderActivity>();
         x.AddScoped<CancelOrderActivity>();
+        x.AddScoped<RecordPaymentActivity>();
 
         // Saga durumu, Order aggregate'i ve outbox mesajları aynı OrderDbContext'i (ExistingDbContext) paylaşır:
         // hepsi tek bir transaction'da commit edilir.

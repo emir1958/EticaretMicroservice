@@ -2,6 +2,7 @@ using EticaretMicroservice.Payment.Api.Data;
 using EticaretMicroservice.Payment.Api.Models;
 using EticaretMicroservice.Payment.Api.Services;
 using EticaretMicroservice.Shared.Commands;
+using EticaretMicroservice.Shared.Events;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
@@ -56,6 +57,15 @@ public class RefundPaymentCommandConsumer : IConsumer<RefundPaymentCommand>
             throw new InvalidOperationException($"OrderId {message.OrderId} için iade başarısız: {failReason}");
 
         payment.Status = PaymentStatus.Refunded;
+
+        // Outbox: event, Refunded durumuyla aynı commit'te kaydedilir; iade yapılıp Order'ın haberi olmaması mümkün değil
+        await context.Publish(new PaymentRefundedEvent
+        {
+            CorrelationId = message.CorrelationId,
+            OrderId = payment.OrderId,
+            Amount = payment.TotalPrice
+        }, context.CancellationToken);
+
         await _dbContext.SaveChangesAsync(context.CancellationToken);
 
         _logger.LogWarning("[CorrelationId: {CorrelationId}] OrderId: {OrderId} için {Amount} TL iade edildi. Sebep: {Reason}",

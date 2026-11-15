@@ -27,6 +27,8 @@ public class GetOrderByIdQueryHandler : IRequestHandler<GetOrderByIdQuery, Order
             CreatedDate = order.CreatedDate,
             TotalPrice = order.GetTotalPrice,
             OrderStatus = order.OrderStatus.ToString(),
+            PaymentStatus = order.PaymentStatus.ToString(),
+            RefundedAt = order.RefundedAt,
             Address = new AddressDto
             {
                 City = order.Address.City,

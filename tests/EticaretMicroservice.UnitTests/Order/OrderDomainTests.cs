@@ -91,4 +91,67 @@ public class OrderDomainTests
         result.Should().BeFalse();
         order.OrderStatus.Should().Be(OrderStatus.Tamamlandı);
     }
+
+    [Fact]
+    public void Order_WhenCreated_ShouldHaveAlinmadiPaymentStatus()
+    {
+        var order = CreateSampleOrder();
+
+        order.PaymentStatus.Should().Be(PaymentStatus.Alinmadi);
+        order.RefundedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryMarkRefunded_WhenPaymentReceived_ShouldSetRefundedAt()
+    {
+        var order = CreateSampleOrder();
+        order.TryMarkPaymentReceived();
+        var refundedAt = new DateTime(2026, 11, 15, 10, 0, 0, DateTimeKind.Utc);
+
+        var result = order.TryMarkRefunded(refundedAt);
+
+        result.Should().BeTrue();
+        order.PaymentStatus.Should().Be(PaymentStatus.IadeEdildi);
+        order.RefundedAt.Should().Be(refundedAt);
+    }
+
+    // Alınmamış ödeme iade edilmiş sayılmaz
+    [Fact]
+    public void TryMarkRefunded_WhenPaymentNotReceived_ShouldReturnFalse()
+    {
+        var order = CreateSampleOrder();
+
+        var result = order.TryMarkRefunded(DateTime.UtcNow);
+
+        result.Should().BeFalse();
+        order.PaymentStatus.Should().Be(PaymentStatus.Alinmadi);
+        order.RefundedAt.Should().BeNull();
+    }
+
+    // Kopya iade bildirimi ilk iade tarihini ezmemeli
+    [Fact]
+    public void TryMarkRefunded_WhenAlreadyRefunded_ShouldKeepFirstRefundDate()
+    {
+        var order = CreateSampleOrder();
+        order.TryMarkPaymentReceived();
+        var firstRefund = new DateTime(2026, 11, 15, 10, 0, 0, DateTimeKind.Utc);
+        order.TryMarkRefunded(firstRefund);
+
+        var result = order.TryMarkRefunded(firstRefund.AddMinutes(5));
+
+        result.Should().BeFalse();
+        order.RefundedAt.Should().Be(firstRefund);
+    }
+
+    [Fact]
+    public void TryMarkPaymentFailed_WhenPaymentReceived_ShouldReturnFalse()
+    {
+        var order = CreateSampleOrder();
+        order.TryMarkPaymentReceived();
+
+        var result = order.TryMarkPaymentFailed();
+
+        result.Should().BeFalse();
+        order.PaymentStatus.Should().Be(PaymentStatus.Alindi);
+    }
 }
