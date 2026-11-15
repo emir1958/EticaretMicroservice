@@ -6,7 +6,7 @@ import { getMyOrder } from "../api";
 import { useOrderHub } from "../useOrderHub";
 import OrderStatusBadge from "../components/OrderStatusBadge";
 import EmptyState from "../../../shared/components/EmptyState";
-import Button from "../../../shared/components/Button";
+import { ButtonLink } from "../../../shared/components/Button";
 import { formatDate, formatPrice } from "../../../shared/utils/format";
 import { getOrderStatusView } from "../orderStatus";
 import styles from "./MyOrderDetailPage.module.css";
@@ -56,7 +56,7 @@ export default function MyOrderDetailPage() {
         icon={Package}
         title={error.response?.status === 404 ? "Sipariş bulunamadı." : getErrorMessage(error, "Sipariş şu anda getirilemiyor.")}
         text="Sipariş numarasını kontrol edin veya siparişlerinize dönün."
-        action={<Button to="/orders">Siparişlerime dön</Button>}
+        action={<ButtonLink to="/orders">Siparişlerime dön</ButtonLink>}
       />
     );
   }

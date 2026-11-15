@@ -16,7 +16,7 @@ import { useOrderHub } from "../useOrderHub";
 import { getErrorMessage } from "../../../lib/apiClient";
 import { createOrder } from "../api";
 import Alert from "../../../shared/components/Alert";
-import Button from "../../../shared/components/Button";
+import Button, { ButtonLink } from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
 import FormField from "../../../shared/components/FormField";
 import { formatPrice } from "../../../shared/utils/format";
@@ -67,10 +67,10 @@ export default function CheckoutPage() {
         text="Şu anda Admin yetkisine sahip bir hesapla oturum açtınız. Yönetici hesapları üzerinden sipariş oluşturulamaz."
         action={
           <div className={styles.resultActions}>
-            <Button to="/admin/orders">Yönetici Paneline Git</Button>
-            <Button to="/" variant="secondary">
+            <ButtonLink to="/admin/orders">Yönetici Paneline Git</ButtonLink>
+            <ButtonLink to="/" variant="secondary">
               Mağazaya Dön
-            </Button>
+            </ButtonLink>
           </div>
         }
       />
@@ -84,7 +84,7 @@ export default function CheckoutPage() {
         icon={ShoppingBag}
         title="Sepetiniz boş"
         text="Ödeme yapabilmek için sepetinize en az bir ürün eklemelisiniz."
-        action={<Button to="/">Alışverişe Başla</Button>}
+        action={<ButtonLink to="/">Alışverişe Başla</ButtonLink>}
       />
     );
   }
@@ -154,10 +154,10 @@ export default function CheckoutPage() {
         </p>
         <span className={styles.orderNo}>Sipariş No #{createdOrderId}</span>
         <div className={styles.resultActions}>
-          <Button to={`/orders/${createdOrderId}`}>Sipariş detayına git</Button>
-          <Button to="/" variant="secondary">
+          <ButtonLink to={`/orders/${createdOrderId}`}>Sipariş detayına git</ButtonLink>
+          <ButtonLink to="/" variant="secondary">
             Alışverişe devam et
-          </Button>
+          </ButtonLink>
         </div>
       </div>
     );

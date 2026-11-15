@@ -1,40 +1,55 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../auth/AuthContext";
 import * as basketApi from "./api";
+import type { CartItem } from "./types";
 
-const CartContext = createContext();
+type CartProduct = Omit<CartItem, "quantity">;
+
+interface CartContextValue {
+  cart: CartItem[];
+  addToCart: (product: CartProduct, quantity?: number) => void;
+  removeFromCart: (id: string) => void;
+  updateQuantity: (id: string, quantity: number) => void;
+  clearCart: () => Promise<void>;
+  totalAmount: number;
+  isCartOpen: boolean;
+  setIsCartOpen: (open: boolean) => void;
+  successMessage: string;
+}
+
+interface UserCart {
+  userId: string | null;
+  items: CartItem[];
+}
+
+const CartContext = createContext<CartContextValue | null>(null);
 
 const GUEST_KEY = "ecommerce_cart_guest";
-const userKey = (userId) => `ecommerce_cart_${userId}`;
+const userKey = (userId: string) => `ecommerce_cart_${userId}`;
 
-function readStoredCart(key) {
+function readStoredCart(key: string): CartItem[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
+    const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return []; // Bozuk JSON uygulamayı çökertmesin
+    return [];
   }
 }
 
-function writeStoredCart(key, items) {
+function writeStoredCart(key: string, items: CartItem[]) {
   localStorage.setItem(key, JSON.stringify(items));
 }
 
-function mergeCarts(serverItems, guestItems) {
+function mergeCarts(serverItems: CartItem[], guestItems: CartItem[]) {
   const merged = new Map(serverItems.map((item) => [item.id, item]));
   for (const guest of guestItems) {
     const existing = merged.get(guest.id);
-    merged.set(
-      guest.id,
-      existing
-        ? { ...existing, quantity: existing.quantity + guest.quantity }
-        : guest,
-    );
+    merged.set(guest.id, existing ? { ...existing, quantity: existing.quantity + guest.quantity } : guest);
   }
   return [...merged.values()];
 }
 
-async function pushBasket(userId, items) {
+async function pushBasket(userId: string, items: CartItem[]) {
   try {
     await basketApi.saveBasket(userId, items);
   } catch (err) {
@@ -42,14 +57,13 @@ async function pushBasket(userId, items) {
   }
 }
 
-export const CartProvider = ({ children }) => {
+export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id;
 
   const [guestCart, setGuestCart] = useState(() => readStoredCart(GUEST_KEY));
-  // Kullanıcı sepeti hangi kullanıcıya ait olduğuyla birlikte tutulur: A çıkıp B girerse
-  // B'nin sepeti yüklenene kadar A'nınki bir an bile gösterilmez.
-  const [userCart, setUserCart] = useState({ userId: null, items: [] });
+  // A çıkıp B girerse B'nin sepeti yüklenene kadar A'nınki bir an bile gösterilmez
+  const [userCart, setUserCart] = useState<UserCart>({ userId: null, items: [] });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -61,14 +75,11 @@ export const CartProvider = ({ children }) => {
     let ignore = false;
 
     const load = async () => {
-      let serverItems;
+      let serverItems: CartItem[];
       try {
         serverItems = await basketApi.getBasket();
       } catch (err) {
-        console.warn(
-          "Redis'ten sepet çekilemedi, yerel kopya kullanılıyor:",
-          err,
-        );
+        console.warn("Redis'ten sepet çekilemedi, yerel kopya kullanılıyor:", err);
         serverItems = readStoredCart(userKey(userId));
       }
 
@@ -93,7 +104,7 @@ export const CartProvider = ({ children }) => {
     };
   }, [userId]);
 
-  const commitCart = (nextItems) => {
+  const commitCart = (nextItems: CartItem[]) => {
     if (userId) {
       setUserCart({ userId, items: nextItems });
       writeStoredCart(userKey(userId), nextItems);
@@ -104,33 +115,14 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const addToCart = (product, addQty = 1) => {
-    const targetId = product.id || product._id;
-    if (!targetId) return;
-
-    const existing = cart.find((item) => item.id === targetId);
+  const addToCart = (product: CartProduct, quantity = 1) => {
+    const { id, name, price, imageUrl } = product;
+    const existing = cart.find((item) => item.id === id);
     const nextItems = existing
       ? cart.map((item) =>
-          item.id === targetId
-            ? {
-                ...item,
-                name: product.name || item.name,
-                price: product.price ?? item.price,
-                imageUrl: product.imageUrl || item.imageUrl,
-                quantity: item.quantity + addQty,
-              }
-            : item,
+          item.id === id ? { ...item, name, price, imageUrl, quantity: item.quantity + quantity } : item,
         )
-      : [
-          ...cart,
-          {
-            id: targetId,
-            name: product.name || "Ürün",
-            price: product.price || 0,
-            imageUrl: product.imageUrl || "",
-            quantity: addQty,
-          },
-        ];
+      : [...cart, { id, name, price, imageUrl, quantity }];
 
     commitCart(nextItems);
 
@@ -141,18 +133,16 @@ export const CartProvider = ({ children }) => {
     }, 800);
   };
 
-  const removeFromCart = (id) => {
+  const removeFromCart = (id: string) => {
     commitCart(cart.filter((item) => item.id !== id));
   };
 
-  const updateQuantity = (id, quantity) => {
+  const updateQuantity = (id: string, quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(id);
       return;
     }
-    commitCart(
-      cart.map((item) => (item.id === id ? { ...item, quantity } : item)),
-    );
+    commitCart(cart.map((item) => (item.id === id ? { ...item, quantity } : item)));
   };
 
   const clearCart = async () => {
@@ -171,13 +161,10 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const totalAmount = cart.reduce(
-    (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
-    0,
-  );
+  const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
-    <CartContext.Provider
+    <CartContext
       value={{
         cart,
         addToCart,
@@ -191,8 +178,12 @@ export const CartProvider = ({ children }) => {
       }}
     >
       {children}
-    </CartContext.Provider>
+    </CartContext>
   );
-};
+}
 
-export const useCart = () => useContext(CartContext);
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart, CartProvider içinde kullanılmalı.");
+  return context;
+}

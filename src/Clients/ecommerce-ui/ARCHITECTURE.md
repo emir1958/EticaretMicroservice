@@ -14,7 +14,7 @@ src/
   config/env.js         Ortam ayarları (VITE_API_URL). import.meta.env yalnızca burada okunur
   lib/apiClient.js      Tek HTTP istemcisi (axios + interceptor'lar) ve getErrorMessage
   shared/               Hiçbir feature'a ait olmayan, herkesin kullandığı parçalar
-    components/         Button, FormField, Alert, EmptyState (iş mantığı içermez)
+    components/         Button/ButtonLink, FormField/TextAreaField, Alert, EmptyState (iş mantığı içermez)
     hooks/              useAsync (veri çekme kalıbı)
     utils/              formatPrice, formatDate ...
   styles/               tokens.css (tasarım token'ları), global.css (temel stiller)
@@ -121,7 +121,8 @@ shared, lib, config   <──   features   <──   app
 - Her bileşen/sayfa kendi `.module.css` dosyasını kullanır; sabit renk/boşluk yerine `tokens.css` değişkenleri.
   Yeni bir renk gerekiyorsa önce anlamlı bir token eklenir (örn. `--color-sidebar-bg`).
 - Inline `style={{}}` kullanılmaz.
-- Form alanı her zaman `FormField`, hata/başarı mesajı her zaman `Alert`: aynı input stili üç yerde kopyalanmaz.
+- Form alanı her zaman `FormField` (çok satırlı metin için `TextAreaField`), hata/başarı mesajı her zaman `Alert`:
+  aynı input stili üç yerde kopyalanmaz. Buton görünümlü link için `ButtonLink`.
 - Bir feature'ın birden çok sayfasında ortak olan stiller feature kökünde durur
   (örn. `features/admin/admin.module.css` → `import ui from "../admin.module.css"`).
 - Dikkat: CSS Modules'te tanımsız sınıf (`styles.yanlisAd`) hata vermez, sessizce `undefined` olur.

@@ -1,68 +1,56 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import * as signalR from "@microsoft/signalr";
 import { env } from "../../config/env";
 
+export interface OrderStateMessage {
+  orderId: number;
+  status: "Completed" | "Canceled";
+  message: string;
+}
+
+// Bileşen bağlantı kurulurken unmount olursa (StrictMode, sayfa değişimi) start() bu hatalarla iptal edilir
+function isExpectedStopError(err: unknown) {
+  return err instanceof Error && (err.name === "AbortError" || err.message.includes("negotiation"));
+}
+
 export function useOrderHub() {
-  const [orderStatus, setOrderStatus] = useState(null);
-  const connectionRef = useRef(null);
+  const [orderStatus, setOrderStatus] = useState<OrderStateMessage | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(env.orderHubUrl, {
-        accessTokenFactory: () => localStorage.getItem("token") || "",
+        accessTokenFactory: () => localStorage.getItem("token") ?? "",
       })
       .withAutomaticReconnect()
       .build();
 
-    connectionRef.current = connection;
-
-    // 🟢 DÜZELTME: Backend'den ister OrderId ister orderId gelsin, normalize ediyoruz
-    connection.on("ReceiveOrderState", (data) => {
-      if (isMounted && data) {
-        setOrderStatus({
-          orderId: data.orderId ?? data.OrderId,
-          status: data.status ?? data.Status,
-          message: data.message ?? data.Message,
-        });
-      }
+    connection.on("ReceiveOrderState", (message: OrderStateMessage) => {
+      if (isMounted) setOrderStatus(message);
     });
 
-    const startConnection = async () => {
+    connection.onreconnected(() => {
+      connection.invoke("JoinOrderGroup").catch((err: unknown) => {
+        console.error("Yeniden bağlandıktan sonra gruba katılınamadı:", err);
+      });
+    });
+
+    const start = async () => {
       try {
         await connection.start();
-        if (isMounted) {
-          console.log("🟢 SignalR OrderHub bağlandı.");
-          await connection.invoke("JoinOrderGroup");
-          console.log("🟢 JoinOrderGroup başarılı, kullanıcı grubuna katılındı.");
-        }
+        if (isMounted) await connection.invoke("JoinOrderGroup");
       } catch (err) {
-        if (err.name !== "AbortError" && !err.message?.includes("negotiation")) {
-          console.error("SignalR bağlantı/invoke hatası:", err);
-        }
+        if (!isExpectedStopError(err)) console.error("SignalR bağlantı hatası:", err);
       }
     };
 
-    connection.onreconnected(async () => {
-      try {
-        await connection.invoke("JoinOrderGroup");
-        console.log("🔄 SignalR yeniden bağlandı, gruba tekrar katılındı.");
-      } catch (e) {
-        console.error("Yeniden bağlanma sonrası gruba katılma hatası:", e);
-      }
-    });
-
-    startConnection();
+    start();
 
     return () => {
       isMounted = false;
-      if (connection) {
-        connection.off("ReceiveOrderState");
-        if (connection.state === signalR.HubConnectionState.Connected) {
-          connection.stop().catch(() => {});
-        }
-      }
+      connection.off("ReceiveOrderState");
+      connection.stop().catch(() => {});
     };
   }, []);
 

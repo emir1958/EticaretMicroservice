@@ -10,7 +10,7 @@ import {
 import { useAuth } from "../../features/auth/AuthContext";
 import { useCart } from "../../features/cart/CartContext";
 import CartDrawer from "../../features/cart/components/CartDrawer";
-import Button from "../../shared/components/Button";
+import { ButtonLink } from "../../shared/components/Button";
 import styles from "./CustomerLayout.module.css";
 
 export default function CustomerLayout() {
@@ -35,10 +35,10 @@ export default function CustomerLayout() {
 
           <nav className={styles.nav}>
             {isAdmin && (
-              <Button to="/admin/orders" variant="secondary" size="sm">
+              <ButtonLink to="/admin/orders" variant="secondary" size="sm">
                 <ShieldCheck size={16} />
                 <span className={styles.hideOnMobile}>Yönetici Paneli</span>
-              </Button>
+              </ButtonLink>
             )}
 
             {isAuthenticated && !isAdmin && (
@@ -65,9 +65,9 @@ export default function CustomerLayout() {
                 </button>
               </>
             ) : (
-              <Button to="/auth" variant="ghost" size="sm">
+              <ButtonLink to="/auth" variant="ghost" size="sm">
                 <LogIn size={16} /> Giriş Yap
-              </Button>
+              </ButtonLink>
             )}
 
             {!isAdmin && (

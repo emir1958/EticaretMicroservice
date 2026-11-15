@@ -1,7 +1,15 @@
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import styles from "./EmptyState.module.css";
 
-// Boş liste / boş sepet gibi durumlar için ortak görünüm
-export default function EmptyState({ icon: Icon, title, text, action }) {
+interface EmptyStateProps {
+  icon?: LucideIcon;
+  title: string;
+  text?: ReactNode;
+  action?: ReactNode;
+}
+
+export default function EmptyState({ icon: Icon, title, text, action }: EmptyStateProps) {
   return (
     <div className={styles.empty}>
       {Icon && (

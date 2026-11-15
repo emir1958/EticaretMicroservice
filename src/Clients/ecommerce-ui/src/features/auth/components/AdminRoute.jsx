@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { ShieldAlert } from "lucide-react";
 import { useAuth } from "../AuthContext";
-import Button from "../../../shared/components/Button";
+import { ButtonLink } from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
 import styles from "./AdminRoute.module.css";
 
@@ -20,7 +20,7 @@ export default function AdminRoute() {
           icon={ShieldAlert}
           title="Bu sayfaya erişim yetkiniz yok"
           text="Yönetim paneli yalnızca yönetici hesaplarına açıktır."
-          action={<Button to="/">Mağazaya dön</Button>}
+          action={<ButtonLink to="/">Mağazaya dön</ButtonLink>}
         />
       </div>
     );

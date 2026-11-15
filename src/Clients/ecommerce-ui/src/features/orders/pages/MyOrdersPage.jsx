@@ -4,7 +4,7 @@ import { ChevronRight, Package } from "lucide-react";
 import { getErrorMessage } from "../../../lib/apiClient";
 import { getMyOrders } from "../api";
 import OrderStatusBadge from "../components/OrderStatusBadge";
-import Button from "../../../shared/components/Button";
+import { ButtonLink } from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
 import { formatDate, formatPrice } from "../../../shared/utils/format";
 import styles from "./MyOrdersPage.module.css";
@@ -28,7 +28,7 @@ export default function MyOrdersPage() {
           icon={Package}
           title="Henüz bir siparişin yok"
           text="Sipariş verdiğinde durumunu buradan takip edebilirsin."
-          action={<Button to="/">Ürünlere göz at</Button>}
+          action={<ButtonLink to="/">Ürünlere göz at</ButtonLink>}
         />
       ) : (
         <div className={styles.list}>

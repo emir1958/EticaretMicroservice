@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, MapPin, Package, User } from "lucide-react";
 import { getErrorMessage } from "../../../lib/apiClient";
 import { useAsync } from "../../../shared/hooks/useAsync";
-import Button from "../../../shared/components/Button";
+import { ButtonLink } from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
 import { formatDate, formatPrice } from "../../../shared/utils/format";
 import { getOrder } from "../../orders/api";
@@ -23,7 +23,7 @@ export default function AdminOrderDetailPage() {
         title={
           error.response?.status === 404 ? "Sipariş bulunamadı." : getErrorMessage(error, "Sipariş getirilemedi.")
         }
-        action={<Button to="/admin/orders">Siparişlere dön</Button>}
+        action={<ButtonLink to="/admin/orders">Siparişlere dön</ButtonLink>}
       />
     );
   }

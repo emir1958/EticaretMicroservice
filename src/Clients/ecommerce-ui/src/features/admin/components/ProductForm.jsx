@@ -3,7 +3,7 @@ import { Edit, PlusCircle, X } from "lucide-react";
 import { getErrorMessage } from "../../../lib/apiClient";
 import Alert from "../../../shared/components/Alert";
 import Button from "../../../shared/components/Button";
-import FormField from "../../../shared/components/FormField";
+import FormField, { TextAreaField } from "../../../shared/components/FormField";
 import { createProduct, getAvailableStock, updateProduct, updateStock } from "../../catalog/api";
 import ui from "../admin.module.css";
 import styles from "./ProductForm.module.css";
@@ -125,9 +125,8 @@ export default function ProductForm({ product, onSaved, onCancel }) {
           onChange={(e) => setImageUrl(e.target.value)}
           placeholder="https://..."
         />
-        <FormField
+        <TextAreaField
           className={styles.full}
-          as="textarea"
           label="Açıklama"
           value={description}
           onChange={(e) => setDescription(e.target.value)}

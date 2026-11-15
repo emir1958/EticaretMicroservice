@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type DependencyList } from "react";
 
-export function useAsync(asyncFn, deps) {
-  // Sonuç, hangi istek için geldiğiyle birlikte saklanır: { deps, reloadCount, data, error }
-  const [result, setResult] = useState(null);
+interface AsyncResult<T> {
+  deps: DependencyList;
+  reloadCount: number;
+  data: T | undefined;
+  error: unknown;
+}
+
+export function useAsync<T>(asyncFn: () => Promise<T>, deps: DependencyList) {
+  // Sonuç, hangi istek için geldiğiyle birlikte saklanır
+  const [result, setResult] = useState<AsyncResult<T> | null>(null);
   const [reloadCount, setReloadCount] = useState(0);
 
   useEffect(() => {
@@ -12,7 +19,7 @@ export function useAsync(asyncFn, deps) {
       (data) => {
         if (!ignore) setResult({ deps, reloadCount, data, error: null });
       },
-      (error) => {
+      (error: unknown) => {
         if (ignore) return;
         console.error("[useAsync]", error);
         // reload başarısız olursa aynı kaydın eski verisi ekranda kalır
@@ -31,7 +38,6 @@ export function useAsync(asyncFn, deps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, reloadCount]);
 
-  // "Yükleniyor" ayrı bir state değil, türetilen değer: effect içinde senkron setState gerekmez.
   const isSameRecord = result !== null && sameValues(result.deps, deps);
   const isLoading = !isSameRecord || result.reloadCount !== reloadCount;
 
@@ -45,6 +51,6 @@ export function useAsync(asyncFn, deps) {
   };
 }
 
-function sameValues(a, b) {
+function sameValues(a: DependencyList, b: DependencyList) {
   return a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
 }
