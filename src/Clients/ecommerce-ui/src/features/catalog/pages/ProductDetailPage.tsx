@@ -10,8 +10,8 @@ import Button from "../../../shared/components/Button";
 import { formatPrice } from "../../../shared/utils/format";
 import styles from "./ProductDetailPage.module.css";
 
-// Bu ekranın ihtiyacı üç isteğin birleşimi; api.js fonksiyonlarını bir araya getirir, HTTP bilmez.
-async function loadProductDetail(id) {
+// Bu ekranın ihtiyacı üç isteğin birleşimi; api.ts fonksiyonlarını bir araya getirir, HTTP bilmez.
+async function loadProductDetail(id: string) {
   const [product, stockCount, allProducts] = await Promise.all([
     getProduct(id),
     // Stok servisi yanıt vermezse ürün yine gösterilir, stokta yok olarak
@@ -32,10 +32,10 @@ async function loadProductDetail(id) {
 // adet gibi kullanıcının girdiği state kendiliğinden sıfırlanır.
 export default function ProductDetailPage() {
   const { id } = useParams();
-  return <ProductDetailContent key={id} id={id} />;
+  return id ? <ProductDetailContent key={id} id={id} /> : null;
 }
 
-function ProductDetailContent({ id }) {
+function ProductDetailContent({ id }: { id: string }) {
   const { isAdmin } = useAuth();
   const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);

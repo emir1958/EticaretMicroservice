@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, MapPin, Package, User } from "lucide-react";
-import { getErrorMessage } from "../../../lib/apiClient";
+import { getErrorMessage, getErrorStatus } from "../../../lib/apiClient";
 import { useAsync } from "../../../shared/hooks/useAsync";
 import { ButtonLink } from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
@@ -12,16 +12,16 @@ import styles from "./AdminOrderDetailPage.module.css";
 
 export default function AdminOrderDetailPage() {
   const { id } = useParams();
-  const { data: order, error, isLoading } = useAsync(() => getOrder(id), [id]);
+  const { data: order, error, isLoading } = useAsync(() => getOrder(Number(id)), [id]);
 
   if (isLoading) return <p className={ui.state}>Yükleniyor...</p>;
 
-  if (error) {
+  if (!order) {
     return (
       <EmptyState
         icon={Package}
         title={
-          error.response?.status === 404 ? "Sipariş bulunamadı." : getErrorMessage(error, "Sipariş getirilemedi.")
+          getErrorStatus(error) === 404 ? "Sipariş bulunamadı." : getErrorMessage(error, "Sipariş getirilemedi.")
         }
         action={<ButtonLink to="/admin/orders">Siparişlere dön</ButtonLink>}
       />

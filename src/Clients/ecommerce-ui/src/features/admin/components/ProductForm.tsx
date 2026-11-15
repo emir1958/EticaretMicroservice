@@ -1,18 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import { Edit, PlusCircle, X } from "lucide-react";
 import { getErrorMessage } from "../../../lib/apiClient";
 import Alert from "../../../shared/components/Alert";
 import Button from "../../../shared/components/Button";
 import FormField, { TextAreaField } from "../../../shared/components/FormField";
 import { createProduct, getAvailableStock, updateProduct, updateStock } from "../../catalog/api";
+import type { ProductWithStock } from "../../catalog/types";
 import ui from "../admin.module.css";
 import styles from "./ProductForm.module.css";
 
 // Ürün ekleme / düzenleme formu.
 // product: düzenlenecek ürün (null → yeni ürün). Sayfa bu bileşeni ürünün id'siyle key'ler:
 // başka ürüne geçilince React formu sıfırdan oluşturur, state'i elle sıfırlamak gerekmez.
-export default function ProductForm({ product, onSaved, onCancel }) {
-  const isEdit = Boolean(product);
+interface ProductFormProps {
+  product: ProductWithStock | null;
+  onSaved: (message: string) => void;
+  onCancel: () => void;
+}
+
+export default function ProductForm({ product, onSaved, onCancel }: ProductFormProps) {
+  const isEdit = product !== null;
   const productId = product?.id;
 
   // useState başlangıç değeri yalnızca ilk render'da okunur; key değişimi bu yüzden önemli.
@@ -22,7 +29,7 @@ export default function ProductForm({ product, onSaved, onCancel }) {
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Listedeki stok liste yüklendiği anki değer; düzenlemeye başlarken Stock servisinden tazelenir.
   // Bağımlılık product değil productId: liste yenilenince ürün nesnesi değişir ama id aynı kalır,
@@ -40,7 +47,7 @@ export default function ProductForm({ product, onSaved, onCancel }) {
     };
   }, [productId]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
@@ -56,8 +63,8 @@ export default function ProductForm({ product, onSaved, onCancel }) {
     try {
       if (isEdit) {
         // Ürün bilgisi Catalog'da, stok Stock servisinde: iki ayrı servis, iki ayrı istek
-        await updateProduct(productId, fields);
-        await updateStock(productId, stockNumber);
+        await updateProduct(product.id, fields);
+        await updateStock(product.id, stockNumber);
         onSaved("Ürün bilgileri ve stok güncellendi.");
       } else {
         // Başlangıç stoğu Catalog'dan event ile Stock servisine iletilir

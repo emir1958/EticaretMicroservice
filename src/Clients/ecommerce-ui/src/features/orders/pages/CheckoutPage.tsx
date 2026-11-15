@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, type SubmitEvent } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,7 +13,7 @@ import {
 import { useCart } from "../../cart/CartContext";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrderHub } from "../useOrderHub";
-import { getErrorMessage } from "../../../lib/apiClient";
+import { getErrorMessage, getErrorStatus } from "../../../lib/apiClient";
 import { createOrder } from "../api";
 import Alert from "../../../shared/components/Alert";
 import Button, { ButtonLink } from "../../../shared/components/Button";
@@ -44,16 +44,16 @@ export default function CheckoutPage() {
 
   const idempotencyKeyRef = useRef(crypto.randomUUID());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdOrderId, setCreatedOrderId] = useState(null);
-  const [errorMessage, setErrorMessage] = useState(null);
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const formatCardNumber = (val) => {
+  const formatCardNumber = (val: string) => {
     const raw = val.replace(/\D/g, "").slice(0, 16);
     return raw.match(/.{1,4}/g)?.join(" ") || raw;
   };
 
-  const formatExpiry = (val) => {
-    let raw = val.replace(/\D/g, "").slice(0, 4);
+  const formatExpiry = (val: string) => {
+    const raw = val.replace(/\D/g, "").slice(0, 4);
     if (raw.length >= 3) return `${raw.slice(0, 2)}/${raw.slice(2)}`;
     return raw;
   };
@@ -89,7 +89,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const handleCreateOrder = async (e) => {
+  const handleCreateOrder = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (cart.length === 0) return;
 
@@ -118,7 +118,7 @@ export default function CheckoutPage() {
 
       // 409: aynı anahtarla bir istek hâlâ işleniyor ([Idempotent] filtresi). Anahtar korunur ki
       // tekrar denemede ikinci sipariş oluşmasın. Diğer hatalarda bir sonraki deneme yeni bir istektir.
-      if (err.response?.status !== 409) {
+      if (getErrorStatus(err) !== 409) {
         idempotencyKeyRef.current = crypto.randomUUID();
       }
 
@@ -130,7 +130,7 @@ export default function CheckoutPage() {
   // Sipariş verildi: SignalR'dan gelen canlı duruma göre sonuç ekranı
   if (createdOrderId) {
     const isLive = orderStatus && orderStatus.orderId === createdOrderId;
-    const isCompleted = isLive && (orderStatus.status === "Completed" || orderStatus.status === "Tamamlandı");
+    const isCompleted = isLive && orderStatus.status === "Completed";
     const isCanceled = isLive && !isCompleted;
 
     return (

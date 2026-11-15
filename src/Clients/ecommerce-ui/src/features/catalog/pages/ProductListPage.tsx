@@ -53,7 +53,7 @@ export default function ProductListPage() {
                     disabled={isAdmin || isOutOfStock}
                     onClick={() => {
                       if (isAdmin || isOutOfStock) return;
-                      addToCart({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl });
+                      addToCart(p);
                     }}
                   >
                     {isAdmin ? "Yönetici Modu" : isOutOfStock ? "Tükendi" : "Sepete Ekle"}

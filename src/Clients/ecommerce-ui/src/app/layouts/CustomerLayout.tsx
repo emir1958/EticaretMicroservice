@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, type NavLinkRenderProps } from "react-router-dom";
 import {
   LogIn,
   LogOut,
@@ -19,7 +19,7 @@ export default function CustomerLayout() {
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const displayName = user?.username || user?.email || "Hesabım";
 
-  const navLinkClass = ({ isActive }) =>
+  const navLinkClass = ({ isActive }: NavLinkRenderProps) =>
     `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`;
 
   return (

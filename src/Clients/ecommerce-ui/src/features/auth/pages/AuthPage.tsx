@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type SubmitEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Lock, Mail, User, ShoppingBag } from "lucide-react";
 import { useAuth } from "../AuthContext";
@@ -8,7 +8,7 @@ import Button from "../../../shared/components/Button";
 import FormField from "../../../shared/components/FormField";
 import styles from "./AuthPage.module.css";
 
-function safeInternalPath(value) {
+function safeInternalPath(value: unknown) {
   if (typeof value !== "string") return null;
   if (
     !value.startsWith("/") ||
@@ -24,7 +24,7 @@ export default function AuthPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const { login, register } = useAuth();
@@ -40,7 +40,7 @@ export default function AuthPage() {
     safeInternalPath(redirectParam) ||
     "/";
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -63,7 +63,7 @@ export default function AuthPage() {
     }
   };
 
-  const switchTo = (loginMode) => {
+  const switchTo = (loginMode: boolean) => {
     setIsLogin(loginMode);
     setError(null);
   };

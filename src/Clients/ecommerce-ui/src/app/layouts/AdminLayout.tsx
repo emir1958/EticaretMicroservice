@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, type NavLinkRenderProps } from "react-router-dom";
 import {
   ArrowLeft,
   LayoutDashboard,
@@ -18,7 +18,7 @@ export default function AdminLayout() {
   const { user, logout } = useAuth();
 
   // NavLink aktif route'u kendisi bilir: /admin/orders/5 açıkken "Siparişler" de aktif görünür
-  const linkClass = ({ isActive }) =>
+  const linkClass = ({ isActive }: NavLinkRenderProps) =>
     `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`;
 
   return (

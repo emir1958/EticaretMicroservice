@@ -47,4 +47,8 @@ export function getErrorMessage(error: unknown, fallback = "Beklenmeyen bir hata
   return data?.message || data?.detail || fallback;
 }
 
+export function getErrorStatus(error: unknown) {
+  return axios.isAxiosError(error) ? error.response?.status : undefined;
+}
+
 export default apiClient;

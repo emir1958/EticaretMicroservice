@@ -1,7 +1,7 @@
 import { useAsync } from "../../../shared/hooks/useAsync";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Package, X } from "lucide-react";
-import { getErrorMessage } from "../../../lib/apiClient";
+import { getErrorMessage, getErrorStatus } from "../../../lib/apiClient";
 import { getMyOrder } from "../api";
 import { useOrderHub } from "../useOrderHub";
 import OrderStatusBadge from "../components/OrderStatusBadge";
@@ -12,7 +12,7 @@ import { getOrderStatusView } from "../orderStatus";
 import styles from "./MyOrderDetailPage.module.css";
 
 // Siparişin hangi aşamada olduğu: alındı → ödeme → tamamlandı (iptalde ödeme adımı kırmızı)
-function OrderSteps({ status }) {
+function OrderSteps({ status }: { status: string | undefined }) {
   const tone = getOrderStatusView(status).tone;
   const steps = [
     { label: "Sipariş alındı", state: "done" },
@@ -41,20 +41,20 @@ function OrderSteps({ status }) {
 export default function MyOrderDetailPage() {
   const { id } = useParams();
   // Hızla başka siparişe geçilirse eski cevabın yeni sayfanın üzerine yazmamasını useAsync sağlar
-  const { data: order, error, isLoading } = useAsync(() => getMyOrder(id), [id]);
+  const { data: order, error, isLoading } = useAsync(() => getMyOrder(Number(id)), [id]);
   const { orderStatus: liveStatus } = useOrderHub();
 
   // Sayfa açıkken sipariş tamamlanır veya iptal edilirse SignalR bildirimi API'den gelen durumun yerine geçer
-  const isLiveForThisOrder = liveStatus && Number(liveStatus.orderId) === Number(id);
+  const isLiveForThisOrder = liveStatus && liveStatus.orderId === Number(id);
   const status = isLiveForThisOrder ? liveStatus.status : order?.orderStatus;
 
   if (isLoading) return <p className={styles.state}>Yükleniyor...</p>;
 
-  if (error) {
+  if (!order) {
     return (
       <EmptyState
         icon={Package}
-        title={error.response?.status === 404 ? "Sipariş bulunamadı." : getErrorMessage(error, "Sipariş şu anda getirilemiyor.")}
+        title={getErrorStatus(error) === 404 ? "Sipariş bulunamadı." : getErrorMessage(error, "Sipariş şu anda getirilemiyor.")}
         text="Sipariş numarasını kontrol edin veya siparişlerinize dönün."
         action={<ButtonLink to="/orders">Siparişlerime dön</ButtonLink>}
       />

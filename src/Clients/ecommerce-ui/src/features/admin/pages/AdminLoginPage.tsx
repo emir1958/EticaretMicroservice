@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type SubmitEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Lock, Mail, ShieldCheck } from "lucide-react";
 import { getErrorMessage } from "../../../lib/apiClient";
@@ -11,7 +11,7 @@ import styles from "./AdminLoginPage.module.css";
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { login, logout, isAdmin } = useAuth();
@@ -23,7 +23,7 @@ export default function AdminLoginPage() {
   // Zaten yönetici olarak giriş yapılmışsa form gösterilmez
   if (isAdmin) return <Navigate to={from} replace />;
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);

@@ -7,13 +7,19 @@ import Button from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
 import { formatPrice } from "../../../shared/utils/format";
 import { deleteProduct, getProductsWithStock } from "../../catalog/api";
+import type { ProductWithStock } from "../../catalog/types";
 import ProductForm from "../components/ProductForm";
 import ui from "../admin.module.css";
 import styles from "./AdminProductsPage.module.css";
 
 const LOW_STOCK = 5;
 
-function stockClass(count) {
+interface Notice {
+  tone: "success" | "danger";
+  text: string;
+}
+
+function stockClass(count: number) {
   if (count <= 0) return styles.stockOut;
   if (count <= LOW_STOCK) return styles.stockLow;
   return styles.stockOk;
@@ -25,30 +31,30 @@ export default function AdminProductsPage() {
   // reload: kaydetme/silme sonrası listeyi yeniden çeker; yenilenirken eski liste ekranda kalır
   const { data: products = [], error: loadError, isLoading, reload } = useAsync(getProductsWithStock, []);
 
-  const [editingProduct, setEditingProduct] = useState(null);
+  const [editingProduct, setEditingProduct] = useState<ProductWithStock | null>(null);
   // Yeni ürün eklendikten sonra boş bir formla başlamak için form "oturumu" sayacı (bkz. formKey)
   const [newFormCount, setNewFormCount] = useState(0);
-  const [notice, setNotice] = useState(null); // { tone: "success" | "danger", text }
-  const [pendingDeleteId, setPendingDeleteId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // key değişince React eski formu atar, yenisini başlangıç değerleriyle kurar
   const formKey = editingProduct ? `edit-${editingProduct.id}` : `new-${newFormCount}`;
 
-  const startEdit = (product) => {
+  const startEdit = (product: ProductWithStock) => {
     setEditingProduct(product);
     setNotice(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaved = (text) => {
+  const handleSaved = (text: string) => {
     setEditingProduct(null);
     setNewFormCount((count) => count + 1);
     setNotice({ tone: "success", text });
     reload();
   };
 
-  const confirmDelete = async (id) => {
+  const confirmDelete = async (id: string) => {
     setDeletingId(id);
     try {
       await deleteProduct(id);

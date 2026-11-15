@@ -1,10 +1,19 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Package } from "lucide-react";
 import { formatPrice } from "../../../shared/utils/format";
+import type { Product } from "../types";
 import styles from "./ProductCard.module.css";
 
 // Ürün listesi ve "ilginizi çekebilir" bölümünde ortak kart. action: fiyatın yanındaki buton (opsiyonel).
-export default function ProductCard({ product, isOutOfStock = false, showDescription = true, action }) {
+interface ProductCardProps {
+  product: Product;
+  isOutOfStock?: boolean;
+  showDescription?: boolean;
+  action?: ReactNode;
+}
+
+export default function ProductCard({ product, isOutOfStock = false, showDescription = true, action }: ProductCardProps) {
   return (
     <article className={`${styles.card} ${isOutOfStock ? styles.outOfStock : ""}`}>
       <Link to={`/product/${product.id}`}>
