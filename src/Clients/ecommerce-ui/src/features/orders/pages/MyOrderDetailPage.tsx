@@ -1,43 +1,17 @@
 import { useAsync } from "../../../shared/hooks/useAsync";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Package, X } from "lucide-react";
+import { ArrowLeft, Package } from "lucide-react";
 import { getErrorMessage, getErrorStatus } from "../../../lib/apiClient";
 import { getMyOrder } from "../api";
 import { useOrderHub } from "../useOrderHub";
 import OrderStatusBadge from "../components/OrderStatusBadge";
+import OrderTimeline from "../components/OrderTimeline";
 import Alert from "../../../shared/components/Alert";
 import EmptyState from "../../../shared/components/EmptyState";
 import { ButtonLink } from "../../../shared/components/Button";
 import { formatDate, formatPrice } from "../../../shared/utils/format";
-import { getOrderStatusView, PAYMENT_STATUS_LABEL } from "../orderStatus";
+import { PAYMENT_STATUS_LABEL } from "../orderStatus";
 import styles from "./MyOrderDetailPage.module.css";
-
-// Siparişin hangi aşamada olduğu: alındı → ödeme → tamamlandı (iptalde ödeme adımı kırmızı)
-function OrderSteps({ status }: { status: string | undefined }) {
-  const tone = getOrderStatusView(status).tone;
-  const steps = [
-    { label: "Sipariş alındı", state: "done" },
-    {
-      label: tone === "canceled" ? "İptal edildi" : "Ödeme",
-      state: tone === "completed" ? "done" : tone === "canceled" ? "failed" : "current",
-    },
-    { label: "Tamamlandı", state: tone === "completed" ? "done" : "todo" },
-  ];
-
-  return (
-    <div className={styles.steps}>
-      {steps.map((step) => (
-        <div key={step.label} className={`${styles.step} ${styles[step.state] ?? ""}`}>
-          <span className={styles.dot}>
-            {step.state === "done" && <Check size={16} />}
-            {step.state === "failed" && <X size={16} />}
-          </span>
-          {step.label}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default function MyOrderDetailPage() {
   const { id } = useParams();
@@ -77,7 +51,8 @@ export default function MyOrderDetailPage() {
       </div>
 
       <section className={`${styles.panel} ${styles.progress}`}>
-        <OrderSteps status={status} />
+        <h2 className={styles.panelTitle}>Sipariş geçmişi</h2>
+        <OrderTimeline entries={order.history} />
         {isLiveForThisOrder && liveStatus.message && <div className={styles.message}>{liveStatus.message}</div>}
       </section>
 

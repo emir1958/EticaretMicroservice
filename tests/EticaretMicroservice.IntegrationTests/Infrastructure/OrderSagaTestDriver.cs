@@ -166,6 +166,24 @@ public class OrderSagaTestDriver
         WaitUntilAsync(async () => (await GetPaymentAsync(order.OrderId)).Status == expected,
             $"OrderId {order.OrderId} ödeme durumu '{expected}' olmalı");
 
+    // API'nin gösterdiği sırayla: zamana göre, aynı andakiler eklenme sırasıyla
+    public async Task<List<(OrderHistoryType Type, string? Note)>> GetHistoryAsync(int orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var entries = await dbContext.Orders.AsNoTracking()
+            .Where(o => o.Id == orderId)
+            .SelectMany(o => o.History)
+            .OrderBy(h => h.OccurredAt).ThenBy(h => h.Id)
+            .Select(h => new { h.Type, h.Note })
+            .ToListAsync();
+        return entries.Select(h => (h.Type, h.Note)).ToList();
+    }
+
+    public Task WaitForHistoryAsync(CreatedOrder order, OrderHistoryType expected) =>
+        WaitUntilAsync(async () => (await GetHistoryAsync(order.OrderId)).Any(h => h.Type == expected),
+            $"OrderId {order.OrderId} geçmişinde '{expected}' olmalı");
+
     // Zamanlayıcı dışından gelen (token'sız) timeout mesajı: erken/başıboş teslimi simüle eder
     public Task PaymentTimeoutAsync(CreatedOrder order) =>
         Harness.Bus.Publish(new PaymentTimeoutExpired { CorrelationId = order.CorrelationId });

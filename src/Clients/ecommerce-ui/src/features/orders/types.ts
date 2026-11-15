@@ -4,6 +4,22 @@ export type OrderStatus = "Beklemede" | "Tamamlandı" | "IptalEdildi";
 
 export type PaymentStatus = "Alinmadi" | "Alindi" | "Basarisiz" | "IadeEdildi";
 
+export type OrderHistoryType =
+  | "SiparisAlindi"
+  | "StokAyrildi"
+  | "StokYetersiz"
+  | "OdemeAlindi"
+  | "OdemeBasarisiz"
+  | "Tamamlandi"
+  | "IptalEdildi"
+  | "IadeEdildi";
+
+export interface OrderHistoryEntry {
+  type: OrderHistoryType;
+  occurredAt: string;
+  note: string | null;
+}
+
 export interface Address {
   contactName: string;
   phone: string;
@@ -31,6 +47,7 @@ export interface Order {
   address: Address;
   orderItems: OrderItem[];
   totalPrice: number;
+  history: OrderHistoryEntry[];
 }
 
 export interface NewOrder {

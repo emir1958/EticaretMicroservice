@@ -45,6 +45,9 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Repositories
         {
             return await _context.Orders
                 .Include(o => o.OrderItems)
+                // Saga, geçmişe bakarak kopya kaydı engeller: History her zaman yüklenmeli
+                .Include(o => o.History)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(o => o.Id == id);
         }
         public async Task<List<Domain.Entities.Order>> GetAllOrdersAsync()

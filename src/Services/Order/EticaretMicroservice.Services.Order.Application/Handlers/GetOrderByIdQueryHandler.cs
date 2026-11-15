@@ -45,7 +45,13 @@ public class GetOrderByIdQueryHandler : IRequestHandler<GetOrderByIdQuery, Order
                 ProductName = i.ProductName,
                 Price = i.Price,
                 Quantity = i.Quantity
-            }).ToList() ?? new()
+            }).ToList() ?? new(),
+            // Aynı andaki kayıtlar (örn. ödeme alındı → tamamlandı) eklenme sırasıyla gösterilir
+            History = order.History
+                .OrderBy(h => h.OccurredAt)
+                .ThenBy(h => h.Id)
+                .Select(h => new OrderHistoryDto { Type = h.Type.ToString(), OccurredAt = h.OccurredAt, Note = h.Note })
+                .ToList()
         };
     }
 }

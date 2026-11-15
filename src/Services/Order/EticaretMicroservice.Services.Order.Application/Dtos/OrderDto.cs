@@ -17,5 +17,7 @@ namespace EticaretMicroservice.Services.Order.Application.Dtos
         public AddressDto Address { get; set; }
         public List<OrderItemDto> OrderItems { get; set; }
         public decimal TotalPrice { get; set; }
+        // Yalnızca detay sorgusunda dolu; listeler geçmişi yüklemez
+        public List<OrderHistoryDto> History { get; set; } = new();
     }
 }

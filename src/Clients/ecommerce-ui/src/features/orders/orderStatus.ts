@@ -1,10 +1,21 @@
-import type { PaymentStatus } from "./types";
+import type { OrderHistoryType, PaymentStatus } from "./types";
 
 export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   Alinmadi: "Alınmadı",
   Alindi: "Alındı",
   Basarisiz: "Başarısız",
   IadeEdildi: "İade edildi",
+};
+
+export const HISTORY_VIEW: Record<OrderHistoryType, { label: string; tone: "positive" | "negative" | "neutral" }> = {
+  SiparisAlindi: { label: "Sipariş alındı", tone: "neutral" },
+  StokAyrildi: { label: "Stok ayrıldı", tone: "positive" },
+  StokYetersiz: { label: "Stok yetersiz", tone: "negative" },
+  OdemeAlindi: { label: "Ödeme alındı", tone: "positive" },
+  OdemeBasarisiz: { label: "Ödeme başarısız", tone: "negative" },
+  Tamamlandi: { label: "Sipariş tamamlandı", tone: "positive" },
+  IptalEdildi: { label: "Sipariş iptal edildi", tone: "negative" },
+  IadeEdildi: { label: "Ödeme iade edildi", tone: "neutral" },
 };
 
 export type StatusTone = "pending" | "completed" | "canceled" | "unknown";

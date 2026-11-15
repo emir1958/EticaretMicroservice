@@ -24,6 +24,11 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
         public OrderStatus OrderStatus { get; private set; } = OrderStatus.Beklemede;
         public PaymentStatus PaymentStatus { get; private set; } = PaymentStatus.Alinmadi;
         public DateTime? RefundedAt { get; private set; }
+
+        // Durum değiştiren her metot kendi kaydını ekler: durum ile geçmiş ayrışamaz
+        private readonly List<OrderHistoryEntry> _history = new();
+        public IReadOnlyCollection<OrderHistoryEntry> History => _history.AsReadOnly();
+
         public byte[] RowVersion { get; private set; } = Array.Empty<byte>();
         private Order() { }
 
@@ -36,6 +41,7 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
             BuyerId = buyerId;
             Address = address;
             CreatedDate = DateTime.UtcNow;
+            AddHistory(OrderHistoryType.SiparisAlindi, CreatedDate);
         }
 
         // Domain Logic: Siparişe kalem ekleme metodu
@@ -57,7 +63,7 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
         // Toplam Tutarlık Hesaplama
         public decimal GetTotalPrice => _orderItems.Sum(x => x.Price * x.Quantity);
 
-        public bool TrySetStatusToCanceled()
+        public bool TrySetStatusToCanceled(DateTime canceledAt, string? note = null)
         {
             if (OrderStatus != OrderStatus.Beklemede)
             {
@@ -65,9 +71,11 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
             }
 
             OrderStatus = OrderStatus.IptalEdildi;
+            AddHistory(OrderHistoryType.IptalEdildi, canceledAt, note);
             return true;
         }
-        public bool TrySetStatusToCompleted()
+
+        public bool TrySetStatusToCompleted(DateTime completedAt)
         {
             if (OrderStatus != OrderStatus.Beklemede)
             {
@@ -75,10 +83,35 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
             }
 
             OrderStatus = OrderStatus.Tamamlandı;
+            AddHistory(OrderHistoryType.Tamamlandi, completedAt);
             return true;
         }
 
-        public bool TryMarkPaymentReceived()
+        // Stok sonucu bir kez gelir; kopya event ikinci kayıt eklemez. Ödeme stoktan önce işlenmişse
+        // sipariş tamamlanmış olabilir. İptalden sonra ayrılan stok hemen geri verildiği için geçmişe yazılmaz.
+        public bool TryMarkStockReserved(DateTime reservedAt)
+        {
+            if (OrderStatus == OrderStatus.IptalEdildi || HasStockResult())
+            {
+                return false;
+            }
+
+            AddHistory(OrderHistoryType.StokAyrildi, reservedAt);
+            return true;
+        }
+
+        public bool TryMarkStockFailed(DateTime failedAt, string? reason)
+        {
+            if (OrderStatus != OrderStatus.Beklemede || HasStockResult())
+            {
+                return false;
+            }
+
+            AddHistory(OrderHistoryType.StokYetersiz, failedAt, reason);
+            return true;
+        }
+
+        public bool TryMarkPaymentReceived(DateTime receivedAt)
         {
             if (PaymentStatus != PaymentStatus.Alinmadi)
             {
@@ -86,10 +119,11 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
             }
 
             PaymentStatus = PaymentStatus.Alindi;
+            AddHistory(OrderHistoryType.OdemeAlindi, receivedAt);
             return true;
         }
 
-        public bool TryMarkPaymentFailed()
+        public bool TryMarkPaymentFailed(DateTime failedAt, string? reason)
         {
             if (PaymentStatus != PaymentStatus.Alinmadi)
             {
@@ -97,6 +131,7 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
             }
 
             PaymentStatus = PaymentStatus.Basarisiz;
+            AddHistory(OrderHistoryType.OdemeBasarisiz, failedAt, reason);
             return true;
         }
 
@@ -110,7 +145,14 @@ namespace EticaretMicroservice.Services.Order.Domain.Entities
 
             PaymentStatus = PaymentStatus.IadeEdildi;
             RefundedAt = refundedAt;
+            AddHistory(OrderHistoryType.IadeEdildi, refundedAt);
             return true;
         }
+
+        private bool HasStockResult() =>
+            _history.Any(h => h.Type is OrderHistoryType.StokAyrildi or OrderHistoryType.StokYetersiz);
+
+        private void AddHistory(OrderHistoryType type, DateTime occurredAt, string? note = null) =>
+            _history.Add(new OrderHistoryEntry(type, occurredAt, note));
     }
 }

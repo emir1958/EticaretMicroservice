@@ -139,6 +139,34 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
                     b.ToTable("Orders", "ordering");
                 });
 
+            modelBuilder.Entity("EticaretMicroservice.Services.Order.Domain.Entities.OrderHistoryEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("OrderHistory", "ordering");
+                });
+
             modelBuilder.Entity("EticaretMicroservice.Services.Order.Domain.Entities.OrderItem", b =>
                 {
                     b.Property<int>("Id")
@@ -401,6 +429,15 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("EticaretMicroservice.Services.Order.Domain.Entities.OrderHistoryEntry", b =>
+                {
+                    b.HasOne("EticaretMicroservice.Services.Order.Domain.Entities.Order", null)
+                        .WithMany("History")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("EticaretMicroservice.Services.Order.Domain.Entities.OrderItem", b =>
                 {
                     b.HasOne("EticaretMicroservice.Services.Order.Domain.Entities.Order", null)
@@ -411,6 +448,8 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
 
             modelBuilder.Entity("EticaretMicroservice.Services.Order.Domain.Entities.Order", b =>
                 {
+                    b.Navigation("History");
+
                     b.Navigation("OrderItems");
                 });
 #pragma warning restore 612, 618

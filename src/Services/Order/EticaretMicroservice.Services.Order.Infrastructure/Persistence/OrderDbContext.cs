@@ -59,6 +59,19 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
                  .WithOne()
                  .HasForeignKey("OrderId")
                  .OnDelete(DeleteBehavior.Cascade);
+
+                b.HasMany(o => o.History)
+                 .WithOne()
+                 .HasForeignKey("OrderId")
+                 .IsRequired()
+                 .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<OrderHistoryEntry>(b =>
+            {
+                b.ToTable("OrderHistory");
+                b.HasKey(h => h.Id);
+                b.Property(h => h.Note).HasMaxLength(500);
             });
 
             // OrderItem Entity Konfigürasyonu

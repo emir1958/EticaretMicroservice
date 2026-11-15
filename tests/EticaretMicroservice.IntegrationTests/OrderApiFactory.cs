@@ -22,8 +22,9 @@ public class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     // Timeout'u test etmeyen senaryolar için: yavaş CI'da bile test bitmeden saga'yı iptal etmeyecek kadar uzun
     public static readonly TimeSpan PaymentTimeout = TimeSpan.FromSeconds(30);
 
-    // Timeout senaryoları ShortTimeoutApi üzerinden bu süreyle çalışır
-    public static readonly TimeSpan ShortPaymentTimeout = TimeSpan.FromSeconds(3);
+    // Timeout senaryoları ShortTimeoutApi üzerinden bu süreyle çalışır. Erken timeout testi, sipariş oluşturma ve
+    // StockReserved işlenmesinin bu süreye sığmasını gerektirir; tüm suite yük altındayken 3 sn yetmiyordu.
+    public static readonly TimeSpan ShortPaymentTimeout = TimeSpan.FromSeconds(5);
 
     private readonly MsSqlContainer _dbContainer = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
         .WithPassword("Strong_P@ssw0rd123!")

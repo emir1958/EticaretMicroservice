@@ -58,6 +58,7 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
 
         During(AwaitingStock,
             When(StockReserved)
+                .Activity(x => x.OfType<RecordStockReservedActivity>())
                 .TransitionTo(AwaitingPayment),
             When(StockFailed)
                 .Unschedule(PaymentTimeout)
@@ -104,8 +105,10 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 .TransitionTo(Canceled));
 
         During(Completed,
+            // Ödeme stoktan önce işlendiyse stok sonucu buraya gelir: durum değişmez, yalnızca geçmişe yazılır
+            When(StockReserved)
+                .Activity(x => x.OfType<RecordStockReservedActivity>()),
             Ignore(OrderCreated),
-            Ignore(StockReserved),
             Ignore(StockFailed),
             Ignore(PaymentCompleted),
             Ignore(PaymentFailed),

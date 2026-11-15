@@ -22,7 +22,7 @@ public class RecordPaymentActivity :
     public async Task Execute(BehaviorContext<OrderState, PaymentCompletedEvent> context, IBehavior<OrderState, PaymentCompletedEvent> next)
     {
         var order = await GetOrderAsync(context.Saga);
-        order.TryMarkPaymentReceived();
+        order.TryMarkPaymentReceived(context.Message.CreatedAt);
 
         await next.Execute(context);
     }
