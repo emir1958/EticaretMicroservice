@@ -129,6 +129,17 @@
   font-size: var(--font-size-sm);
 }
 
+.itemControls {
+  margin-top: var(--space-2);
+}
+
+.stockWarning {
+  margin-top: var(--space-1);
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
 .remove {
   display: grid;
   place-items: center;

@@ -1,9 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { X, Trash2, ShoppingBag, CheckCircle } from "lucide-react";
 import { useCart } from "../CartContext";
+import { useCartStock } from "../useCartStock";
 import { useAuth } from "../../auth/AuthContext";
+import Alert from "../../../shared/components/Alert";
 import Button from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
+import QuantityStepper from "../../../shared/components/QuantityStepper";
 import { formatPrice } from "../../../shared/utils/format";
 import styles from "./CartDrawer.module.css";
 
@@ -13,11 +16,13 @@ export default function CartDrawer() {
     setIsCartOpen,
     cart,
     removeFromCart,
+    updateQuantity,
     totalAmount,
     successMessage,
   } = useCart();
   const navigate = useNavigate();
   const { isAuthenticated, isAdmin } = useAuth();
+  const { stockFor, hasStockIssue } = useCartStock(isCartOpen);
   if (!isCartOpen && !successMessage) return null;
 
   return (
@@ -63,33 +68,48 @@ export default function CartDrawer() {
                   />
                 </div>
               ) : (
-                cart.map((item) => (
-                  <div key={item.id} className={styles.item}>
-                    {item.imageUrl ? (
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className={styles.thumb}
-                      />
-                    ) : (
-                      <div className={styles.thumb} />
-                    )}
-                    <div className={styles.itemInfo}>
-                      <div className={styles.itemName}>{item.name}</div>
-                      <div className={styles.itemMeta}>
-                        {item.quantity} × {formatPrice(item.price)}
+                cart.map((item) => {
+                  const stock = stockFor(item.id);
+                  return (
+                    <div key={item.id} className={styles.item}>
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className={styles.thumb}
+                        />
+                      ) : (
+                        <div className={styles.thumb} />
+                      )}
+                      <div className={styles.itemInfo}>
+                        <div className={styles.itemName}>{item.name}</div>
+                        <div className={styles.itemMeta}>{formatPrice(item.price)}</div>
+                        <div className={styles.itemControls}>
+                          <QuantityStepper
+                            size="sm"
+                            label={item.name}
+                            value={item.quantity}
+                            max={stock}
+                            onChange={(quantity) => updateQuantity(item.id, quantity)}
+                          />
+                        </div>
+                        {stock !== undefined && item.quantity > stock && (
+                          <div className={styles.stockWarning}>
+                            {stock === 0 ? "Bu ürün stokta kalmadı" : `Stokta yalnızca ${stock} adet var`}
+                          </div>
+                        )}
                       </div>
+                      <button
+                        type="button"
+                        className={styles.remove}
+                        onClick={() => removeFromCart(item.id)}
+                        aria-label={`${item.name} ürününü sepetten çıkar`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className={styles.remove}
-                      onClick={() => removeFromCart(item.id)}
-                      aria-label={`${item.name} ürününü sepetten çıkar`}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -104,20 +124,24 @@ export default function CartDrawer() {
                     Yönetici hesapları ile sipariş oluşturulamaz.
                   </div>
                 ) : (
-                  <Button
-                    size="lg"
-                    fullWidth
-                    onClick={() => {
-                      setIsCartOpen(false);
-                      if (!isAuthenticated) {
-                        navigate("/auth?redirect=/checkout");
-                      } else {
-                        navigate("/checkout");
-                      }
-                    }}
-                  >
-                    Siparişi Tamamla
-                  </Button>
+                  <>
+                    {hasStockIssue && <Alert>Stoğu aşan ürünlerin adedini düzeltin.</Alert>}
+                    <Button
+                      size="lg"
+                      fullWidth
+                      disabled={hasStockIssue}
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        if (!isAuthenticated) {
+                          navigate("/auth?redirect=/checkout");
+                        } else {
+                          navigate("/checkout");
+                        }
+                      }}
+                    >
+                      Siparişi Tamamla
+                    </Button>
+                  </>
                 )}
               </div>
             )}

@@ -10,7 +10,7 @@ import styles from "./ProductListPage.module.css";
 
 export default function ProductListPage() {
   const { data: products = [], error, isLoading } = useAsync(getProductsWithStock, []);
-  const { addToCart } = useCart();
+  const { addToCart, getCartQuantity } = useCart();
   const { isAdmin } = useAuth();
 
   return (
@@ -41,6 +41,8 @@ export default function ProductListPage() {
         <div className={styles.grid}>
           {products.map((p) => {
             const isOutOfStock = p.availableStock <= 0;
+            const isAllInCart = !isOutOfStock && getCartQuantity(p.id) >= p.availableStock;
+            const canAdd = !isAdmin && !isOutOfStock && !isAllInCart;
             return (
               <ProductCard
                 key={p.id}
@@ -49,14 +51,11 @@ export default function ProductListPage() {
                 action={
                   <Button
                     size="sm"
-                    variant={isAdmin || isOutOfStock ? "secondary" : "primary"}
-                    disabled={isAdmin || isOutOfStock}
-                    onClick={() => {
-                      if (isAdmin || isOutOfStock) return;
-                      addToCart(p);
-                    }}
+                    variant={canAdd ? "primary" : "secondary"}
+                    disabled={!canAdd}
+                    onClick={() => addToCart(p, 1, p.availableStock)}
                   >
-                    {isAdmin ? "Yönetici Modu" : isOutOfStock ? "Tükendi" : "Sepete Ekle"}
+                    {isAdmin ? "Yönetici Modu" : isOutOfStock ? "Tükendi" : isAllInCart ? "Sepette" : "Sepete Ekle"}
                   </Button>
                 }
               />

@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useAsync } from "../../../shared/hooks/useAsync";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Package, Minus, Plus, ShoppingCart } from "lucide-react";
-import { getAvailableStock, getProduct, getProducts } from "../api";
+import { ArrowLeft, Package, ShoppingCart } from "lucide-react";
+import { getProduct, getProducts } from "../api";
+import { getAvailableStock } from "../../stock/api";
 import { useCart } from "../../cart/CartContext";
 import { useAuth } from "../../auth/AuthContext";
 import ProductCard from "../components/ProductCard";
 import Button from "../../../shared/components/Button";
+import QuantityStepper from "../../../shared/components/QuantityStepper";
 import { formatPrice } from "../../../shared/utils/format";
 import styles from "./ProductDetailPage.module.css";
 
@@ -37,7 +39,7 @@ export default function ProductDetailPage() {
 
 function ProductDetailContent({ id }: { id: string }) {
   const { isAdmin } = useAuth();
-  const { addToCart } = useCart();
+  const { addToCart, getCartQuantity } = useCart();
   const [quantity, setQuantity] = useState(1);
   const { data, isLoading } = useAsync(() => loadProductDetail(id), [id]);
 
@@ -47,11 +49,13 @@ function ProductDetailContent({ id }: { id: string }) {
   const { product, stockCount, otherProducts } = data;
 
   const isOutOfStock = stockCount <= 0;
-  const increaseQuantity = () => {
-    if (quantity < stockCount) setQuantity((q) => q + 1);
-  };
-  const decreaseQuantity = () => {
-    if (quantity > 1) setQuantity((q) => q - 1);
+  const remaining = stockCount - getCartQuantity(product.id);
+  const isAllInCart = !isOutOfStock && remaining <= 0;
+  const canAdd = !isAdmin && remaining > 0;
+
+  const handleAdd = () => {
+    addToCart(product, quantity, stockCount);
+    setQuantity(1);
   };
 
   return (
@@ -79,29 +83,23 @@ function ProductDetailContent({ id }: { id: string }) {
           <div className={styles.divider} />
 
           <div className={styles.purchase}>
-            <div className={styles.stepper}>
-              <button type="button" onClick={decreaseQuantity} disabled={quantity <= 1} aria-label="Adedi azalt">
-                <Minus size={16} />
-              </button>
-              <span className={styles.quantity}>{quantity}</span>
-              <button type="button" onClick={increaseQuantity} disabled={quantity >= stockCount} aria-label="Adedi artır">
-                <Plus size={16} />
-              </button>
-            </div>
+            <QuantityStepper value={quantity} max={Math.max(remaining, 1)} onChange={setQuantity} />
 
             <Button
               size="lg"
               className={styles.addButton}
-              variant={isAdmin || isOutOfStock ? "secondary" : "primary"}
-              onClick={() => !isAdmin && addToCart(product, quantity)}
-              disabled={stockCount === 0 || isAdmin}
+              variant={canAdd ? "primary" : "secondary"}
+              onClick={handleAdd}
+              disabled={!canAdd}
             >
               <ShoppingCart size={18} />
               {isAdmin
                 ? "Yönetici hesabı ile sipariş verilemez"
-                : stockCount === 0
+                : isOutOfStock
                   ? "Tükendi"
-                  : "Sepete Ekle"}
+                  : isAllInCart
+                    ? "Stoktaki tüm adetler sepetinizde"
+                    : "Sepete Ekle"}
             </Button>
           </div>
         </div>

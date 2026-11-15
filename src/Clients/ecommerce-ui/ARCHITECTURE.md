@@ -14,14 +14,15 @@ src/
   config/env.ts         Ortam ayarları (VITE_API_URL). import.meta.env yalnızca burada okunur
   lib/apiClient.ts      Tek HTTP istemcisi (axios + interceptor'lar), getErrorMessage ve getErrorStatus
   shared/               Hiçbir feature'a ait olmayan, herkesin kullandığı parçalar
-    components/         Button/ButtonLink, FormField/TextAreaField, Alert, EmptyState (iş mantığı içermez)
+    components/         Button/ButtonLink, FormField/TextAreaField, Alert, EmptyState, QuantityStepper (iş mantığı içermez)
     hooks/              useAsync (veri çekme kalıbı)
     utils/              formatPrice, formatDate ...
   styles/               tokens.css (tasarım token'ları), global.css (temel stiller)
   features/             İş alanlarına göre bölünmüş kod
     auth/               Giriş, kayıt, token, korumalı route'lar
-    cart/               Sepet (misafir + Redis), sepet çekmecesi
+    cart/               Sepet (misafir + Redis), sepet çekmecesi, sepetin stok kontrolü (useCartStock)
     catalog/            Ürün listesi ve detay, stok birleştirme
+    stock/              Stock servisinin istemcisi (yalnızca api.ts): stok okuma ve güncelleme
     orders/             Ödeme, siparişlerim, canlı sipariş durumu (SignalR)
     admin/              Yönetim paneli sayfaları (+ admin.module.css: admin sayfalarının ortak başlık/panel/tablo stilleri)
 ```
@@ -97,12 +98,14 @@ shared, lib, config   <──   features   <──   app
 | Feature   | Kullanabildikleri         |
 |-----------|---------------------------|
 | `auth`    | — (hiçbir feature)        |
-| `cart`    | `auth`                    |
-| `catalog` | `auth`, `cart`            |
+| `stock`   | — (hiçbir feature)        |
+| `cart`    | `auth`, `stock`           |
+| `catalog` | `auth`, `cart`, `stock`   |
 | `orders`  | `auth`, `cart`            |
-| `admin`   | `auth`, `catalog`, `orders` |
+| `admin`   | `auth`, `catalog`, `orders`, `stock` |
 
   Örnek: `catalog` sepete ürün eklemek için `cart`'ı kullanır; `cart` asla `catalog`'u import etmez.
+  Stok bilgisine ihtiyaç duyan her feature onu `catalog`'dan değil `stock`'tan alır (backend'de de ayrı servis).
   Döngü (A → B → A) olursa iki feature aslında birbirinden ayrılamıyor demektir: ortak parça `shared/`'a alınır.
 
 ### 5. Bir şeyin yeri, onu kimin kullandığına göre seçilir

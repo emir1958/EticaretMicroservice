@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useCart } from "../../cart/CartContext";
 import { useAuth } from "../../auth/AuthContext";
+import { useCartStock } from "../../cart/useCartStock";
 import { useOrderHub } from "../useOrderHub";
 import { getErrorMessage, getErrorStatus } from "../../../lib/apiClient";
 import { createOrder } from "../api";
@@ -45,7 +46,8 @@ const trimAddress = (address: Address): Address => ({
 });
 
 export default function CheckoutPage() {
-  const { cart, totalAmount, clearCart } = useCart();
+  const { cart, totalAmount, clearCart, setIsCartOpen } = useCart();
+  const { hasStockIssue } = useCartStock();
   const { isAdmin } = useAuth();
   const { orderStatus } = useOrderHub();
 
@@ -282,7 +284,16 @@ export default function CheckoutPage() {
             <span className={styles.totalAmount}>{formatPrice(totalAmount)}</span>
           </div>
 
-          <Button type="submit" size="lg" fullWidth disabled={isSubmitting || cart.length === 0}>
+          {hasStockIssue && (
+            <Alert className={styles.field}>
+              Sepetteki bazı ürünlerin adedi stoğu aşıyor.{" "}
+              <button type="button" className={styles.linkButton} onClick={() => setIsCartOpen(true)}>
+                Sepeti düzenle
+              </button>
+            </Alert>
+          )}
+
+          <Button type="submit" size="lg" fullWidth disabled={isSubmitting || cart.length === 0 || hasStockIssue}>
             <ShieldCheck size={18} />
             {isSubmitting ? "Sipariş işleniyor..." : "Ödemeyi tamamla"}
           </Button>

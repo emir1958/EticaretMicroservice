@@ -120,6 +120,16 @@
   font-size: var(--font-size-xl);
 }
 
+.linkButton {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .secure {
   display: flex;
   align-items: center;

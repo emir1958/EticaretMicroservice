@@ -33,7 +33,8 @@ public class StocksController : ControllerBase
         return Ok(stock);
     }
 
-    // GET: api/stocks
+    // GET: api/stocks — ürün listesi misafirlere de stok gösterir
+    [AllowAnonymous]
     [HttpGet]
     public async Task<IActionResult> GetAllStocks()
     {

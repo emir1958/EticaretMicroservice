@@ -7,7 +7,8 @@ type CartProduct = Omit<CartItem, "quantity">;
 
 interface CartContextValue {
   cart: CartItem[];
-  addToCart: (product: CartProduct, quantity?: number) => void;
+  addToCart: (product: CartProduct, quantity: number, maxQuantity: number) => void;
+  getCartQuantity: (id: string) => number;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => Promise<void>;
@@ -115,14 +116,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addToCart = (product: CartProduct, quantity = 1) => {
+  const getCartQuantity = (id: string) => cart.find((item) => item.id === id)?.quantity ?? 0;
+
+  // Sepetteki toplam adet stoğu aşmaz; asıl koruma sipariş anında Stock servisindeki rezervasyondur
+  const addToCart = (product: CartProduct, quantity: number, maxQuantity: number) => {
     const { id, name, price, imageUrl } = product;
     const existing = cart.find((item) => item.id === id);
+    const nextQuantity = Math.min((existing?.quantity ?? 0) + quantity, maxQuantity);
+    if (nextQuantity <= (existing?.quantity ?? 0)) return;
+
     const nextItems = existing
-      ? cart.map((item) =>
-          item.id === id ? { ...item, name, price, imageUrl, quantity: item.quantity + quantity } : item,
-        )
-      : [...cart, { id, name, price, imageUrl, quantity }];
+      ? cart.map((item) => (item.id === id ? { ...item, name, price, imageUrl, quantity: nextQuantity } : item))
+      : [...cart, { id, name, price, imageUrl, quantity: nextQuantity }];
 
     commitCart(nextItems);
 
@@ -168,6 +173,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       value={{
         cart,
         addToCart,
+        getCartQuantity,
         removeFromCart,
         updateQuantity,
         clearCart,

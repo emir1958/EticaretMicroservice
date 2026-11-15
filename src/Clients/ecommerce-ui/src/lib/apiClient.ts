@@ -18,7 +18,8 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
+    // Yalnızca oturumu düşen kullanıcı girişe yönlendirilir; misafirin aldığı 401 sadece o isteği başarısız kılar
+    if (axios.isAxiosError(error) && error.response?.status === 401 && localStorage.getItem("token")) {
       localStorage.removeItem("token");
       const path = window.location.pathname;
       if (!path.startsWith("/auth") && !path.startsWith("/admin/login")) {
