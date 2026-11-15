@@ -124,6 +124,12 @@ export default function MyOrderDetailPage() {
             <section className={styles.panel}>
               <h2 className={styles.panelTitle}>Teslimat adresi</h2>
               <p className={styles.address}>
+                {order.address.contactName && (
+                  <>
+                    <strong>{order.address.contactName}</strong>
+                    <br />
+                  </>
+                )}
                 {order.address.street} {order.address.line}
                 <br />
                 {order.address.district} / {order.address.city} {order.address.zipCode}

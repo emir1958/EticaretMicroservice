@@ -33,6 +33,8 @@ public class GetAllOrdersQueryHandler : IRequestHandler<GetAllOrdersQuery, List<
             TotalPrice = o.GetTotalPrice,
             Address = new AddressDto
             {
+                ContactName = o.Address.ContactName,
+                Phone = o.Address.Phone,
                 City = o.Address.City,
                 District = o.Address.District,
                 Street = o.Address.Street,

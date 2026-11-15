@@ -5,6 +5,8 @@ export type OrderStatus = "Beklemede" | "Tamamlandı" | "IptalEdildi";
 export type PaymentStatus = "Alinmadi" | "Alindi" | "Basarisiz" | "IadeEdildi";
 
 export interface Address {
+  contactName: string;
+  phone: string;
   city: string;
   district: string;
   street: string;

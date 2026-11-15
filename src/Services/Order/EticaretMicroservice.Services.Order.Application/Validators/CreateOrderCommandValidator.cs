@@ -22,10 +22,21 @@ public class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
             .NotNull().WithMessage("Teslimat adresi zorunludur.")
             .ChildRules(addr =>
             {
-                addr.RuleFor(a => a.City).NotEmpty().WithMessage("İl alanı zorunludur.");
-                addr.RuleFor(a => a.District).NotEmpty().WithMessage("İlçe alanı zorunludur.");
-                addr.RuleFor(a => a.Street).NotEmpty().WithMessage("Sokak/Cadde alanı zorunludur.");
-                addr.RuleFor(a => a.Line).NotEmpty().WithMessage("Açık adres satırı zorunludur.");
+                // Uzunluklar OrderDbContext'teki kolonlarla aynı: aşan değer SQL'de 500 yerine burada 400 döner
+                addr.RuleFor(a => a.ContactName).NotEmpty().WithMessage("Alıcı adı soyadı zorunludur.")
+                    .MaximumLength(100).WithMessage("Alıcı adı soyadı en fazla 100 karakter olabilir.");
+                addr.RuleFor(a => a.Phone).Matches(@"^0?5\d{9}$").WithMessage("Telefon numarası 05XX XXX XX XX biçiminde olmalıdır.")
+                    .When(a => !string.IsNullOrEmpty(a.Phone));
+                addr.RuleFor(a => a.City).NotEmpty().WithMessage("İl alanı zorunludur.")
+                    .MaximumLength(50).WithMessage("İl en fazla 50 karakter olabilir.");
+                addr.RuleFor(a => a.District).NotEmpty().WithMessage("İlçe alanı zorunludur.")
+                    .MaximumLength(50).WithMessage("İlçe en fazla 50 karakter olabilir.");
+                addr.RuleFor(a => a.Street).NotEmpty().WithMessage("Sokak/Cadde alanı zorunludur.")
+                    .MaximumLength(100).WithMessage("Sokak/Cadde en fazla 100 karakter olabilir.");
+                addr.RuleFor(a => a.ZipCode).Matches(@"^\d{5}$").WithMessage("Posta kodu 5 haneli olmalıdır.")
+                    .When(a => !string.IsNullOrEmpty(a.ZipCode));
+                addr.RuleFor(a => a.Line).NotEmpty().WithMessage("Açık adres satırı zorunludur.")
+                    .MaximumLength(250).WithMessage("Açık adres en fazla 250 karakter olabilir.");
             });
 
         RuleFor(x => x.OrderItems)

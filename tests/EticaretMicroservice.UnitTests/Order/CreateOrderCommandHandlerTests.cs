@@ -53,6 +53,7 @@ public class CreateOrderCommandHandlerTests
             BuyerId = "buyer-123",
             Address = new AddressDto
             {
+                ContactName = "Test Alıcı",
                 City = "İstanbul",
                 District = "Kadıköy",
                 Street = "Moda",
@@ -148,6 +149,7 @@ public class CreateOrderCommandHandlerTests
             BuyerId = "buyer-123",
             Address = new AddressDto
             {
+                ContactName = "Test Alıcı",
                 City = "İstanbul",
                 District = "Kadıköy",
                 Street = "Moda",

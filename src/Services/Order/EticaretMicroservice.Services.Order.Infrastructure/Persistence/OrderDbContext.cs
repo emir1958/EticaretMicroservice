@@ -45,6 +45,8 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
                 // Value Object (Address) konfigürasyonu - Single table (OwnsOne)
                 b.OwnsOne(o => o.Address, a =>
                 {
+                    a.Property(p => p.ContactName).HasColumnName("ContactName").HasMaxLength(100);
+                    a.Property(p => p.Phone).HasColumnName("Phone").HasMaxLength(11);
                     a.Property(p => p.City).HasColumnName("City").HasMaxLength(50);
                     a.Property(p => p.District).HasColumnName("District").HasMaxLength(50);
                     a.Property(p => p.Street).HasColumnName("Street").HasMaxLength(100);

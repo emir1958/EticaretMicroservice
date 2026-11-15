@@ -47,6 +47,7 @@ public class CreateOrderIntegrationTests
             BuyerId = "body-buyer-should-be-ignored",
             Address = new AddressDto
             {
+                ContactName = "Test Alıcı",
                 City = "İstanbul",
                 District = "Kadıköy",
                 Street = "Bağdat Cad.",

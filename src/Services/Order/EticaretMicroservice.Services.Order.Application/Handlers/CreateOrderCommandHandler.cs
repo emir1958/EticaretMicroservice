@@ -31,10 +31,12 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
 
         // 2. Adres Value Object
         var address = new Address(
+            request.Address.ContactName,
+            request.Address.Phone ?? string.Empty,
             request.Address.City,
             request.Address.District,
             request.Address.Street,
-            request.Address.ZipCode,
+            request.Address.ZipCode ?? string.Empty,
             request.Address.Line
         );
 

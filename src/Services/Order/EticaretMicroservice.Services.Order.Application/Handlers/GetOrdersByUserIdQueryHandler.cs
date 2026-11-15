@@ -35,6 +35,8 @@ namespace EticaretMicroservice.Services.Order.Application.Handlers
                 TotalPrice = o.GetTotalPrice,
                 Address = new AddressDto
                 {
+                    ContactName = o.Address.ContactName,
+                    Phone = o.Address.Phone,
                     City = o.Address.City,
                     District = o.Address.District,
                     Street = o.Address.Street,

@@ -353,6 +353,12 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(50)")
                                 .HasColumnName("City");
 
+                            b1.Property<string>("ContactName")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("ContactName");
+
                             b1.Property<string>("District")
                                 .IsRequired()
                                 .HasMaxLength(50)
@@ -364,6 +370,12 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
                                 .HasMaxLength(250)
                                 .HasColumnType("nvarchar(250)")
                                 .HasColumnName("Line");
+
+                            b1.Property<string>("Phone")
+                                .IsRequired()
+                                .HasMaxLength(11)
+                                .HasColumnType("nvarchar(11)")
+                                .HasColumnName("Phone");
 
                             b1.Property<string>("Street")
                                 .IsRequired()

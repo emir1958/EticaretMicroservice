@@ -31,6 +31,8 @@ public class GetOrderByIdQueryHandler : IRequestHandler<GetOrderByIdQuery, Order
             RefundedAt = order.RefundedAt,
             Address = new AddressDto
             {
+                ContactName = order.Address.ContactName,
+                Phone = order.Address.Phone,
                 City = order.Address.City,
                 District = order.Address.District,
                 Street = order.Address.Street,

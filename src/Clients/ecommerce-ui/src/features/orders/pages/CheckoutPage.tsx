@@ -15,6 +15,8 @@ import { useAuth } from "../../auth/AuthContext";
 import { useOrderHub } from "../useOrderHub";
 import { getErrorMessage, getErrorStatus } from "../../../lib/apiClient";
 import { createOrder } from "../api";
+import AddressForm from "../components/AddressForm";
+import type { Address } from "../types";
 import Alert from "../../../shared/components/Alert";
 import Button, { ButtonLink } from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
@@ -22,14 +24,25 @@ import FormField from "../../../shared/components/FormField";
 import { formatPrice } from "../../../shared/utils/format";
 import styles from "./CheckoutPage.module.css";
 
-// Adres formu henüz yok: her sipariş bu demo adresle gönderilir. Ekranda da aynısı gösterilir.
-const DEMO_ADDRESS = {
-  city: "İstanbul",
-  district: "Kadıköy",
-  street: "Moda Caddesi",
-  zipCode: "34710",
-  line: "No:12 Daire:4",
+const EMPTY_ADDRESS: Address = {
+  contactName: "",
+  phone: "",
+  city: "",
+  district: "",
+  street: "",
+  zipCode: "",
+  line: "",
 };
+
+const trimAddress = (address: Address): Address => ({
+  contactName: address.contactName.trim(),
+  phone: address.phone,
+  city: address.city.trim(),
+  district: address.district.trim(),
+  street: address.street.trim(),
+  zipCode: address.zipCode,
+  line: address.line.trim(),
+});
 
 export default function CheckoutPage() {
   const { cart, totalAmount, clearCart } = useCart();
@@ -41,6 +54,7 @@ export default function CheckoutPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
+  const [address, setAddress] = useState(EMPTY_ADDRESS);
 
   const idempotencyKeyRef = useRef(crypto.randomUUID());
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,7 +122,7 @@ export default function CheckoutPage() {
 
     try {
       const orderId = await createOrder(
-        { address: DEMO_ADDRESS, paymentToken, items: cart },
+        { address: trimAddress(address), paymentToken, items: cart },
         idempotencyKeyRef.current,
       );
       setCreatedOrderId(orderId);
@@ -238,12 +252,7 @@ export default function CheckoutPage() {
             <h2 className={styles.panelTitle}>
               <MapPin size={20} /> Teslimat adresi
             </h2>
-            <p className={styles.address}>
-              {DEMO_ADDRESS.street} {DEMO_ADDRESS.line}
-              <br />
-              {DEMO_ADDRESS.district} / {DEMO_ADDRESS.city} {DEMO_ADDRESS.zipCode}
-            </p>
-            <span className={styles.demoTag}>Demo adres</span>
+            <AddressForm value={address} onChange={setAddress} />
           </section>
         </div>
 

@@ -97,6 +97,8 @@ export default function AdminOrderDetailPage() {
                 <br />
                 {order.address.district} / {order.address.city} {order.address.zipCode}
               </p>
+              {order.address.contactName && <p className={ui.strong}>{order.address.contactName}</p>}
+              {order.address.phone && <p className={ui.muted}>Tel: {order.address.phone}</p>}
             </section>
           )}
         </div>

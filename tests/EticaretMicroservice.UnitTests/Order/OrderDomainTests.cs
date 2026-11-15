@@ -9,7 +9,7 @@ namespace EticaretMicroservice.UnitTests.Order;
 public class OrderDomainTests
 {
     private static Address CreateSampleAddress() =>
-        new("İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1 Daire:5");
+        new("Test Alıcı", "", "İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1 Daire:5");
 
     private static Services.Order.Domain.Entities.Order CreateSampleOrder() =>
         new("buyer-123", CreateSampleAddress(), Guid.NewGuid());

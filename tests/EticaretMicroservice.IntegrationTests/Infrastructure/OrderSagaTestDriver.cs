@@ -58,7 +58,7 @@ public class OrderSagaTestDriver
 
         var command = new CreateOrderCommand
         {
-            Address = new AddressDto { City = "İstanbul", District = "Kadıköy", Street = "Moda Cad.", ZipCode = "34710", Line = "No:1" },
+            Address = new AddressDto { ContactName = "Test Alıcı", City = "İstanbul", District = "Kadıköy", Street = "Moda Cad.", ZipCode = "34710", Line = "No:1" },
             Payment = new PaymentDto { PaymentToken = "tok_saga_test" },
             OrderItems = new List<OrderItemDto>
             {
@@ -85,7 +85,7 @@ public class OrderSagaTestDriver
     public async Task<CreatedOrder> CreateOrderWithoutSagaAsync()
     {
         var buyerId = $"saga-buyer-{Guid.NewGuid():N}";
-        var order = new Services.Order.Domain.Entities.Order(buyerId, new Address("İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1"), Guid.NewGuid());
+        var order = new Services.Order.Domain.Entities.Order(buyerId, new Address("Test Alıcı", "", "İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1"), Guid.NewGuid());
         order.AddOrderItem($"{ProductPrefix}{Guid.NewGuid():N}", "Saga Test Ürünü", ProductPrice, 1);
 
         using var scope = _factory.Services.CreateScope();
