@@ -146,6 +146,7 @@ shared, lib, config   <──   features   <──   app
 ```bash
 npm run dev      # Geliştirme sunucusu, her zaman :5173 (backend CORS bu origin'e izin verir; port doluysa hata verir)
                  # VITE_API_URL yoksa http://localhost:5000
-npm run lint     # ESLint
-npm run build    # Production build (VITE_API_URL zorunlu)
+npm run lint       # ESLint
+npm run typecheck  # TypeScript tip kontrolü (tsc -b)
+npm run build      # Tip kontrolü + production build (VITE_API_URL zorunlu)
 ```
