@@ -50,7 +50,9 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
                 Name = dto.Name,
                 Description = dto.Description,
                 Price = dto.Price,
-                ImageUrl = dto.ImageUrl ?? string.Empty
+                ImageUrl = dto.ImageUrl ?? string.Empty,
+                Category = dto.Category?.Trim() ?? string.Empty,
+                CompareAtPrice = NormalizeCompareAtPrice(dto.CompareAtPrice, dto.Price)
             };
 
             var createdProduct = await _productService.CreateAsync(product);
@@ -79,6 +81,8 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
             existingProduct.Name = dto.Name;
             existingProduct.Description = dto.Description;
             existingProduct.Price = dto.Price;
+            existingProduct.Category = dto.Category?.Trim() ?? string.Empty;
+            existingProduct.CompareAtPrice = NormalizeCompareAtPrice(dto.CompareAtPrice, dto.Price);
 
             existingProduct.ImageUrl = !string.IsNullOrWhiteSpace(dto.ImageUrl)
                 ? dto.ImageUrl
@@ -109,5 +113,9 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
 
             return NoContent();
         }
+
+        // Satış fiyatından yüksek değilse indirim sayılmaz
+        private static decimal? NormalizeCompareAtPrice(decimal? compareAtPrice, decimal price) =>
+            compareAtPrice > price ? compareAtPrice : null;
     }
 }

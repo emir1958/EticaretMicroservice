@@ -7,4 +7,6 @@ public record CreateProductDto
     public decimal Price { get; init; }
     public int InitialStock { get; init; } = 0; 
     public string ImageUrl { get; set; } = string.Empty;
+    public string? Category { get; init; }
+    public decimal? CompareAtPrice { get; init; }
 }

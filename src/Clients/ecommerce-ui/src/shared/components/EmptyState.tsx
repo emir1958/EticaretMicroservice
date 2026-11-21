@@ -7,14 +7,16 @@ interface EmptyStateProps {
   title: string;
   text?: ReactNode;
   action?: ReactNode;
+  // plain: çerçevesiz (panel veya çekmece içinde kullanılırken)
+  variant?: "card" | "plain";
 }
 
-export default function EmptyState({ icon: Icon, title, text, action }: EmptyStateProps) {
+export default function EmptyState({ icon: Icon, title, text, action, variant = "card" }: EmptyStateProps) {
   return (
-    <div className={styles.empty}>
+    <div className={`${styles.empty} ${styles[variant]}`}>
       {Icon && (
         <div className={styles.icon}>
-          <Icon size={28} />
+          <Icon size={26} aria-hidden="true" />
         </div>
       )}
       <h3 className={styles.title}>{title}</h3>

@@ -5,4 +5,6 @@ const gatewayUrl = (import.meta.env.VITE_API_URL || DEV_GATEWAY_URL).replace(/\/
 export const env = {
   apiBaseUrl: gatewayUrl,
   orderHubUrl: `${gatewayUrl}/orderhub`,
+  // Geliştirme araçlarının (Aspire, RabbitMQ) bağlantıları yalnızca yerelde gösterilir
+  isDev: import.meta.env.DEV,
 };

@@ -22,7 +22,7 @@ export default defineConfig([
       'react-hooks/exhaustive-deps': ['warn', { additionalHooks: '^useAsync$' }],
       'react-refresh/only-export-components': [
         'error',
-        { allowConstantExport: true, allowExportNames: ['useAuth', 'useCart'] },
+        { allowConstantExport: true, allowExportNames: ['useAuth', 'useCart', 'useToast'] },
       ],
     },
   },

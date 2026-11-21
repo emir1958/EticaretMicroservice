@@ -1,0 +1,122 @@
+.section {
+  margin-bottom: var(--space-4);
+}
+
+.sectionTitle {
+  margin-bottom: var(--space-5);
+}
+
+.services {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.service {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.serviceHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.entries li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ok {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.fail {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.note {
+  margin-top: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+}
+
+.note code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-surface-muted);
+  font-family: var(--font-mono);
+}
+
+.tools {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.tool > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.tool:hover {
+  background: var(--color-surface-muted);
+}
+
+.inlineLink {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.skeleton {
+  height: 132px;
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 960px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

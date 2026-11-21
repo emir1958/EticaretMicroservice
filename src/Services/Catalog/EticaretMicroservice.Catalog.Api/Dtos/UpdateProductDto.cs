@@ -7,4 +7,6 @@ public record UpdateProductDto
     public decimal Price { get; init; }
     public int Stock { get; set; }
     public string? ImageUrl { get; set; }
+    public string? Category { get; init; }
+    public decimal? CompareAtPrice { get; init; }
 }

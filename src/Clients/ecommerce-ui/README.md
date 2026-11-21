@@ -1,16 +1,18 @@
-# React + Vite
+# ecommerce-ui
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Storefront and admin panel of the [E-Commerce Microservices](../../../README.md) project.
+React 19 + TypeScript (strict) + Vite; every request goes through the API gateway.
 
-Currently, two official plugins are available:
+- Architecture, folder structure and coding rules: [ARCHITECTURE.md](ARCHITECTURE.md) (Turkish)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Commands
 
-## React Compiler
+```bash
+npm ci
+npm run dev        # http://localhost:5173 (fixed port: it is an allowed origin in the backend CORS policy)
+npm run lint       # ESLint
+npm run typecheck  # tsc -b
+npm run build      # type check + production build (requires VITE_API_URL)
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+`VITE_API_URL` points to the API gateway. In development it defaults to `http://localhost:5000`; see `.env.example`.

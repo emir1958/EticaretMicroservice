@@ -24,6 +24,9 @@ export function useOrderHub() {
         accessTokenFactory: () => localStorage.getItem("token") ?? "",
       })
       .withAutomaticReconnect()
+      // Kütüphanenin kendi logları kapalı: bağlantı hataları aşağıda start() içinde ele alınır.
+      // Aksi halde StrictMode'un açılırken kapattığı bağlantı bile konsola hata olarak düşer.
+      .configureLogging(signalR.LogLevel.None)
       .build();
 
     connection.on("ReceiveOrderState", (message: OrderStateMessage) => {

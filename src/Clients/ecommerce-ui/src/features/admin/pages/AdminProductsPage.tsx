@@ -1,117 +1,198 @@
 import { useState } from "react";
-import { Edit, Image as ImageIcon, Package, Trash2 } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ExternalLink, Package, Pencil, Plus, SearchX, Trash2 } from "lucide-react";
 import { getErrorMessage } from "../../../lib/apiClient";
 import { useAsync } from "../../../shared/hooks/useAsync";
-import Alert from "../../../shared/components/Alert";
+import { useToast } from "../../../shared/toast/ToastContext";
+import Badge from "../../../shared/components/Badge";
 import Button from "../../../shared/components/Button";
+import Dialog from "../../../shared/components/Dialog";
 import EmptyState from "../../../shared/components/EmptyState";
-import { formatPrice } from "../../../shared/utils/format";
+import FilterTabs from "../../../shared/components/FilterTabs";
+import IconButton from "../../../shared/components/IconButton";
+import Picture from "../../../shared/components/Picture";
+import SearchInput from "../../../shared/components/SearchInput";
+import Skeleton from "../../../shared/components/Skeleton";
 import { deleteProduct, getProductsWithStock } from "../../catalog/api";
+import {
+  categoryOf,
+  discountPercent,
+  listCategories,
+  normalizeText,
+  stockStateOf,
+  UNCATEGORIZED,
+  type StockState,
+} from "../../catalog/catalogView";
+import Price from "../../catalog/components/Price";
 import type { ProductWithStock } from "../../catalog/types";
 import ProductForm from "../components/ProductForm";
 import ui from "../admin.module.css";
 import styles from "./AdminProductsPage.module.css";
 
-const LOW_STOCK = 5;
+const FORM_ID = "product-form";
 
-interface Notice {
-  tone: "success" | "danger";
-  text: string;
-}
+type StockFilter = "all" | StockState;
 
-function stockClass(count: number) {
-  if (count <= 0) return styles.stockOut;
-  if (count <= LOW_STOCK) return styles.stockLow;
-  return styles.stockOk;
-}
+const STOCK_TABS: { value: StockFilter; label: string }[] = [
+  { value: "all", label: "Tümü" },
+  { value: "in", label: "Stokta" },
+  { value: "low", label: "Az kalan" },
+  { value: "out", label: "Tükenen" },
+];
 
-// Sayfa üç şeyi yönetir: ürün listesi, hangi ürünün düzenlendiği, silme onayı.
-// Formun kendi state'i ve kaydetme işi ProductForm'da.
+const STOCK_BADGE = {
+  in: { tone: "success", label: (n: number) => `${n} adet` },
+  low: { tone: "warning", label: (n: number) => `${n} adet` },
+  out: { tone: "danger", label: () => "Tükendi" },
+} as const;
+
+// Düzenleme formu: kapalı, yeni ürün veya belirli bir ürün
+type Editor = { mode: "closed" } | { mode: "new" } | { mode: "edit"; product: ProductWithStock };
+
 export default function AdminProductsPage() {
   // reload: kaydetme/silme sonrası listeyi yeniden çeker; yenilenirken eski liste ekranda kalır
-  const { data: products = [], error: loadError, isLoading, reload } = useAsync(getProductsWithStock, []);
+  const { data: products = [], error, isLoading, reload } = useAsync(getProductsWithStock, []);
+  const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [editingProduct, setEditingProduct] = useState<ProductWithStock | null>(null);
-  // Yeni ürün eklendikten sonra boş bir formla başlamak için form "oturumu" sayacı (bkz. formKey)
-  const [newFormCount, setNewFormCount] = useState(0);
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<Editor>({ mode: "closed" });
+  const [isSaving, setIsSaving] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<ProductWithStock | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // key değişince React eski formu atar, yenisini başlangıç değerleriyle kurar
-  const formKey = editingProduct ? `edit-${editingProduct.id}` : `new-${newFormCount}`;
+  const query = searchParams.get("q") ?? "";
+  const category = searchParams.get("category") ?? "";
+  const stockFilter = STOCK_TABS.find((t) => t.value === searchParams.get("stock"))?.value ?? "all";
 
-  const startEdit = (product: ProductWithStock) => {
-    setEditingProduct(product);
-    setNotice(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  const setParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next, { replace: true });
   };
 
-  const handleSaved = (text: string) => {
-    setEditingProduct(null);
-    setNewFormCount((count) => count + 1);
-    setNotice({ tone: "success", text });
+  const categories = listCategories(products);
+  const terms = normalizeText(query).split(/\s+/).filter(Boolean);
+  const searched = products.filter((p) => {
+    if (category && categoryOf(p) !== category) return false;
+    const haystack = normalizeText(`${p.name} ${p.category}`);
+    return terms.every((term) => haystack.includes(term));
+  });
+  const visible = searched
+    .filter((p) => stockFilter === "all" || stockStateOf(p.availableStock) === stockFilter)
+    .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+
+  const closeEditor = () => {
+    if (!isSaving) setEditor({ mode: "closed" });
+  };
+
+  const handleSaved = (message: string) => {
+    setEditor({ mode: "closed" });
+    toast.success(message);
     reload();
   };
 
-  const confirmDelete = async (id: string) => {
-    setDeletingId(id);
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setIsDeleting(true);
+    setDeleteError(null);
     try {
-      await deleteProduct(id);
-      if (editingProduct?.id === id) setEditingProduct(null);
-      setNotice({ tone: "success", text: "Ürün silindi." });
+      await deleteProduct(pendingDelete.id);
+      toast.success(`"${pendingDelete.name}" silindi.`);
+      setPendingDelete(null);
       reload();
     } catch (err) {
-      console.error("Ürün silinemedi:", err);
-      setNotice({ tone: "danger", text: getErrorMessage(err, "Ürün silinirken bir hata oluştu.") });
+      setDeleteError(getErrorMessage(err, "Ürün silinirken bir hata oluştu."));
     } finally {
-      setDeletingId(null);
-      setPendingDeleteId(null);
+      setIsDeleting(false);
     }
   };
+
+  const editingProduct = editor.mode === "edit" ? editor.product : null;
 
   return (
     <>
       <div className={ui.header}>
         <div>
-          <h1 className={ui.title}>Ürün Yönetimi</h1>
-          <p className={ui.subtitle}>Katalogdaki ürünler ve Stock servisindeki güncel stokları.</p>
+          <h1 className={ui.title}>Ürünler</h1>
+          <p className={ui.subtitle}>Katalog bilgileri Catalog servisinde, stok adetleri Stock servisinde tutulur.</p>
         </div>
+        <Button onClick={() => setEditor({ mode: "new" })}>
+          <Plus size={18} aria-hidden="true" /> Yeni ürün
+        </Button>
       </div>
 
-      {notice && (
-        <Alert tone={notice.tone} className={ui.alert}>
-          {notice.text}
-        </Alert>
-      )}
-
-      <ProductForm
-        key={formKey}
-        product={editingProduct}
-        onSaved={handleSaved}
-        onCancel={() => setEditingProduct(null)}
-      />
-
-      <h2 className={styles.listTitle}>
-        Katalogdaki ürünler {!isLoading && <span className={ui.muted}>({products.length})</span>}
-      </h2>
+      <div className={ui.toolbar}>
+        <SearchInput
+          className={ui.toolbarSearch}
+          value={query}
+          onChange={(value) => setParam("q", value || null)}
+          label="Ürünlerde ara"
+          placeholder="Ürün adı veya kategori"
+        />
+        <select
+          className={ui.toolbarSelect}
+          value={category}
+          onChange={(e) => setParam("category", e.target.value || null)}
+          aria-label="Kategori"
+        >
+          <option value="">Tüm kategoriler</option>
+          {categories.map((c) => (
+            <option key={c.name} value={c.name}>
+              {c.name} ({c.count})
+            </option>
+          ))}
+        </select>
+        <FilterTabs
+          label="Stok durumu"
+          tabs={STOCK_TABS.map((t) => ({
+            ...t,
+            count: t.value === "all" ? searched.length : searched.filter((p) => stockStateOf(p.availableStock) === t.value).length,
+          }))}
+          value={stockFilter}
+          onChange={(value) => setParam("stock", value === "all" ? null : value)}
+        />
+      </div>
 
       {isLoading && products.length === 0 ? (
-        <p className={ui.state}>Yükleniyor...</p>
-      ) : loadError ? (
-        <Alert>{getErrorMessage(loadError, "Ürünler getirilemedi.")}</Alert>
+        <div aria-busy="true" aria-label="Ürünler yükleniyor">
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton key={i} className={ui.skeletonRow} />
+          ))}
+        </div>
+      ) : error ? (
+        <EmptyState
+          icon={Package}
+          title="Ürünler yüklenemedi"
+          text={getErrorMessage(error, "Catalog servisine ulaşılamıyor.")}
+          action={<Button onClick={reload}>Tekrar dene</Button>}
+        />
       ) : products.length === 0 ? (
-        <EmptyState icon={Package} title="Henüz ürün yok" text="Yukarıdaki formla ilk ürünü ekleyebilirsin." />
+        <EmptyState
+          icon={Package}
+          title="Katalog boş"
+          text="İlk ürünü ekleyerek mağazayı açmaya başlayabilirsin."
+          action={<Button onClick={() => setEditor({ mode: "new" })}>Ürün ekle</Button>}
+        />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          icon={SearchX}
+          title="Eşleşen ürün yok"
+          action={
+            <Button variant="secondary" onClick={() => setSearchParams({}, { replace: true })}>
+              Filtreleri temizle
+            </Button>
+          }
+        />
       ) : (
         <div className={ui.tableWrap}>
           <table className={ui.table}>
             <thead>
               <tr>
-                <th>
-                  <span className="visually-hidden">Görsel</span>
-                </th>
                 <th>Ürün</th>
-                <th>Fiyat</th>
+                <th>Kategori</th>
+                <th className={ui.alignRight}>Fiyat</th>
                 <th>Stok</th>
                 <th className={ui.alignRight}>
                   <span className="visually-hidden">İşlemler</span>
@@ -119,66 +200,121 @@ export default function AdminProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => (
-                <tr key={product.id} className={editingProduct?.id === product.id ? styles.editingRow : undefined}>
-                  <td className={styles.thumbCell}>
-                    {product.imageUrl ? (
-                      <img src={product.imageUrl} alt="" className={styles.thumb} loading="lazy" />
-                    ) : (
-                      <div className={styles.thumb}>
-                        <ImageIcon size={18} />
+              {visible.map((product) => {
+                const state = stockStateOf(product.availableStock);
+                const badge = STOCK_BADGE[state];
+                const discount = discountPercent(product);
+                return (
+                  <tr key={product.id}>
+                    <td>
+                      <div className={styles.product}>
+                        <Picture src={product.imageUrl} alt="" width={48} className={styles.thumb} />
+                        <div className={styles.productText}>
+                          <span className={ui.cellTitle}>{product.name}</span>
+                          <span className={ui.cellSub}>
+                            {discount !== null && <Badge tone="accent">%{discount}</Badge>}{" "}
+                            {product.isSample && <Badge>Örnek</Badge>}
+                          </span>
+                        </div>
                       </div>
-                    )}
-                  </td>
-                  <td>
-                    <div className={ui.strong}>{product.name}</div>
-                    <div className={`${ui.muted} ${styles.description}`}>{product.description || "—"}</div>
-                  </td>
-                  <td className={`${ui.strong} ${ui.nowrap}`}>{formatPrice(product.price)}</td>
-                  <td>
-                    <span className={`${styles.stock} ${stockClass(product.availableStock)}`}>
-                      {product.availableStock} adet
-                    </span>
-                  </td>
-                  <td className={ui.alignRight}>
-                    {pendingDeleteId === product.id ? (
-                      // Silme geri alınamaz: tarayıcının confirm() penceresi yerine satır içinde onay
+                    </td>
+                    <td className={categoryOf(product) === UNCATEGORIZED ? ui.muted : undefined}>{categoryOf(product)}</td>
+                    <td className={`${ui.alignRight} ${ui.nowrap}`}>
+                      <Price price={product.price} compareAtPrice={product.compareAtPrice} />
+                    </td>
+                    <td>
+                      <Badge tone={badge.tone} dot>
+                        {badge.label(product.availableStock)}
+                      </Badge>
+                    </td>
+                    <td className={ui.alignRight}>
                       <div className={styles.actions}>
-                        <span className={styles.confirmText}>Silinsin mi?</span>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          disabled={deletingId === product.id}
-                          onClick={() => confirmDelete(product.id)}
+                        <Link
+                          to={`/product/${product.id}`}
+                          target="_blank"
+                          className={styles.iconLink}
+                          aria-label={`${product.name} ürününü mağazada aç`}
+                          title="Mağazada aç"
                         >
-                          {deletingId === product.id ? "Siliniyor..." : "Evet, sil"}
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setPendingDeleteId(null)}>
-                          Vazgeç
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className={styles.actions}>
-                        <Button variant="secondary" size="sm" onClick={() => startEdit(product)}>
-                          <Edit size={14} /> Düzenle
-                        </Button>
-                        <Button
-                          variant="ghost"
+                          <ExternalLink size={16} aria-hidden="true" />
+                        </Link>
+                        <IconButton
+                          icon={Pencil}
                           size="sm"
-                          onClick={() => setPendingDeleteId(product.id)}
-                          aria-label={`${product.name} ürününü sil`}
-                        >
-                          <Trash2 size={14} /> Sil
-                        </Button>
+                          label={`${product.name} ürününü düzenle`}
+                          onClick={() => setEditor({ mode: "edit", product })}
+                        />
+                        <IconButton
+                          icon={Trash2}
+                          size="sm"
+                          label={`${product.name} ürününü sil`}
+                          onClick={() => {
+                            setDeleteError(null);
+                            setPendingDelete(product);
+                          }}
+                        />
                       </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      <Dialog
+        open={editor.mode !== "closed"}
+        onClose={closeEditor}
+        title={editingProduct ? "Ürünü düzenle" : "Yeni ürün"}
+        size="lg"
+        footer={
+          <div className={styles.footer}>
+            <Button variant="ghost" onClick={closeEditor} disabled={isSaving}>
+              Vazgeç
+            </Button>
+            <Button type="submit" form={FORM_ID} loading={isSaving}>
+              {isSaving ? "Kaydediliyor..." : editingProduct ? "Değişiklikleri kaydet" : "Ürünü ekle"}
+            </Button>
+          </div>
+        }
+      >
+        {editor.mode !== "closed" && (
+          <ProductForm
+            key={editingProduct?.id ?? "new"}
+            formId={FORM_ID}
+            product={editingProduct}
+            categories={categories.map((c) => c.name).filter((name) => name !== UNCATEGORIZED)}
+            onSaved={handleSaved}
+            onSavingChange={setIsSaving}
+          />
+        )}
+      </Dialog>
+
+      {/* Silme geri alınamaz: tarayıcının confirm() penceresi yerine kendi onay penceremiz */}
+      <Dialog
+        open={pendingDelete !== null}
+        onClose={() => !isDeleting && setPendingDelete(null)}
+        title="Ürün silinsin mi?"
+        placement="center"
+        size="sm"
+        footer={
+          <div className={styles.footer}>
+            <Button variant="ghost" onClick={() => setPendingDelete(null)} disabled={isDeleting}>
+              Vazgeç
+            </Button>
+            <Button variant="danger" onClick={confirmDelete} loading={isDeleting}>
+              {isDeleting ? "Siliniyor..." : "Evet, sil"}
+            </Button>
+          </div>
+        }
+      >
+        <p className={styles.confirmText}>
+          <strong>{pendingDelete?.name}</strong> katalogdan kaldırılacak. Geçmiş siparişlerdeki kayıtlar korunur, ancak ürün
+          mağazada artık görünmez. Bu işlem geri alınamaz.
+        </p>
+        {deleteError && <p className={styles.confirmError}>{deleteError}</p>}
+      </Dialog>
     </>
   );
 }

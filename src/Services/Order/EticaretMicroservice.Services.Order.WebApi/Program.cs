@@ -8,6 +8,7 @@ using EticaretMicroservice.Services.Order.Infrastructure.Messaging;
 using EticaretMicroservice.Services.Order.Infrastructure.Notifications;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Services.Order.Infrastructure.Repositories;
+using EticaretMicroservice.Services.Order.Infrastructure.Seed;
 using EticaretMicroservice.Shared.Extensions;
 using FluentValidation;
 using HealthChecks.UI.Client;
@@ -100,6 +101,11 @@ builder.Services.AddSignalR();
 // Kaçan saga timeout'ları için emniyet ağı. Singleton olarak da kayıtlı: integration testler taramayı doğrudan tetikler.
 builder.Services.AddSingleton<OrderTimeoutSweeper>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<OrderTimeoutSweeper>());
+
+if (builder.Configuration.GetValue<bool>("Seed:SampleData"))
+{
+    builder.Services.AddHostedService<SampleOrderSeeder>();
+}
 
 // 8. Health Check Servis Kaydı
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";

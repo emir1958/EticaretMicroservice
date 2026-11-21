@@ -1,116 +1,119 @@
 .card {
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  transition: box-shadow var(--transition), transform var(--transition), border-color var(--transition);
+  position: relative;
+  min-width: 0;
 }
 
-.card:hover {
-  border-color: transparent;
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+.link {
+  display: block;
+  border-radius: var(--radius-lg);
 }
 
 .media {
   position: relative;
-  aspect-ratio: 4 / 3;
-  background: var(--color-surface-muted);
-  display: grid;
-  place-items: center;
-  color: var(--color-text-muted);
   overflow: hidden;
+  border-radius: var(--radius-lg);
 }
 
-.media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 300ms ease;
+.picture {
+  aspect-ratio: 1 / 1;
+  transition: transform 480ms var(--ease-out);
 }
 
-.card:hover .media img {
+.link:hover .picture {
   transform: scale(1.04);
 }
 
-.outOfStock img {
-  filter: grayscale(80%);
-  opacity: 0.75;
+.outOfStock .picture {
+  filter: grayscale(1);
+  opacity: 0.6;
 }
 
-/* z-index: opacity < 1 olan görsel DOM sırasıyla çizilip etiketin üstüne binmesin */
-.soldOut {
+.badges {
   position: absolute;
-  z-index: 1;
   top: var(--space-3);
   left: var(--space-3);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--color-text);
-  color: #fff;
-  box-shadow: var(--shadow-sm);
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
 }
 
 .body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-4);
-  flex: 1;
+  gap: 2px;
+  padding: var(--space-3) var(--space-1) 0;
+}
+
+.category {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
 }
 
 .name {
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.description {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
   display: -webkit-box;
+  overflow: hidden;
+  margin-bottom: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
-.footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: 0 var(--space-4) var(--space-4);
+.link:hover .name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-.price {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
+/* Görselin sağ alt köşesinde: görsel kare olduğu için konum kartın genişliğinden hesaplanır */
+.quickAdd {
+  position: absolute;
+  top: 0;
+  right: var(--space-3);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: calc(100% - 44px - var(--space-3));
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
   color: var(--color-text);
+  box-shadow: var(--shadow-md);
+  transition: background var(--transition), color var(--transition), transform var(--transition),
+    opacity var(--transition);
 }
 
-.priceMuted {
-  color: var(--color-text-muted);
+.quickAdd:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
-/* Dar kartta fiyat üstte, buton altta tam genişlik */
-@media (max-width: 480px) {
-  .body {
-    padding: var(--space-3);
+.quickAdd:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.quickAdd:disabled {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  cursor: default;
+}
+
+/* Fareyle kullanılan cihazlarda buton karta gelince belirir; dokunmatikte her zaman görünür */
+@media (hover: hover) and (pointer: fine) {
+  .quickAdd {
+    opacity: 0;
+    transform: translateY(6px);
   }
 
-  .footer {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-    padding: 0 var(--space-3) var(--space-3);
-  }
-
-  .price {
-    font-size: var(--font-size-md);
+  .card:hover .quickAdd,
+  .quickAdd:focus-visible,
+  .quickAdd:disabled {
+    opacity: 1;
+    transform: none;
   }
 }

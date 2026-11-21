@@ -1,4 +1,5 @@
-﻿using EticaretMicroservice.Catalog.Api.Services;
+﻿using EticaretMicroservice.Catalog.Api.Seed;
+using EticaretMicroservice.Catalog.Api.Services;
 using EticaretMicroservice.Catalog.Api.Settings;
 using EticaretMicroservice.Shared.Extensions;
 using HealthChecks.UI.Client;
@@ -64,6 +65,11 @@ builder.Services.AddSingleton<IDatabaseSettings>(sp =>
     sp.GetRequiredService<IOptions<DatabaseSettings>>().Value);
 
 builder.Services.AddScoped<IProductService, ProductService>();
+
+if (builder.Configuration.GetValue<bool>("Seed:SampleData"))
+{
+    builder.Services.AddHostedService<SampleCatalogSeeder>();
+}
 
 var app = builder.Build();
 

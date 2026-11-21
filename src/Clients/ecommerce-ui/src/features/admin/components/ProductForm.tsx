@@ -1,13 +1,12 @@
-import { useEffect, useState, type SubmitEvent } from "react";
-import { Edit, PlusCircle, X } from "lucide-react";
+import { useEffect, useId, useState, type SubmitEvent } from "react";
 import { getErrorMessage } from "../../../lib/apiClient";
 import Alert from "../../../shared/components/Alert";
-import Button from "../../../shared/components/Button";
 import FormField, { TextAreaField } from "../../../shared/components/FormField";
+import Picture from "../../../shared/components/Picture";
 import { createProduct, updateProduct } from "../../catalog/api";
+import { UNCATEGORIZED } from "../../catalog/catalogView";
 import { getAvailableStock, updateStock } from "../../stock/api";
 import type { ProductWithStock } from "../../catalog/types";
-import ui from "../admin.module.css";
 import styles from "./ProductForm.module.css";
 
 // Ürün ekleme / düzenleme formu.
@@ -15,21 +14,28 @@ import styles from "./ProductForm.module.css";
 // başka ürüne geçilince React formu sıfırdan oluşturur, state'i elle sıfırlamak gerekmez.
 interface ProductFormProps {
   product: ProductWithStock | null;
+  // Mevcut kategoriler: yazarken öneri olarak gösterilir, yeni kategori de yazılabilir
+  categories: string[];
+  formId: string;
   onSaved: (message: string) => void;
-  onCancel: () => void;
+  onSavingChange: (isSaving: boolean) => void;
 }
 
-export default function ProductForm({ product, onSaved, onCancel }: ProductFormProps) {
+const toNumber = (value: string) => (value.trim() === "" ? null : Number(value));
+
+export default function ProductForm({ product, categories, formId, onSaved, onSavingChange }: ProductFormProps) {
   const isEdit = product !== null;
   const productId = product?.id;
+  const categoryListId = useId();
 
   // useState başlangıç değeri yalnızca ilk render'da okunur; key değişimi bu yüzden önemli.
   const [name, setName] = useState(product?.name ?? "");
+  const [category, setCategory] = useState(product?.category ?? "");
   const [price, setPrice] = useState(product?.price?.toString() ?? "");
+  const [compareAtPrice, setCompareAtPrice] = useState(product?.compareAtPrice?.toString() ?? "");
   const [stock, setStock] = useState(product?.availableStock?.toString() ?? "");
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Listedeki stok liste yüklendiği anki değer; düzenlemeye başlarken Stock servisinden tazelenir.
@@ -48,67 +54,95 @@ export default function ProductForm({ product, onSaved, onCancel }: ProductFormP
     };
   }, [productId]);
 
+  const priceNumber = toNumber(price);
+  const compareNumber = toNumber(compareAtPrice);
+  const compareError =
+    compareNumber !== null && priceNumber !== null && compareNumber <= priceNumber
+      ? "İndirim öncesi fiyat, satış fiyatından yüksek olmalı."
+      : null;
+
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsSaving(true);
+    if (compareError) return;
+
+    onSavingChange(true);
     setError(null);
 
     const fields = {
       name: name.trim(),
+      category: category.trim(),
       description: description.trim(),
       price: Number(price),
+      compareAtPrice: compareNumber,
       imageUrl: imageUrl.trim(),
     };
     const stockNumber = Number.parseInt(stock, 10) || 0;
 
     try {
       if (isEdit) {
-        // Ürün bilgisi Catalog'da, stok Stock servisinde: iki ayrı servis, iki ayrı istek
-        await updateProduct(product.id, fields);
+        // Ürün bilgisi Catalog'da, stok Stock servisinde. Catalog stoku event ile iletir (asenkron);
+        // PUT /api/stocks ise değeri hemen yazar, böylece liste yenilendiğinde doğru stok görünür.
+        await updateProduct(product.id, fields, stockNumber);
         await updateStock(product.id, stockNumber);
-        onSaved("Ürün bilgileri ve stok güncellendi.");
+        onSaved(`"${fields.name}" güncellendi.`);
       } else {
         // Başlangıç stoğu Catalog'dan event ile Stock servisine iletilir
         await createProduct({ ...fields, initialStock: stockNumber });
-        onSaved("Yeni ürün eklendi.");
+        onSaved(`"${fields.name}" kataloğa eklendi.`);
       }
     } catch (err) {
       console.error("Ürün kaydedilemedi:", err);
       setError(getErrorMessage(err, "İşlem gerçekleştirilemedi."));
-      setIsSaving(false);
+    } finally {
+      onSavingChange(false);
     }
-    // Başarıda setIsSaving(false) yok: onSaved sonrası sayfa formu yeni key ile yeniden oluşturur.
   };
 
   return (
-    <section className={ui.panel}>
-      <div className={styles.head}>
-        <h2 className={ui.panelTitle}>
-          {isEdit ? <Edit size={20} /> : <PlusCircle size={20} />}
-          {isEdit ? `Düzenle: ${product.name}` : "Yeni ürün"}
-        </h2>
-        {isEdit && (
-          <Button variant="ghost" size="sm" onClick={onCancel}>
-            <X size={16} /> Vazgeç
-          </Button>
-        )}
+    <form id={formId} onSubmit={handleSubmit} className={styles.form}>
+      {error && <Alert>{error}</Alert>}
+
+      <div className={styles.preview}>
+        <Picture src={imageUrl.trim()} alt={name || "Ürün görseli"} width={160} className={styles.previewImage} />
+        <FormField
+          className={styles.grow}
+          label="Görsel URL"
+          type="url"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          placeholder="https://..."
+          hint="Önizleme soldaki kutuda görünür."
+        />
       </div>
 
-      {error && <Alert className={ui.alert}>{error}</Alert>}
+      <FormField
+        label="Ürün adı"
+        required
+        maxLength={120}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Örn: Tık 75 Mekanik Klavye"
+      />
 
-      <form onSubmit={handleSubmit} className={styles.grid}>
+      <FormField
+        label="Kategori"
+        list={categoryListId}
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
+        placeholder="Listeden seç veya yeni kategori yaz"
+        hint={`Boş bırakılırsa ürün mağazada "${UNCATEGORIZED}" altında görünür.`}
+      />
+      <datalist id={categoryListId}>
+        {categories.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+
+      <div className={styles.row}>
         <FormField
-          className={styles.wide}
-          label="Ürün adı"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Örn: Logi MX Master 3S"
-        />
-        <FormField
-          label="Fiyat (TL)"
+          label="Satış fiyatı (TL)"
           type="number"
-          min="0"
+          min="0.01"
           step="0.01"
           required
           value={price}
@@ -116,37 +150,37 @@ export default function ProductForm({ product, onSaved, onCancel }: ProductFormP
           placeholder="3499.00"
         />
         <FormField
-          label={isEdit ? "Güncel stok" : "Başlangıç stoğu"}
+          label="İndirim öncesi fiyat (TL)"
           type="number"
           min="0"
-          step="1"
-          required
-          value={stock}
-          onChange={(e) => setStock(e.target.value)}
-          placeholder="100"
+          step="0.01"
+          value={compareAtPrice}
+          onChange={(e) => setCompareAtPrice(e.target.value)}
+          placeholder="İsteğe bağlı"
+          error={compareError}
+          hint="Doluysa üstü çizili gösterilir."
         />
-        <FormField
-          className={styles.full}
-          label="Görsel URL"
-          type="url"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://..."
-        />
-        <TextAreaField
-          className={styles.full}
-          label="Açıklama"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Kısa ürün açıklaması"
-        />
+      </div>
 
-        <div className={styles.full}>
-          <Button type="submit" disabled={isSaving}>
-            {isSaving ? "Kaydediliyor..." : isEdit ? "Değişiklikleri kaydet" : "Ürünü ekle"}
-          </Button>
-        </div>
-      </form>
-    </section>
+      <FormField
+        label={isEdit ? "Satılabilir stok" : "Başlangıç stoğu"}
+        type="number"
+        min="0"
+        step="1"
+        required
+        value={stock}
+        onChange={(e) => setStock(e.target.value)}
+        placeholder="100"
+        hint={isEdit ? "Ödeme bekleyen siparişlere ayrılmış adetler bu sayıya dahil değildir." : undefined}
+      />
+
+      <TextAreaField
+        label="Açıklama"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Ürünü müşterinin gözünden anlatan kısa bir açıklama"
+        rows={5}
+      />
+    </form>
   );
 }

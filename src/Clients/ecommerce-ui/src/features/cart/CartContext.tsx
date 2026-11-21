@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../../shared/toast/ToastContext";
 import * as basketApi from "./api";
 import type { CartItem } from "./types";
 
@@ -15,7 +16,6 @@ interface CartContextValue {
   totalAmount: number;
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
-  successMessage: string;
 }
 
 interface UserCart {
@@ -60,13 +60,13 @@ async function pushBasket(userId: string, items: CartItem[]) {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const toast = useToast();
   const userId = user?.id;
 
   const [guestCart, setGuestCart] = useState(() => readStoredCart(GUEST_KEY));
   // A çıkıp B girerse B'nin sepeti yüklenene kadar A'nınki bir an bile gösterilmez
   const [userCart, setUserCart] = useState<UserCart>({ userId: null, items: [] });
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
 
   const isUserCartLoaded = Boolean(userId) && userCart.userId === userId;
   const cart = isUserCartLoaded ? userCart.items : guestCart;
@@ -131,11 +131,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     commitCart(nextItems);
 
-    setSuccessMessage("Ürün sepetinize başarıyla eklendi.");
-    setTimeout(() => {
-      setSuccessMessage("");
-      setIsCartOpen(true);
-    }, 800);
+    // Çekmece kendiliğinden açılmaz: art arda ürün ekleyen kullanıcının önü kesilmez
+    toast.success(`${name} sepete eklendi.`, { label: "Sepeti gör", onClick: () => setIsCartOpen(true) });
   };
 
   const removeFromCart = (id: string) => {
@@ -180,7 +177,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         totalAmount,
         isCartOpen,
         setIsCartOpen,
-        successMessage,
       }}
     >
       {children}

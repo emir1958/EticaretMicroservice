@@ -12,19 +12,27 @@ src/
     AppRoutes.tsx       Tüm adresler tek yerde
     layouts/            Sayfaları saran iskeletler: CustomerLayout (header, footer, sepet), AdminLayout (kenar çubuğu)
   config/env.ts         Ortam ayarları (VITE_API_URL). import.meta.env yalnızca burada okunur
+  config/brand.ts       Marka adı ve sloganı (header, footer, sayfa başlıkları)
   lib/apiClient.ts      Tek HTTP istemcisi (axios + interceptor'lar), getErrorMessage ve getErrorStatus
   shared/               Hiçbir feature'a ait olmayan, herkesin kullandığı parçalar
-    components/         Button/ButtonLink, FormField/TextAreaField, Alert, EmptyState, QuantityStepper (iş mantığı içermez)
+    components/         İş mantığı içermeyen arayüz parçaları:
+                          Button/ButtonLink, IconButton, FormField/TextAreaField/SelectField, Alert, Badge, EmptyState,
+                          Skeleton, Dialog (modal + çekmece), Menu, Pagination, FilterTabs, SearchInput, Breadcrumb,
+                          Picture (boyutlu görsel + yer tutucu), QuantityStepper, Logo
+    toast/              ToastProvider + useToast: kısa ömürlü geri bildirim ("sepete eklendi")
     hooks/              useAsync (veri çekme kalıbı)
-    utils/              formatPrice, formatDate ...
+    utils/              formatPrice, formatDate ..., sizedImageUrl (görseli gösterileceği genişlikte ister)
   styles/               tokens.css (tasarım token'ları), global.css (temel stiller)
   features/             İş alanlarına göre bölünmüş kod
     auth/               Giriş, kayıt, token, korumalı route'lar
     cart/               Sepet (misafir + Redis), sepet çekmecesi, sepetin stok kontrolü (useCartStock)
-    catalog/            Ürün listesi ve detay, stok birleştirme
+    catalog/            Ana sayfa, ürün listesi (arama/filtre/sıralama) ve detay; catalogView.ts saf filtre/sıralama fonksiyonları
     stock/              Stock servisinin istemcisi (yalnızca api.ts): stok okuma ve güncelleme
     orders/             Ödeme, siparişlerim, canlı sipariş durumu (SignalR)
-    admin/              Yönetim paneli sayfaları (+ admin.module.css: admin sayfalarının ortak başlık/panel/tablo stilleri)
+    account/            Müşterinin hesap sayfası
+    admin/              Yönetim paneli: gösterge paneli, siparişler, müşteriler, indirimler, ürünler, kategoriler, stok, sistem
+                          api.ts (kullanıcı listesi, servis sağlığı), analytics.ts (rapor hesapları, saf fonksiyonlar),
+                          admin.module.css (admin sayfalarının ortak başlık/panel/tablo stilleri)
 ```
 
 Bir feature klasörünün içi:
@@ -85,7 +93,9 @@ path'siz "layout route" olarak bir kez yazılır; içlerindeki `<Outlet />` eşl
 - Guard'lar (`ProtectedRoute`, `AdminRoute`) yalnızca arayüzü yönetir; asıl yetki kontrolü backend'de
   (`[Authorize(Roles = "Admin")]`).
 - Render saf kalır: `alert()`, `confirm()` gibi tarayıcı diyalogları kullanılmaz; durum ekranda gösterilir
-  (örn. silme için satır içi onay, yetkisiz erişim için `EmptyState`).
+  (örn. silme onayı için `Dialog`, yetkisiz erişim için `EmptyState`).
+- Yönetim paneli `React.lazy` ile ayrı JS parçalarına bölünür: müşteri admin kodunu hiç indirmez.
+  Yeni admin sayfası da `lazy(() => import(...))` ile eklenir.
 
 ### 4. Bağımlılıklar tek yönde akar
 ```
@@ -102,6 +112,7 @@ shared, lib, config   <──   features   <──   app
 | `cart`    | `auth`, `stock`           |
 | `catalog` | `auth`, `cart`, `stock`   |
 | `orders`  | `auth`, `cart`            |
+| `account` | `auth`, `orders`          |
 | `admin`   | `auth`, `catalog`, `orders`, `stock` |
 
   Örnek: `catalog` sepete ürün eklemek için `cart`'ı kullanır; `cart` asla `catalog`'u import etmez.
@@ -125,8 +136,11 @@ shared, lib, config   <──   features   <──   app
 - Her bileşen/sayfa kendi `.module.css` dosyasını kullanır; sabit renk/boşluk yerine `tokens.css` değişkenleri.
   Yeni bir renk gerekiyorsa önce anlamlı bir token eklenir (örn. `--color-sidebar-bg`).
 - Inline `style={{}}` kullanılmaz.
-- Form alanı her zaman `FormField` (çok satırlı metin için `TextAreaField`), hata/başarı mesajı her zaman `Alert`:
-  aynı input stili üç yerde kopyalanmaz. Buton görünümlü link için `ButtonLink`.
+- Form alanı her zaman `FormField` (çok satırlı metin için `TextAreaField`, seçim için `SelectField`), alan hatası
+  `error` prop'u ile alanın altında; form/sayfa hatası `Alert`; geçici başarı bildirimi `useToast()`.
+  Buton görünümlü link için `ButtonLink`, yalnızca ikonlu buton için `IconButton` (label zorunlu).
+- Ürün görseli her zaman `Picture`: doğru boyutta dosya ister, adres boşsa veya yüklenemezse yer tutucu gösterir.
+- Durum her zaman metinle birlikte gösterilir (`Badge`); renk tek başına anlam taşımaz.
 - Bir feature'ın birden çok sayfasında ortak olan stiller feature kökünde durur
   (örn. `features/admin/admin.module.css` → `import ui from "../admin.module.css"`).
 - Dikkat: CSS Modules'te tanımsız sınıf (`styles.yanlisAd`) hata vermez, sessizce `undefined` olur.

@@ -22,6 +22,7 @@ import Alert from "../../../shared/components/Alert";
 import Button, { ButtonLink } from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
 import FormField from "../../../shared/components/FormField";
+import Picture from "../../../shared/components/Picture";
 import { formatPrice } from "../../../shared/utils/format";
 import styles from "./CheckoutPage.module.css";
 
@@ -190,7 +191,16 @@ export default function CheckoutPage() {
         <div>
           <section className={styles.panel}>
             <h2 className={styles.panelTitle}>
-              <CreditCard size={20} /> Kart bilgileri
+              <span className={styles.step} aria-hidden="true">1</span>
+              <MapPin size={20} aria-hidden="true" /> Teslimat adresi
+            </h2>
+            <AddressForm value={address} onChange={setAddress} />
+          </section>
+
+          <section className={styles.panel}>
+            <h2 className={styles.panelTitle}>
+              <span className={styles.step} aria-hidden="true">2</span>
+              <CreditCard size={20} aria-hidden="true" /> Ödeme
             </h2>
 
             {errorMessage && <Alert className={styles.field}>{errorMessage}</Alert>}
@@ -249,26 +259,15 @@ export default function CheckoutPage() {
               />
             </div>
           </section>
-
-          <section className={styles.panel}>
-            <h2 className={styles.panelTitle}>
-              <MapPin size={20} /> Teslimat adresi
-            </h2>
-            <AddressForm value={address} onChange={setAddress} />
-          </section>
         </div>
 
         <aside className={`${styles.panel} ${styles.summary}`}>
           <h2 className={styles.panelTitle}>
-            <ShoppingBag size={20} /> Sipariş özeti
+            <ShoppingBag size={20} aria-hidden="true" /> Sipariş özeti
           </h2>
           {cart.map((item) => (
             <div key={item.id} className={styles.summaryItem}>
-              {item.imageUrl ? (
-                <img src={item.imageUrl} alt={item.name} className={styles.thumb} />
-              ) : (
-                <div className={styles.thumb} />
-              )}
+              <Picture src={item.imageUrl} alt={item.name} width={52} className={styles.thumb} />
               <div className={styles.itemInfo}>
                 <div className={styles.itemName}>{item.name}</div>
                 <div className={styles.itemMeta}>
@@ -279,6 +278,10 @@ export default function CheckoutPage() {
             </div>
           ))}
 
+          <div className={styles.shippingRow}>
+            <span>Kargo</span>
+            <span>Ücretsiz</span>
+          </div>
           <div className={styles.totalRow}>
             <span>Ödenecek tutar</span>
             <span className={styles.totalAmount}>{formatPrice(totalAmount)}</span>

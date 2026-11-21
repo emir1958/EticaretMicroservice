@@ -1,0 +1,309 @@
+/* --- Hero --- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-8) 0 var(--space-12);
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.eyebrow::before {
+  width: 24px;
+  height: 2px;
+  background: currentcolor;
+  content: "";
+}
+
+.heroTitle {
+  margin-top: var(--space-4);
+  font-size: var(--font-size-hero);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.heroTitle em {
+  display: block;
+  color: var(--color-text-muted);
+  font-style: normal;
+}
+
+.heroLead {
+  max-width: 46ch;
+  margin-top: var(--space-6);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+}
+
+.heroVisual {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  align-items: end;
+  gap: var(--space-4);
+  min-height: 420px;
+}
+
+.heroCard {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+}
+
+.heroPicture {
+  transition: transform 600ms var(--ease-out);
+}
+
+.heroCard:hover .heroPicture {
+  transform: scale(1.03);
+}
+
+.heroCardMain .heroPicture {
+  aspect-ratio: 4 / 5;
+}
+
+.heroCardSide .heroPicture {
+  aspect-ratio: 3 / 4;
+}
+
+.heroChip {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  left: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 0.92);
+  backdrop-filter: blur(8px);
+  font-size: var(--font-size-sm);
+}
+
+.heroChipName {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heroChipPrice {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Vaatler --- */
+
+.promises {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-6);
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.promise {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.promiseIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-accent);
+}
+
+.promiseTitle {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.promiseText {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.error {
+  margin-top: var(--space-8);
+  align-items: center;
+}
+
+/* --- Bölümler --- */
+
+.section {
+  margin-top: var(--space-16);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-3xl);
+}
+
+.sectionLink {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.sectionLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* --- Kategoriler --- */
+
+.categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.category {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  color: #fff;
+}
+
+.categoryPicture {
+  aspect-ratio: 4 / 5;
+  transition: transform 600ms var(--ease-out);
+}
+
+.category:hover .categoryPicture {
+  transform: scale(1.05);
+}
+
+.categoryLabel {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-4) var(--space-4);
+  background: linear-gradient(to top, rgb(23 24 28 / 0.78), transparent);
+}
+
+.categoryName {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.categoryCount {
+  display: block;
+  font-size: var(--font-size-xs);
+  opacity: 0.85;
+}
+
+/* --- Koyu şerit --- */
+
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-8);
+  margin-top: var(--space-16);
+  padding: var(--space-12);
+  border-radius: var(--radius-xl);
+  background: var(--color-sidebar-bg);
+  color: #fff;
+}
+
+.bannerEyebrow {
+  color: var(--color-sidebar-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.bannerTitle {
+  max-width: 18ch;
+  margin-top: var(--space-3);
+  font-size: var(--font-size-3xl);
+}
+
+.bannerText {
+  max-width: 48ch;
+  margin-top: var(--space-4);
+  color: var(--color-sidebar-text);
+}
+
+@media (max-width: 960px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
+    padding-top: var(--space-4);
+  }
+
+  .heroVisual {
+    min-height: 0;
+  }
+
+  .promises {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .heroActions > * {
+    flex: 1;
+  }
+
+  .promises {
+    gap: var(--space-5) var(--space-4);
+  }
+
+  .section {
+    margin-top: var(--space-12);
+  }
+
+  .categories {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .banner {
+    margin-top: var(--space-12);
+    padding: var(--space-8) var(--space-6);
+  }
+}

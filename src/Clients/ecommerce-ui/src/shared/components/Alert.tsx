@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle, Info } from "lucide-react";
 import styles from "./Alert.module.css";
 
 interface AlertProps {
-  tone?: "danger" | "success";
+  tone?: "danger" | "success" | "info" | "warning";
   className?: string;
   children: ReactNode;
 }
 
-const ICONS = { danger: AlertTriangle, success: CheckCircle };
+const ICONS = { danger: AlertTriangle, warning: AlertTriangle, success: CheckCircle, info: Info };
 
-// Hata "alert" (ekran okuyucu hemen okur), başarı "status" (sırası gelince okur)
+// Hata "alert" (ekran okuyucu hemen okur), diğerleri "status" (sırası gelince okur)
 export default function Alert({ tone = "danger", className, children }: AlertProps) {
   const Icon = ICONS[tone];
   return (

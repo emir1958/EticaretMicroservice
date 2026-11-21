@@ -1,6 +1,7 @@
 ﻿using EticaretMicroservice.Identity.Api.Persistence;
 using EticaretMicroservice.Identity.Api.Services;
 using EticaretMicroservice.Shared.Extensions;
+using EticaretMicroservice.Shared.SampleData;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +43,9 @@ builder.Services.AddHealthChecks()
 // 5. CORS
 builder.Services.AddSharedCors();
 
+// Kullanıcı listesi (api/users) yalnızca Admin rolüne açık: Identity kendi ürettiği token'ı doğrular
+builder.Services.AddSharedJwtAuthentication(builder.Configuration);
+
 var app = builder.Build();
 
 // 6. Global Exception Middleware
@@ -73,6 +77,29 @@ using (var scope = app.Services.CreateScope())
         });
         dbContext.SaveChanges();
     }
+
+    // Örnek müşteriler (yalnızca Seed:SampleData açıkken): eksik olanlar eklenir, mevcut kullanıcılara dokunulmaz.
+    // Şifre rastgele üretilip saklanmadığı için bu hesaplarla giriş yapılamaz.
+    if (builder.Configuration.GetValue<bool>("Seed:SampleData"))
+    {
+        var existingIds = dbContext.Users.Select(u => u.Id).ToHashSet();
+        var missing = SampleCustomers.Customers.Where(c => !existingIds.Contains(c.Id)).ToList();
+
+        foreach (var customer in missing)
+        {
+            dbContext.Users.Add(new EticaretMicroservice.Identity.Api.Models.User
+            {
+                Id = customer.Id,
+                Username = customer.Username,
+                Email = customer.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()),
+                Role = "User"
+            });
+        }
+
+        if (missing.Count > 0)
+            dbContext.SaveChanges();
+    }
 }
 
 if (app.Environment.IsDevelopment())
@@ -82,6 +109,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors(CorsExtensions.PolicyName);
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
