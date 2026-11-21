@@ -34,6 +34,8 @@ export default function ProductForm({ product, categories, formId, onSaved, onSa
   const [price, setPrice] = useState(product?.price?.toString() ?? "");
   const [compareAtPrice, setCompareAtPrice] = useState(product?.compareAtPrice?.toString() ?? "");
   const [stock, setStock] = useState(product?.availableStock?.toString() ?? "");
+  // Forma yüklenen stok: kaydederken kullanıcı bu alanı değiştirmediyse Stock servisine dokunulmaz
+  const [loadedStock, setLoadedStock] = useState(stock);
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,9 @@ export default function ProductForm({ product, categories, formId, onSaved, onSa
     let ignore = false;
     getAvailableStock(productId)
       .then((value) => {
-        if (!ignore) setStock(String(value));
+        if (ignore) return;
+        setStock(String(value));
+        setLoadedStock(String(value));
       })
       .catch((err) => console.warn("Güncel stok alınamadı, listedeki değer kullanılıyor:", err));
     return () => {
@@ -80,10 +84,10 @@ export default function ProductForm({ product, categories, formId, onSaved, onSa
 
     try {
       if (isEdit) {
-        // Ürün bilgisi Catalog'da, stok Stock servisinde. Catalog stoku event ile iletir (asenkron);
-        // PUT /api/stocks ise değeri hemen yazar, böylece liste yenilendiğinde doğru stok görünür.
-        await updateProduct(product.id, fields, stockNumber);
-        await updateStock(product.id, stockNumber);
+        // Ürün bilgisi Catalog'da, stok Stock servisinde. Form açıkken siparişler stoğu değiştirmiş olabilir;
+        // bu yüzden stok yalnızca kullanıcı alanı değiştirdiyse yazılır (fiyat düzenlemesi stoğu ezmez).
+        await updateProduct(product.id, fields);
+        if (stock !== loadedStock) await updateStock(product.id, stockNumber);
         onSaved(`"${fields.name}" güncellendi.`);
       } else {
         // Başlangıç stoğu Catalog'dan event ile Stock servisine iletilir

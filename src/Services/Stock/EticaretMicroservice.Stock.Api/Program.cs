@@ -15,10 +15,6 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
 // 🟢 OpenTelemetry: Tracing ve Logging tek merkezden bağlanır
-var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://aspire-dashboard:4317";
-var serviceName = "Stock.Api";
-
-// 🟢 OpenTelemetry: Tracing ve Logging tek merkezden bağlanır
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Stock.Api");
 builder.Logging.AddSharedLogging(builder.Configuration, "Stock.Api");
 

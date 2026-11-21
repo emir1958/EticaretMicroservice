@@ -5,7 +5,6 @@ using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Logs;
-using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,9 +24,6 @@ builder.Logging.AddOpenTelemetry(loggingOptions =>
 var redisConnString = builder.Configuration["Redis:ConnectionString"]
     ?? builder.Configuration.GetConnectionString("Redis")
     ?? "localhost:6379";
-
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-    ConnectionMultiplexer.Connect(redisConnString));
 
 // IDistributedCache kullanabilmek için StackExchangeRedisCache eklenir
 builder.Services.AddStackExchangeRedisCache(options =>

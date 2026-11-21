@@ -6,6 +6,7 @@ using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 using OpenTelemetry.Logs;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -63,6 +64,10 @@ builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 builder.Services.Configure<DatabaseSettings>(builder.Configuration.GetSection("DatabaseSettings"));
 builder.Services.AddSingleton<IDatabaseSettings>(sp =>
     sp.GetRequiredService<IOptions<DatabaseSettings>>().Value);
+
+// MongoClient thread-safe'tir ve uygulama boyunca tek örnek olarak kullanılması önerilir (kendi bağlantı havuzunu yönetir)
+builder.Services.AddSingleton<IMongoClient>(sp =>
+    new MongoClient(sp.GetRequiredService<IDatabaseSettings>().ConnectionString));
 
 builder.Services.AddScoped<IProductService, ProductService>();
 

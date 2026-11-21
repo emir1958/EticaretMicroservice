@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static Grpc.Core.Metadata;
 
 namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
 {

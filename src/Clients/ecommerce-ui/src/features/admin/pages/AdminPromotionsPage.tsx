@@ -15,7 +15,6 @@ import { getProductsWithStock, updateProduct } from "../../catalog/api";
 import { categoryOf, discountPercent } from "../../catalog/catalogView";
 import Price from "../../catalog/components/Price";
 import type { Product, ProductWithStock } from "../../catalog/types";
-import { getAvailableStock } from "../../stock/api";
 import ui from "../admin.module.css";
 import styles from "./AdminPromotionsPage.module.css";
 
@@ -25,22 +24,15 @@ const listPriceOf = (product: Product) => product.compareAtPrice ?? product.pric
 
 const discountedPrice = (listPrice: number, percent: number) => Math.round(listPrice * (1 - percent / 100));
 
-// Catalog'a yapılan her ürün güncellemesi Stock'a stok değerini de taşır. Liste eski olabileceği için
-// stok, istekten hemen önce Stock servisinden okunur.
 async function saveProductPrice(product: Product, price: number, compareAtPrice: number | null) {
-  const stock = await getAvailableStock(product.id);
-  await updateProduct(
-    product.id,
-    {
-      name: product.name,
-      description: product.description,
-      imageUrl: product.imageUrl,
-      category: product.category,
-      price,
-      compareAtPrice,
-    },
-    stock,
-  );
+  await updateProduct(product.id, {
+    name: product.name,
+    description: product.description,
+    imageUrl: product.imageUrl,
+    category: product.category,
+    price,
+    compareAtPrice,
+  });
 }
 
 export default function AdminPromotionsPage() {

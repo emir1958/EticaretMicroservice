@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../../shared/toast/ToastContext";
 import * as basketApi from "./api";
+import { mergeCarts } from "./mergeCarts";
 import type { CartItem } from "./types";
 
 type CartProduct = Omit<CartItem, "quantity">;
@@ -39,15 +40,6 @@ function readStoredCart(key: string): CartItem[] {
 
 function writeStoredCart(key: string, items: CartItem[]) {
   localStorage.setItem(key, JSON.stringify(items));
-}
-
-function mergeCarts(serverItems: CartItem[], guestItems: CartItem[]) {
-  const merged = new Map(serverItems.map((item) => [item.id, item]));
-  for (const guest of guestItems) {
-    const existing = merged.get(guest.id);
-    merged.set(guest.id, existing ? { ...existing, quantity: existing.quantity + guest.quantity } : guest);
-  }
-  return [...merged.values()];
 }
 
 async function pushBasket(userId: string, items: CartItem[]) {

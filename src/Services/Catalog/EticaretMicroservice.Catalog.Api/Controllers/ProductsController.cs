@@ -97,13 +97,7 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
             if (!isUpdated)
                 return BadRequest(new { Message = "Güncelleme başarısız." });
 
-            // Stock API'ye stok güncelleme event'i fırlat
-            await _publishEndpoint.Publish(new StockUpdatedEvent
-            {
-                ProductId = id,
-                NewStock = dto.Stock
-            });
-
+            // Stok burada güncellenmez: sahibi Stock servisidir (PUT /api/stocks/{productId})
             return NoContent();
         }
 

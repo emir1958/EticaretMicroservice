@@ -23,7 +23,7 @@ namespace EticaretMicroservice.Services.Order.Application.Handlers
         {
             var orders = await _orderRepository.GetOrdersByUserIdAsync(request.UserId);
 
-            // Manuel veya AutoMapper dönüşümü
+            // Manuel dönüşüm
             return orders.Select(o => new OrderDto
             {
                 Id = o.Id,

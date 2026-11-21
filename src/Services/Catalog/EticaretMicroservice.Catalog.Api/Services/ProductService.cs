@@ -8,9 +8,8 @@ namespace EticaretMicroservice.Catalog.Api.Services
     {
         private readonly IMongoCollection<Product> _productCollection;
 
-        public ProductService(IDatabaseSettings databaseSettings)
+        public ProductService(IMongoClient client, IDatabaseSettings databaseSettings)
         {
-            var client = new MongoClient(databaseSettings.ConnectionString);
             var database = client.GetDatabase(databaseSettings.DatabaseName);
             _productCollection = database.GetCollection<Product>(databaseSettings.ProductsCollectionName);
         }

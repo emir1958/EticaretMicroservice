@@ -1,7 +1,10 @@
-﻿using EticaretMicroservice.Identity.Api.Persistence;
+﻿using EticaretMicroservice.Identity.Api.Dtos;
+using EticaretMicroservice.Identity.Api.Persistence;
 using EticaretMicroservice.Identity.Api.Services;
+using EticaretMicroservice.Identity.Api.Validators;
 using EticaretMicroservice.Shared.Extensions;
 using EticaretMicroservice.Shared.SampleData;
+using FluentValidation;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +35,8 @@ builder.Services.AddDbContext<AppIdentityDbContext>(options =>
 
 // 3. Identity Servis Entegrasyonu (Custom BCrypt Auth)
 builder.Services.AddScoped<IIdentityService, IdentityService>();
+builder.Services.AddScoped<IValidator<RegisterDto>, RegisterDtoValidator>();
+builder.Services.AddScoped<IValidator<LoginDto>, LoginDtoValidator>();
 
 // 4. SQL Server Health Check
 builder.Services.AddHealthChecks()
@@ -122,3 +127,6 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 });
 
 app.Run();
+
+// Integration testlerin WebApplicationFactory ile bu uygulamayı başlatabilmesi için
+public partial class Program { }

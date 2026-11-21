@@ -51,10 +51,9 @@ export async function createProduct(product: NewProductInput) {
   productsCache = null;
 }
 
-// stock de gönderilir: Catalog her güncellemede Stock servisine StockUpdatedEvent yayınlar.
-// Gönderilmezse event stoğu 0 olarak taşır ve stok bir an için (ya da kalıcı olarak) sıfırlanabilir.
-export async function updateProduct(id: string, product: ProductInput, stock: number) {
-  await apiClient.put(`/api/products/${id}`, { ...product, stock });
+// Stok burada yoktur: Stock servisine ait, features/stock/api.ts üzerinden güncellenir
+export async function updateProduct(id: string, product: ProductInput) {
+  await apiClient.put(`/api/products/${id}`, product);
   productsCache = null;
 }
 
