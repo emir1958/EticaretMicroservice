@@ -72,6 +72,8 @@ builder.Services.AddMassTransit(x =>
 
 var app = builder.Build();
 
+app.UseCustomExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

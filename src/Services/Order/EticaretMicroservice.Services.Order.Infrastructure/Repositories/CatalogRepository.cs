@@ -1,5 +1,7 @@
-﻿using System.Net.Http.Json;
+﻿using System.Net;
+using System.Net.Http.Json;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
+using EticaretMicroservice.Shared.Exceptions;
 using Microsoft.Extensions.Logging;
 
 namespace EticaretMicroservice.Services.Order.Infrastructure.Repositories;
@@ -17,24 +19,30 @@ public class CatalogRepository : ICatalogRepository
 
     public async Task<CatalogProductDto?> GetProductByIdAsync(string productId, CancellationToken cancellationToken = default)
     {
+        HttpResponseMessage response;
         try
         {
-            // Catalog API'nin GET /api/products/{id} endpoint'ini çağırır
-            var response = await _httpClient.GetAsync($"/api/products/{productId}", cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Catalog API ürün bulamadı veya hata döndü. ProductId: {ProductId}, StatusCode: {Status}",
-                    productId, response.StatusCode);
-                return null;
-            }
-
-            return await response.Content.ReadFromJsonAsync<CatalogProductDto>(cancellationToken: cancellationToken);
+            response = await _httpClient.GetAsync($"/api/products/{productId}", cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogError(ex, "Catalog API ile iletişim kurulurken hata oluştu. ProductId: {ProductId}", productId);
-            throw new InvalidOperationException("Katalog servisiyle iletişim kurulamadı.", ex);
+            // Timeout, açık circuit breaker veya bağlantı hatası: retry'lar (Polly) tükenmiştir
+            _logger.LogError(ex, "Catalog API ile iletişim kurulamadı. ProductId: {ProductId}", productId);
+            throw new ServiceUnavailableException("Katalog servisine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.", ex);
         }
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning("Catalog API ürünü bulamadı. ProductId: {ProductId}", productId);
+            return null;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Catalog API hata döndü. ProductId: {ProductId}, StatusCode: {Status}", productId, response.StatusCode);
+            throw new ServiceUnavailableException("Katalog servisine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.");
+        }
+
+        return await response.Content.ReadFromJsonAsync<CatalogProductDto>(cancellationToken: cancellationToken);
     }
 }

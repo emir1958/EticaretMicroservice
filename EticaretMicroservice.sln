@@ -63,6 +63,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Stock.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Payment.IntegrationTests", "tests\EticaretMicroservice.Payment.IntegrationTests\EticaretMicroservice.Payment.IntegrationTests.csproj", "{493B5724-0F12-4D88-B4FC-000234311D99}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EticaretMicroservice.Gateway.IntegrationTests", "tests\EticaretMicroservice.Gateway.IntegrationTests\EticaretMicroservice.Gateway.IntegrationTests.csproj", "{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Gateway", "Gateway", "{69D1DA7A-D0D0-C10A-3D34-022016491D7C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -253,6 +257,18 @@ Global
 		{493B5724-0F12-4D88-B4FC-000234311D99}.Release|x64.Build.0 = Release|Any CPU
 		{493B5724-0F12-4D88-B4FC-000234311D99}.Release|x86.ActiveCfg = Release|Any CPU
 		{493B5724-0F12-4D88-B4FC-000234311D99}.Release|x86.Build.0 = Release|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Debug|x64.Build.0 = Debug|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Debug|x86.Build.0 = Debug|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Release|x64.ActiveCfg = Release|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Release|x64.Build.0 = Release|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Release|x86.ActiveCfg = Release|Any CPU
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -283,6 +299,8 @@ Global
 		{6090EE84-5BF4-4185-938F-949372A710CC} = {DBCEBC7F-FB32-4B79-A49C-5CBD40470D16}
 		{C51D8F74-5F5B-44A6-8A95-AB66F9E46F49} = {DBCEBC7F-FB32-4B79-A49C-5CBD40470D16}
 		{493B5724-0F12-4D88-B4FC-000234311D99} = {DBCEBC7F-FB32-4B79-A49C-5CBD40470D16}
+		{3020FB17-BF8F-4653-B7CC-4C46A6C7F121} = {DBCEBC7F-FB32-4B79-A49C-5CBD40470D16}
+		{69D1DA7A-D0D0-C10A-3D34-022016491D7C} = {67E297C3-529D-41D5-8B0E-0EC8245DC758}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B005D55D-80EE-4613-95DB-8BDCE1777FED}

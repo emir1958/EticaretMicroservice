@@ -5,6 +5,7 @@ using EticaretMicroservice.Shared.Events;
 using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
 
 namespace EticaretMicroservice.Catalog.Api.Controllers
 {
@@ -34,6 +35,10 @@ namespace EticaretMicroservice.Catalog.Api.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetById(string id)
         {
+            // Id, ObjectId biçiminde değilse Mongo sorgusu FormatException (500) fırlatır
+            if (!ObjectId.TryParse(id, out _))
+                return NotFound(new { Message = "Ürün bulunamadı." });
+
             var product = await _productService.GetByIdAsync(id);
             if (product == null)
                 return NotFound(new { Message = "Ürün bulunamadı." });

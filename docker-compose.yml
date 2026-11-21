@@ -295,10 +295,13 @@
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - Jwt__SecretKey=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required - see .env.example}
+      - Jwt__Issuer=${JWT_ISSUER:-EticaretIdentityServer}
+      - Jwt__Audience=${JWT_AUDIENCE:-EticaretGateway}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_EXPORTER_OTLP_INSECURE=true
-      - OTEL_SERVICE_NAME=gateway-service 
+      - OTEL_SERVICE_NAME=gateway-service
       - OTEL_LOGS_EXPORTER=otlp # 🟢 Eklendi
     depends_on:
       - identity.api

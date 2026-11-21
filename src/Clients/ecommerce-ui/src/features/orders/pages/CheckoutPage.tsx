@@ -133,9 +133,11 @@ export default function CheckoutPage() {
     } catch (err) {
       console.error("Sipariş oluşturma hatası:", err);
 
-      // 409: aynı anahtarla bir istek hâlâ işleniyor ([Idempotent] filtresi). Anahtar korunur ki
-      // tekrar denemede ikinci sipariş oluşmasın. Diğer hatalarda bir sonraki deneme yeni bir istektir.
-      if (getErrorStatus(err) !== 409) {
+      // Anahtar yalnızca sunucu isteği açıkça reddettiyse (4xx) yenilenir. Ağ hatasında (status yok) ve 5xx'te
+      // sipariş oluşmuş olabilir: aynı anahtarla tekrar denemek ikinci sipariş yerine ilk cevabı döndürür.
+      // 409: aynı anahtarla bir istek hâlâ işleniyor, anahtar yine korunur.
+      const status = getErrorStatus(err);
+      if (status !== undefined && status >= 400 && status < 500 && status !== 409) {
         idempotencyKeyRef.current = crypto.randomUUID();
       }
 

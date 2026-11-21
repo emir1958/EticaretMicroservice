@@ -4,6 +4,7 @@ using EticaretMicroservice.Services.Order.Application.Commands;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Services.Order.Domain.ValueObjects;
 using EticaretMicroservice.Shared.Events;
+using EticaretMicroservice.Shared.Exceptions;
 
 namespace EticaretMicroservice.Services.Order.Application.Handlers;
 
@@ -49,7 +50,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int
 
             if (catalogProduct == null)
             {
-                throw new InvalidOperationException($"Geçersiz ürün: '{item.ProductId}' katalogda bulunamadı.");
+                throw new BusinessRuleException($"Geçersiz ürün: '{item.ProductId}' katalogda bulunamadı.");
             }
 
             newOrder.AddOrderItem(

@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Text.Json;
+using EticaretMicroservice.Shared.Exceptions;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -58,23 +59,23 @@ public class CustomExceptionHandlerMiddleware
                 };
                 break;
 
-            case KeyNotFoundException:
-                context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            case BusinessRuleException:
+                context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
                 problemDetails = new ProblemDetails
                 {
-                    Status = (int)HttpStatusCode.NotFound,
-                    Title = "Kaynak Bulunamadı",
+                    Status = StatusCodes.Status422UnprocessableEntity,
+                    Title = "İş Kuralı İhlali",
                     Detail = exception.Message,
                     Instance = context.Request.Path
                 };
                 break;
 
-            case InvalidOperationException:
-                context.Response.StatusCode = (int)HttpStatusCode.Conflict;
+            case ServiceUnavailableException:
+                context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
                 problemDetails = new ProblemDetails
                 {
-                    Status = (int)HttpStatusCode.Conflict,
-                    Title = "İş Kuralı İhlali",
+                    Status = (int)HttpStatusCode.ServiceUnavailable,
+                    Title = "Servis Kullanılamıyor",
                     Detail = exception.Message,
                     Instance = context.Request.Path
                 };
@@ -94,7 +95,8 @@ public class CustomExceptionHandlerMiddleware
 
         problemDetails.Extensions["correlationId"] = correlationId;
 
-        var json = JsonSerializer.Serialize(problemDetails, new JsonSerializerOptions
+        // Çalışma zamanı tipiyle serialize edilir: aksi halde ValidationProblemDetails.Errors yazılmaz
+        var json = JsonSerializer.Serialize(problemDetails, problemDetails.GetType(), new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });

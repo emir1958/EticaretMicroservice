@@ -1,38 +1,13 @@
-﻿using EticaretMicroservice.Shared.Extensions;
-using Microsoft.AspNetCore.RateLimiting;
-using System.Threading.RateLimiting;
+﻿using EticaretMicroservice.Gateway.Extensions;
+using EticaretMicroservice.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. RATE LIMITER KONFİGÜRASYONU (Order ve Auth/Basket için ayrı politikalar)
-builder.Services.AddRateLimiter(options =>
-{
-    // Sipariş limiti (10 saniyede maks 10 istek)
-    options.AddFixedWindowLimiter("order-policy", opt =>
-    {
-        opt.PermitLimit = 10;
-        opt.Window = TimeSpan.FromSeconds(10);
-        opt.QueueLimit = 2;
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-    });
+// 1. RATE LIMITER: kullanıcı/IP başına kovalar (ayrıntı RateLimitingExtensions.cs içinde)
+builder.Services.AddGatewayRateLimiting();
 
-    // Brute-force ve spam koruması (Identity Login & Basket: 1 dakikada maks 20 istek)
-    options.AddFixedWindowLimiter("auth-policy", opt =>
-    {
-        opt.PermitLimit = 20;
-        opt.Window = TimeSpan.FromMinutes(1);
-        opt.QueueLimit = 0;
-    });
-
-    options.OnRejected = async (context, cancellationToken) =>
-    {
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        context.HttpContext.Response.ContentType = "application/json";
-        await context.HttpContext.Response.WriteAsync(
-            "{\"message\": \"Çok fazla istek gönderildi. Lütfen bir süre sonra tekrar deneyin.\"}",
-            cancellationToken);
-    };
-});
+// Limiter kullanıcıyı partition anahtarı yapar; bu yüzden token burada da doğrulanır (servislerle aynı Jwt ayarları)
+builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
 // 2. YARP PROXY
 builder.Services.AddReverseProxy()
@@ -70,6 +45,8 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Kimlik, limiter'dan önce çözülmeli: basket/order policy'leri partition anahtarını context.User'dan alır
+app.UseAuthentication();
 app.UseRateLimiter();
 
 app.MapReverseProxy();
@@ -80,3 +57,6 @@ app.MapHealthChecksUI(options =>
 });
 
 app.Run();
+
+// Gateway testleri WebApplicationFactory ile bu uygulamayı başlatır
+public partial class Program { }

@@ -11,6 +11,9 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Filters;
 [AttributeUsage(AttributeTargets.Method)]
 public class IdempotentAttribute : Attribute, IAsyncActionFilter
 {
+    // Kaydedilen cevap, MVC'nin ilk cevabı yazdığı biçimle (camelCase) aynı olmalı: istemci tekrar cevabını da aynı okur
+    private static readonly JsonSerializerOptions ResponseJsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         // 1. Header'da Idempotency-Key var mı?
@@ -69,14 +72,22 @@ public class IdempotentAttribute : Attribute, IAsyncActionFilter
         // 4. Controller metodu çalıştırılır
         var executedContext = await next();
 
-        // 5. Metot başarıyla bittiğinde ilk cevabın çıktısı kaydedilir
-        if (executedContext.Result is ObjectResult objectResult)
+        // 5. Yalnızca başarılı (2xx) cevap kaydedilir: sonraki tekrarlar ilk cevabı aynen alır
+        if (executedContext.Exception is null
+            && executedContext.Result is ObjectResult { StatusCode: null or (>= 200 and < 300) } objectResult)
         {
             idempotentRecord.StatusCode = objectResult.StatusCode ?? 200;
-            idempotentRecord.ResponseBody = JsonSerializer.Serialize(objectResult.Value);
+            idempotentRecord.ResponseBody = JsonSerializer.Serialize(objectResult.Value, ResponseJsonOptions);
             idempotentRecord.IsCompleted = true;
 
             await dbContext.SaveChangesAsync();
+            return;
         }
+
+        // Başarısız istek anahtarı tüketmemeli: aksi halde istemci aynı anahtarla tekrar denediğinde
+        // "işlem yürütülüyor" 409'una takılır. ExecuteDelete change tracker'ı kullanmaz; hata sonrası
+        // context'te yarım kalmış Order kayıtları olabilir ve SaveChanges onları yeniden yazmaya çalışırdı.
+        dbContext.Entry(idempotentRecord).State = EntityState.Detached;
+        await dbContext.IdempotentRequests.Where(x => x.Id == idempotencyKey).ExecuteDeleteAsync();
     }
 }

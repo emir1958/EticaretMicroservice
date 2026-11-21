@@ -3,6 +3,7 @@ using EticaretMicroservice.Services.Order.Application.Dtos;
 using EticaretMicroservice.Services.Order.Application.Handlers;
 using EticaretMicroservice.Services.Order.Application.Interfaces;
 using EticaretMicroservice.Shared.Events;
+using EticaretMicroservice.Shared.Exceptions;
 using FluentAssertions;
 using MassTransit;
 using Moq;
@@ -140,7 +141,7 @@ public class CreateOrderCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenProductNotFoundInCatalog_ShouldThrowInvalidOperationExceptionAndNotSave()
+    public async Task Handle_WhenProductNotFoundInCatalog_ShouldThrowBusinessRuleExceptionAndNotSave()
     {
         // Arrange
         var nonExistingProductId = "invalid-prod-999";
@@ -171,7 +172,7 @@ public class CreateOrderCommandHandlerTests
         var act = async () => await _handler.Handle(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<BusinessRuleException>()
             .WithMessage($"*{nonExistingProductId}*");
 
         _orderRepoMock.Verify(
