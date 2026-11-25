@@ -1,10 +1,12 @@
-﻿using EticaretMicroservice.Catalog.Api.Services;
+﻿using EticaretMicroservice.Catalog.Api.Seed;
+using EticaretMicroservice.Catalog.Api.Services;
 using EticaretMicroservice.Catalog.Api.Settings;
 using EticaretMicroservice.Shared.Extensions;
 using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 using OpenTelemetry.Logs;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,7 +15,6 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSharedSwagger();
 
-// 1. OpenTelemetry Kaydı (Aspire Dashboard izlemesi için)
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Catalog.Api");
 builder.Logging.AddOpenTelemetry(loggingOptions =>
 {
@@ -21,7 +22,6 @@ builder.Logging.AddOpenTelemetry(loggingOptions =>
     loggingOptions.IncludeScopes = true;
     loggingOptions.AddOtlpExporter(); // Logları OTLP üzerinden Aspire Dashboard'a gönderir
 });
-// 2. Health Checks (MongoDB + RabbitMQ)
 var mongoConn = builder.Configuration["DatabaseSettings:ConnectionString"] ?? "mongodb://localhost:27017";
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
 var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
@@ -37,7 +37,6 @@ builder.Services.AddHealthChecks()
         name: "Catalog-RabbitMQ",
         tags: new[] { "messagebus", "rabbitmq" });
 
-// 3. MassTransit & RabbitMQ
 builder.Services.AddMassTransit(x =>
 {
     x.UsingRabbitMq((context, cfg) =>
@@ -48,26 +47,31 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitPass);
         });
 
-        // Ortak retry politikası
         cfg.ConfigureSharedRetryAndDeadLetter(context);
     });
 });
 
-// Shared veya her servisin Program.cs'inde olması gereken ortak politika:
 builder.Services.AddSharedCors();
 
-// 4. JWT Yetkilendirme (Issuer + Audience doğrulamalı extension)
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
 builder.Services.Configure<DatabaseSettings>(builder.Configuration.GetSection("DatabaseSettings"));
 builder.Services.AddSingleton<IDatabaseSettings>(sp =>
     sp.GetRequiredService<IOptions<DatabaseSettings>>().Value);
 
+// MongoClient thread-safe'tir ve uygulama boyunca tek örnek olarak kullanılması önerilir (kendi bağlantı havuzunu yönetir)
+builder.Services.AddSingleton<IMongoClient>(sp =>
+    new MongoClient(sp.GetRequiredService<IDatabaseSettings>().ConnectionString));
+
 builder.Services.AddScoped<IProductService, ProductService>();
+
+if (builder.Configuration.GetValue<bool>("Seed:SampleData"))
+{
+    builder.Services.AddHostedService<SampleCatalogSeeder>();
+}
 
 var app = builder.Build();
 
-// 5. Global Exception Middleware (En üstte olmalı)
 app.UseCustomExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -82,7 +86,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// 6. Health Check Endpoint
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = _ => true,

@@ -1,37 +1,53 @@
 /* Tasarım token'ları: renk, boşluk, köşe, gölge ve tipografi tek yerde tanımlanır.
    Component'ler sabit değer yerine bu değişkenleri kullanır. */
 :root {
-  /* Marka */
-  --color-primary: #4f46e5;
-  --color-primary-hover: #4338ca;
-  --color-primary-soft: #eef2ff;
+  /* Marka: ana eylem mürekkep siyahı, vurgu kiremit turuncusu (az ve yerinde kullanılır) */
+  --color-primary: #17181c;
+  --color-primary-hover: #2e3037;
+  --color-primary-soft: #ece9e2;
+  --color-on-primary: #ffffff;
+  --color-accent: #c2410c;
+  --color-accent-hover: #9a3412;
+  --color-accent-soft: #fcebdd;
 
-  /* Yüzeyler */
-  --color-bg: #f6f7fb;
+  /* Yüzeyler (sıcak kâğıt tonu) */
+  --color-bg: #f6f4ef;
   --color-surface: #ffffff;
-  --color-surface-muted: #f8fafc;
-  --color-border: #e5e7eb;
-  --color-border-strong: #d1d5db;
+  --color-surface-muted: #f1eee8;
+  --color-surface-sunken: #e9e5dc;
+  --color-border: #e4e0d7;
+  --color-border-strong: #cbc5b8;
+  --color-overlay: rgb(23 24 28 / 0.48);
 
-  /* Metin */
-  --color-text: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-muted: #94a3b8;
+  /* Metin (hepsi zemin üzerinde en az 4.5:1 kontrast) */
+  --color-text: #17181c;
+  --color-text-secondary: #4d5057;
+  --color-text-muted: #6a6d74;
 
-  /* Yönetim paneli kenar çubuğu (koyu zemin) */
-  --color-sidebar-bg: #0f172a;
-  --color-sidebar-hover: #1e293b;
-  --color-sidebar-text: #cbd5e1;
+  /* Koyu yüzey: yönetim paneli kenar çubuğu, footer, hero */
+  --color-sidebar-bg: #17181c;
+  --color-sidebar-hover: #26282e;
+  --color-sidebar-border: #2e3037;
+  --color-sidebar-text: #b9bbc2;
+  --color-sidebar-text-muted: #8b8e96;
   --color-sidebar-text-active: #ffffff;
-  --color-sidebar-accent: #818cf8;
+  --color-sidebar-accent: #f0834e;
 
   /* Durum renkleri */
-  --color-success: #047857;
-  --color-success-soft: #d1fae5;
-  --color-warning: #b45309;
-  --color-warning-soft: #fef3c7;
-  --color-danger: #b91c1c;
-  --color-danger-soft: #fee2e2;
+  --color-success: #15693b;
+  --color-success-soft: #dff3e6;
+  --color-warning: #8a4b08;
+  --color-warning-soft: #fbeacb;
+  --color-danger: #b42318;
+  --color-danger-soft: #fde7e4;
+  --color-info: #1f4fb8;
+  --color-info-soft: #e1eafb;
+
+  /* Grafik */
+  --color-chart-1: #c2410c;
+  --color-chart-2: #17181c;
+  --color-chart-3: #d08a1e;
+  --color-chart-grid: #e4e0d7;
 
   /* Boşluk ölçeği (4px tabanlı) */
   --space-1: 4px;
@@ -43,30 +59,54 @@
   --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
 
   /* Köşe */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 999px;
 
   /* Gölge */
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
-  --shadow-md: 0 4px 12px rgb(15 23 42 / 0.08);
-  --shadow-lg: 0 12px 32px rgb(15 23 42 / 0.14);
+  --shadow-sm: 0 1px 2px rgb(23 24 28 / 0.06);
+  --shadow-md: 0 6px 16px -4px rgb(23 24 28 / 0.1), 0 2px 4px rgb(23 24 28 / 0.04);
+  --shadow-lg: 0 24px 48px -12px rgb(23 24 28 / 0.22);
 
-  /* Tipografi */
-  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Tipografi: başlıklar display, gövde ve arayüz sans */
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-md: 16px;
   --font-size-lg: 18px;
   --font-size-xl: 24px;
   --font-size-2xl: 32px;
+  --font-size-3xl: clamp(32px, 4vw, 44px);
+  --font-size-hero: clamp(40px, 6.4vw, 76px);
 
   /* Yerleşim */
-  --container-width: 1200px;
-  --header-height: 68px;
-  --sidebar-width: 248px;
-  --transition: 150ms ease;
+  --container-width: 1280px;
+  --page-gutter: var(--space-6);
+  --header-height: 72px;
+  --sidebar-width: 256px;
+  --topbar-height: 64px;
+
+  /* Hareket */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --transition: 160ms var(--ease-out);
+  --duration-slow: 280ms;
+
+  /* Katmanlar */
+  --z-header: 50;
+  --z-toast: 300;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --page-gutter: var(--space-4);
+    --header-height: 60px;
+  }
 }

@@ -1,0 +1,94 @@
+.figure {
+  margin: 0;
+}
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.readoutLabel {
+  width: 100%;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.readoutValue {
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.readoutSub {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  height: 220px;
+}
+
+.yAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.yAxis span {
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.yAxis span:first-child {
+  transform: none;
+}
+
+.yAxis span:last-child {
+  transform: translateY(0);
+}
+
+.svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--color-chart-grid);
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.hit {
+  fill: transparent;
+}
+
+.bar {
+  fill: var(--color-chart-2);
+  transition: fill var(--transition);
+}
+
+.barActive {
+  fill: var(--color-chart-1);
+}
+
+.xAxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+  padding-left: 48px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}

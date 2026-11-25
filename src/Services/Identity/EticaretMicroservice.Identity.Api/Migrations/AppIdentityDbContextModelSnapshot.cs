@@ -42,6 +42,9 @@ namespace EticaretMicroservice.Identity.Api.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasDefaultValue("User");
 
+                    b.Property<int>("TokenVersion")
+                        .HasColumnType("int");
+
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(100)

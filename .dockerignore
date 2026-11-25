@@ -1,0 +1,30 @@
+# Backend imajları yalnızca src/Services ve src/Shared'a ihtiyaç duyar (Dockerfile'lar `COPY . .` kullanır).
+# Burada listelenenler build context'ine girmez: ilgisiz bir dosya değişince COPY katmanı geçersiz kalıp
+# tüm imajlar yeniden derlenmesin, ayrıca .env gibi gizli dosyalar imaj katmanlarına sızmasın.
+
+# Gizli bilgiler
+.env
+.env.*
+
+# Derleme çıktıları ve bağımlılıklar
+**/bin/
+**/obj/
+**/node_modules/
+
+# Backend imajında kullanılmayan kaynaklar
+src/Clients/
+tests/
+docs/
+infra/
+.github/
+
+# Git, IDE ve araç dosyaları
+.git
+.gitignore
+.gitattributes
+.vs/
+.history/
+.playwright-mcp/
+**/*.user
+**/*.md
+docker-compose*.yml

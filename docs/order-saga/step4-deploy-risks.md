@@ -73,6 +73,12 @@ bunları ayrı listeler ve manuel karara bırakır. Müşteriye bildirim gönder
   - İade sağlayıcı çağrısı DB transaction'ı içinde yapılır. Çağrı başarılı olup commit başarısız olursa mesaj yeniden işlenir;
     gerçek bir sağlayıcıda `OrderId` idempotency anahtarı olarak gönderilmelidir (şu an `FakePaymentService`).
   - Müşteriye iade için ayrı bir SignalR bildirimi gönderilmez; sipariş zaten `Canceled` olarak bildirilmiştir.
+    İade, Payment'ın yayınladığı `PaymentRefundedEvent` ile Order'a kaydedilir (`PaymentStatus = IadeEdildi`, `RefundedAt`)
+    ve sipariş detayında gösterilir.
+  - **Deploy sırası (`PaymentRefundedEvent`):** Bu event için sıra tersine döner: önce **Order** deploy edilmeli. Saga'nın
+    `order-saga` kuyruğu event'in exchange'ine bağlanmadan yayınlanan `PaymentRefundedEvent` kaybolur ve iade siparişe yansımaz.
+  - Bu değişiklikten önce yapılmış iadelerin siparişleri `Alinmadi` görünür (migration yalnızca tamamlanmış siparişleri
+    `Alindi` yapar); iade bilgisi yalnızca Payment veritabanındadır.
 - **Timeout ile ödeme yarışında stok:** Stock, `ReleaseStockCommand`'dan önce `PaymentCompleted`'ı işleyip rezervasyonu
   `Confirmed` yapmış olabilir. `ReleaseStockCommand` artık iptal edilen siparişin `Reserved` ve `Confirmed` satırlarını
   geri verir (`ReleaseForCanceledOrderAsync`); `Released` satırlara dokunmaz. `PaymentFailedEvent` yolu yalnızca `Reserved`

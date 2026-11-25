@@ -1,0 +1,51 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mark {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.name {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.dark {
+  color: var(--color-text);
+}
+
+.dark .markBg {
+  fill: var(--color-primary);
+}
+
+.dark .markLine {
+  fill: #fff;
+}
+
+.light {
+  color: #fff;
+}
+
+.light .markBg {
+  fill: #fff;
+}
+
+.light .markLine {
+  fill: var(--color-primary);
+}
+
+.markAccent {
+  fill: var(--color-sidebar-accent);
+}
+
+.light .markAccent {
+  fill: var(--color-accent);
+}

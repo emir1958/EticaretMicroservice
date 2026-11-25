@@ -2,6 +2,7 @@ using EticaretMicroservice.Payment.Api.Models;
 using EticaretMicroservice.Payment.Api.Services;
 using EticaretMicroservice.Payment.IntegrationTests.Infrastructure;
 using EticaretMicroservice.Shared.Commands;
+using EticaretMicroservice.Shared.Events;
 using FluentAssertions;
 using MassTransit;
 using Moq;
@@ -34,6 +35,22 @@ public class RefundPaymentTests
         _gateway.Verify(g => g.RefundPayment(payment.OrderId, payment.PaymentToken, 250m), Times.Once);
     }
 
+    // Order iadeyi bu event'ten öğrenir
+    [Fact]
+    public async Task Refund_ForSuccessfulPayment_PublishesRefundedEvent()
+    {
+        var payment = await _db.SeedPaymentAsync(PaymentStatus.Success, totalPrice: 250m);
+        await using var host = await PaymentTestHost.StartAsync(_db.ConnectionString, _gateway.Object);
+
+        await host.PublishAsync(Refund(payment));
+
+        await PaymentTestHost.WaitUntilAsync(
+            () => Task.FromResult(host.RefundedEventCount(payment.OrderId) == 1), "PaymentRefundedEvent yayınlanmalı");
+        var refunded = host.Harness.Consumed.Select<PaymentRefundedEvent>().Single(m => m.Context.Message.OrderId == payment.OrderId);
+        refunded.Context.Message.Amount.Should().Be(250m);
+        refunded.Context.Message.CorrelationId.Should().Be(payment.CorrelationId);
+    }
+
     // Kopya komut (örn. saga'ya iki kez gelen PaymentCompleted) ilk iade işlendikten sonra gelir
     [Fact]
     public async Task Refund_DeliveredTwice_RefundsOnlyOnce()
@@ -49,6 +66,7 @@ public class RefundPaymentTests
         await PaymentTestHost.SettleAsync();
 
         Volatile.Read(ref _refundCalls).Should().Be(1);
+        host.RefundedEventCount(payment.OrderId).Should().Be(1);
     }
 
     // İki kopya aynı anda gelir. Sağlayıcı çağrısı yavaşlatılarak yarış penceresi genişletilir: kilit olmasa
@@ -82,6 +100,7 @@ public class RefundPaymentTests
 
         (await _db.GetStatusAsync(payment.OrderId)).Should().Be(PaymentStatus.Failed);
         Volatile.Read(ref _refundCalls).Should().Be(0);
+        host.RefundedEventCount(payment.OrderId).Should().Be(0);
     }
 
     // Sağlayıcı iadeyi reddederse durum değişmez ve mesaj hata verir (sessizce kaybolmaz)
@@ -98,6 +117,7 @@ public class RefundPaymentTests
         (await host.Harness.Published.Any<Fault<RefundPaymentCommand>>(f => f.Context.Message.Message.OrderId == payment.OrderId))
             .Should().BeTrue();
         (await _db.GetStatusAsync(payment.OrderId)).Should().Be(PaymentStatus.Success);
+        host.RefundedEventCount(payment.OrderId).Should().Be(0);
     }
 
     private void GatewayRefundSucceeds(TimeSpan delay) =>

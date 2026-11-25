@@ -24,35 +24,47 @@ public class CancelOrderActivity :
 
     public async Task Execute(BehaviorContext<OrderState, StockFailedEvent> context, IBehavior<OrderState, StockFailedEvent> next)
     {
-        await CancelAsync(context.Saga,
-            string.IsNullOrWhiteSpace(context.Message.Message)
-                ? "Siparişteki bir veya daha fazla ürün için yeterli stok bulunamadı."
-                : context.Message.Message,
-            context.CancellationToken);
+        var reason = string.IsNullOrWhiteSpace(context.Message.Message)
+            ? "Siparişteki bir veya daha fazla ürün için yeterli stok bulunamadı."
+            : context.Message.Message;
+        var failedAt = context.Message.CreatedAt;
+
+        var order = await GetOrderAsync(context.Saga);
+        order.TryMarkStockFailed(failedAt, reason);
+        await CancelAsync(context.Saga, order, failedAt, note: null, reason, context.CancellationToken);
 
         await next.Execute(context);
     }
 
     public async Task Execute(BehaviorContext<OrderState, PaymentFailedEvent> context, IBehavior<OrderState, PaymentFailedEvent> next)
     {
-        await CancelAsync(context.Saga, $"Ödeme Başarısız: {context.Message.Message}", context.CancellationToken);
+        var failedAt = context.Message.CreatedAt;
+
+        var order = await GetOrderAsync(context.Saga);
+        order.TryMarkPaymentFailed(failedAt, context.Message.Message);
+        await CancelAsync(context.Saga, order, failedAt, note: null, $"Ödeme Başarısız: {context.Message.Message}", context.CancellationToken);
 
         await next.Execute(context);
     }
 
     public async Task Execute(BehaviorContext<OrderState, PaymentTimeoutExpired> context, IBehavior<OrderState, PaymentTimeoutExpired> next)
     {
-        await CancelAsync(context.Saga, "Siparişiniz zaman aşımı nedeniyle iptal edildi.", context.CancellationToken);
+        var order = await GetOrderAsync(context.Saga);
+        await CancelAsync(context.Saga, order, DateTime.UtcNow, "Ödeme süresi doldu.",
+            "Siparişiniz zaman aşımı nedeniyle iptal edildi.", context.CancellationToken);
 
         await next.Execute(context);
     }
 
-    private async Task CancelAsync(OrderState saga, string message, CancellationToken cancellationToken)
-    {
-        var order = await _orderRepository.GetByIdAsync(saga.OrderId)
+    private async Task<Domain.Entities.Order> GetOrderAsync(OrderState saga) =>
+        await _orderRepository.GetByIdAsync(saga.OrderId)
             ?? throw new InvalidOperationException($"OrderId {saga.OrderId} için sipariş bulunamadı.");
 
-        if (!order.TrySetStatusToCanceled())
+    // Sebep (stok/ödeme) ayrı kayıt olarak eklendiği için iptal kaydına not yalnızca zaman aşımında yazılır
+    private async Task CancelAsync(OrderState saga, Domain.Entities.Order order, DateTime canceledAt, string? note,
+        string message, CancellationToken cancellationToken)
+    {
+        if (!order.TrySetStatusToCanceled(canceledAt, note))
         {
             // Order'ı yalnızca saga değiştirir; buraya düşmek saga ile Order'ın ayrıştığını gösterir
             _logger.LogWarning("[CorrelationId: {CorrelationId}] OrderId {OrderId} zaten '{Status}' durumunda.",

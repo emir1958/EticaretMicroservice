@@ -1,0 +1,33 @@
+.change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.good,
+.bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.good {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.bad {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.neutral {
+  color: var(--color-text-muted);
+}

@@ -1,53 +1,66 @@
 # ecommerce-ui Mimarisi
 
-React + Vite ile yazılmış müşteri ve yönetim arayüzü. Tüm istekler API Gateway'e (YARP) gider.
+React + TypeScript + Vite ile yazılmış müşteri ve yönetim arayüzü. Tüm istekler API Gateway'e (YARP) gider.
 
 ## Klasör yapısı
 
 ```
 src/
-  main.jsx              Giriş noktası: global CSS ve <App />
+  main.tsx              Giriş noktası: global CSS ve <App />
   app/                  Uygulamanın iskeleti
-    App.jsx             Global provider'lar (Router, Auth, Cart)
-    AppRoutes.jsx       Tüm adresler tek yerde
+    App.tsx             Global provider'lar (Router, Auth, Cart)
+    AppRoutes.tsx       Tüm adresler tek yerde
     layouts/            Sayfaları saran iskeletler: CustomerLayout (header, footer, sepet), AdminLayout (kenar çubuğu)
-  config/env.js         Ortam ayarları (VITE_API_URL). import.meta.env yalnızca burada okunur
-  lib/apiClient.js      Tek HTTP istemcisi (axios + interceptor'lar) ve getErrorMessage
+  config/env.ts         Ortam ayarları (VITE_API_URL). import.meta.env yalnızca burada okunur
+  config/brand.ts       Marka adı ve sloganı (header, footer, sayfa başlıkları)
+  lib/apiClient.ts      Tek HTTP istemcisi (axios + interceptor'lar), getErrorMessage ve getErrorStatus
+  lib/session.ts        Access token'ın bellekteki tek sahibi + refresh (aynı anda gelen çağrılar tek isteğe birleşir)
+  lib/jwt.ts            JWT payload okuma (imza doğrulamaz; yalnızca arayüz kararları için)
   shared/               Hiçbir feature'a ait olmayan, herkesin kullandığı parçalar
-    components/         Button, FormField, Alert, EmptyState (iş mantığı içermez)
-    hooks/              useAsync (veri çekme kalıbı)
-    utils/              formatPrice, formatDate ...
+    components/         İş mantığı içermeyen arayüz parçaları:
+                          Button/ButtonLink, IconButton, FormField/TextAreaField/SelectField, Alert, Badge, EmptyState,
+                          Skeleton, PageLoader, Dialog (modal + çekmece), Menu, Pagination, FilterTabs, SearchInput, Breadcrumb,
+                          Picture (boyutlu görsel + yer tutucu), QuantityStepper, Logo
+    toast/              ToastProvider + useToast: kısa ömürlü geri bildirim ("sepete eklendi")
+    hooks/              useAsync (veri çekme kalıbı), useDebouncedValue (arama kutusunda her tuşta istek atmamak için)
+    utils/              formatPrice, formatDate ..., sizedImageUrl (görseli gösterileceği genişlikte ister)
   styles/               tokens.css (tasarım token'ları), global.css (temel stiller)
   features/             İş alanlarına göre bölünmüş kod
-    auth/               Giriş, kayıt, token, korumalı route'lar
-    cart/               Sepet (misafir + Redis), sepet çekmecesi
-    catalog/            Ürün listesi ve detay, stok birleştirme
+    auth/               Giriş, kayıt, çıkış, korumalı route'lar. Oturum: access token (15 dk) yalnızca bellekte (lib/session),
+                          sayfa açılınca ve süre dolmadan önce HttpOnly refresh cookie'si ile yenilenir; localStorage'da token yoktur
+    cart/               Sepet (misafir + Redis), sepet çekmecesi, sepetin stok kontrolü (useCartStock)
+    catalog/            Ana sayfa, ürün listesi (arama/filtre/sıralama) ve detay; catalogView.ts saf filtre/sıralama fonksiyonları
+    stock/              Stock servisinin istemcisi (yalnızca api.ts): stok okuma ve güncelleme
     orders/             Ödeme, siparişlerim, canlı sipariş durumu (SignalR)
-    admin/              Yönetim paneli sayfaları (+ admin.module.css: admin sayfalarının ortak başlık/panel/tablo stilleri)
+    account/            Müşterinin hesap sayfası
+    admin/              Yönetim paneli: gösterge paneli, siparişler, müşteriler, indirimler, ürünler, kategoriler, stok, sistem
+                          api.ts (kullanıcı listesi, servis sağlığı), analytics.ts (dönem sınırları, yüzde değişim, sunucu verisini kullanıcılarla birleştirme; ciro/sipariş/çok satan raporları Order servisinde SQL ile hesaplanır, bkz. orders/api.ts),
+                          admin.module.css (admin sayfalarının ortak başlık/panel/tablo stilleri)
 ```
 
 Bir feature klasörünün içi:
 
 ```
 features/<ad>/
-  api.js                Backend ile konuşan tek yer
-  <Ad>Context.jsx       (gerekirse) feature'ın global state'i ve use<Ad>() hook'u
+  api.ts                Backend ile konuşan tek yer
+  types.ts              Backend sözleşmesinin tipleri (Product, Order ...)
+  <Ad>Context.tsx       (gerekirse) feature'ın global state'i ve use<Ad>() hook'u
   components/           Bu feature'a ait bileşenler
-  pages/                Route'a bağlanan sayfalar (<Ad>Page.jsx + <Ad>Page.module.css)
+  pages/                Route'a bağlanan sayfalar (<Ad>Page.tsx + <Ad>Page.module.css)
 ```
 
 ## Kurallar
 
-### 1. Bileşenler HTTP isteği yapmaz; `api.js` yapar
+### 1. Bileşenler HTTP isteği yapmaz; `api.ts` yapar
 Sayfa `getProductsWithStock()` çağırır; URL'yi, cevabın şeklini veya stokun başka servisten geldiğini bilmez.
-Backend sözleşmesi değişirse yalnızca ilgili `api.js` değişir.
+Backend sözleşmesi değişirse yalnızca ilgili `api.ts` değişir.
 
 ```
-Sayfa ──> features/catalog/api.js ──> lib/apiClient.js ──> Gateway ──> Catalog.Api / Stock.Api
+Sayfa ──> features/catalog/api.ts ──> lib/apiClient.ts ──> Gateway ──> Catalog.Api / Stock.Api
 ```
 
-- `apiClient`'ı yalnızca `api.js` dosyaları import eder.
-- `api.js` fonksiyonları **veriyi** döner (`response` nesnesini değil): `return data;`
+- `apiClient`'ı yalnızca `api.ts` dosyaları import eder.
+- `api.ts` fonksiyonları **veriyi** döner (`response` nesnesini değil): `return data;`
 - Backend camelCase JSON döner ve cevapları zarflamaz (`{ data: ... }` yok). Tahmine dayalı
   fallback (`res.data?.data || res.data`, `item.ProductId || item.productId`) yazılmaz.
 - Hata mesajı her zaman `getErrorMessage(err, "varsayılan mesaj")` ile okunur.
@@ -55,23 +68,23 @@ Sayfa ──> features/catalog/api.js ──> lib/apiClient.js ──> Gateway �
 ### 2. Sayfa verisi `useAsync` ile çekilir
 Loading, hata ve race condition (eski isteğin geç gelen cevabı) tek yerde çözülür; sayfalar bunu elle yazmaz.
 
-```jsx
+```tsx
 const { data: order, error, isLoading, reload } = useAsync(() => getMyOrder(id), [id]);
 ```
 
 - İkinci parametre `useEffect`'teki gibi bağımlılık listesidir; ESLint eksik bağımlılığı uyarır.
 - Değişiklikten sonra listeyi yenilemek için `reload()` (eski veri yenilenirken ekranda kalır).
-- Hata mesajı: `getErrorMessage(error, "...")`. Özel durumlar `error.response?.status` ile ayrılır (örn. 404).
+- Hata mesajı: `getErrorMessage(error, "...")`. Özel durumlar `getErrorStatus(error)` ile ayrılır (örn. 404).
 - Birden fazla isteğin birleşimi gerekiyorsa sayfa modülünde küçük bir `load...()` fonksiyonu yazılır
   (bkz. `ProductDetailPage` → `loadProductDetail`).
 - `useEffect` doğrudan yalnızca dış bir sistemle senkronizasyon için kullanılır: SignalR aboneliği
   (`useOrderHub`), girişte sepet birleştirme (`CartContext`). "Sayfa açılınca veri getir" bunlardan biri değildir.
 
 ### 3. Layout ve yetki kontrolü route ağacında, sayfada değil
-Sayfa kendini `<AdminLayout>` ile sarmaz, `<ProtectedRoute>` içine almaz. Bunlar `AppRoutes.jsx`'te
+Sayfa kendini `<AdminLayout>` ile sarmaz, `<ProtectedRoute>` içine almaz. Bunlar `AppRoutes.tsx`'te
 path'siz "layout route" olarak bir kez yazılır; içlerindeki `<Outlet />` eşleşen sayfanın yerini belirler.
 
-```jsx
+```tsx
 <Route path="/admin" element={<AdminRoute />}>      {/* yetki: admin değilse sayfaya hiç inilmez */}
   <Route element={<AdminLayout />}>                 {/* iskelet: kenar çubuğu */}
     <Route path="orders" element={<AdminOrdersPage />} />
@@ -83,7 +96,9 @@ path'siz "layout route" olarak bir kez yazılır; içlerindeki `<Outlet />` eşl
 - Guard'lar (`ProtectedRoute`, `AdminRoute`) yalnızca arayüzü yönetir; asıl yetki kontrolü backend'de
   (`[Authorize(Roles = "Admin")]`).
 - Render saf kalır: `alert()`, `confirm()` gibi tarayıcı diyalogları kullanılmaz; durum ekranda gösterilir
-  (örn. silme için satır içi onay, yetkisiz erişim için `EmptyState`).
+  (örn. silme onayı için `Dialog`, yetkisiz erişim için `EmptyState`).
+- Yönetim paneli `React.lazy` ile ayrı JS parçalarına bölünür: müşteri admin kodunu hiç indirmez.
+  Yeni admin sayfası da `lazy(() => import(...))` ile eklenir.
 
 ### 4. Bağımlılıklar tek yönde akar
 ```
@@ -96,12 +111,15 @@ shared, lib, config   <──   features   <──   app
 | Feature   | Kullanabildikleri         |
 |-----------|---------------------------|
 | `auth`    | — (hiçbir feature)        |
-| `cart`    | `auth`                    |
-| `catalog` | `auth`, `cart`            |
+| `stock`   | — (hiçbir feature)        |
+| `cart`    | `auth`, `stock`           |
+| `catalog` | `auth`, `cart`, `stock`   |
 | `orders`  | `auth`, `cart`            |
-| `admin`   | `auth`, `catalog`, `orders` |
+| `account` | `auth`, `orders`          |
+| `admin`   | `auth`, `catalog`, `orders`, `stock` |
 
   Örnek: `catalog` sepete ürün eklemek için `cart`'ı kullanır; `cart` asla `catalog`'u import etmez.
+  Stok bilgisine ihtiyaç duyan her feature onu `catalog`'dan değil `stock`'tan alır (backend'de de ayrı servis).
   Döngü (A → B → A) olursa iki feature aslında birbirinden ayrılamıyor demektir: ortak parça `shared/`'a alınır.
 
 ### 5. Bir şeyin yeri, onu kimin kullandığına göre seçilir
@@ -121,22 +139,26 @@ shared, lib, config   <──   features   <──   app
 - Her bileşen/sayfa kendi `.module.css` dosyasını kullanır; sabit renk/boşluk yerine `tokens.css` değişkenleri.
   Yeni bir renk gerekiyorsa önce anlamlı bir token eklenir (örn. `--color-sidebar-bg`).
 - Inline `style={{}}` kullanılmaz.
-- Form alanı her zaman `FormField`, hata/başarı mesajı her zaman `Alert`: aynı input stili üç yerde kopyalanmaz.
+- Form alanı her zaman `FormField` (çok satırlı metin için `TextAreaField`, seçim için `SelectField`), alan hatası
+  `error` prop'u ile alanın altında; form/sayfa hatası `Alert`; geçici başarı bildirimi `useToast()`.
+  Buton görünümlü link için `ButtonLink`, yalnızca ikonlu buton için `IconButton` (label zorunlu).
+- Ürün görseli her zaman `Picture`: doğru boyutta dosya ister, adres boşsa veya yüklenemezse yer tutucu gösterir.
+- Durum her zaman metinle birlikte gösterilir (`Badge`); renk tek başına anlam taşımaz.
 - Bir feature'ın birden çok sayfasında ortak olan stiller feature kökünde durur
   (örn. `features/admin/admin.module.css` → `import ui from "../admin.module.css"`).
 - Dikkat: CSS Modules'te tanımsız sınıf (`styles.yanlisAd`) hata vermez, sessizce `undefined` olur.
   Sınıf adını değiştirince kullanıldığı yerleri de ara.
 
 ### 8. Ortam ayarları
-- Ayarlar `config/env.js` üzerinden okunur. Vite `VITE_` değişkenlerini bundle'a gömer: secret yazılmaz.
-- Production build'de `VITE_API_URL` zorunludur (`vite.config.js` build'i durdurur). Bkz. `.env.example`.
+- Ayarlar `config/env.ts` üzerinden okunur. Vite `VITE_` değişkenlerini bundle'a gömer: secret yazılmaz.
+- Production build'de `VITE_API_URL` zorunludur (`vite.config.ts` build'i durdurur). Bkz. `.env.example`.
 
 ## Yeni bir özellik eklemek (örnek: "Favoriler")
 
-1. `features/favorites/api.js` → `getFavorites()`, `addFavorite(productId)` ...
-2. `features/favorites/pages/FavoritesPage.jsx` + `FavoritesPage.module.css`
+1. `features/favorites/api.ts` → `getFavorites()`, `addFavorite(productId)` ...
+2. `features/favorites/pages/FavoritesPage.tsx` + `FavoritesPage.module.css`
 3. Gerekirse `features/favorites/components/` altında feature'a özel bileşenler
-4. `app/AppRoutes.jsx` → giriş gerektirdiği için `<Route element={<ProtectedRoute />}>` grubunun içine:
+4. `app/AppRoutes.tsx` → giriş gerektirdiği için `<Route element={<ProtectedRoute />}>` grubunun içine:
    `<Route path="/favorites" element={<FavoritesPage />} />`
 5. Başka bir feature'ın favorilere ihtiyacı varsa (örn. `catalog` kartta kalp ikonu) bağımlılık yönünü kontrol et:
    `catalog → favorites` olur, `favorites → catalog` olmaz.
@@ -146,6 +168,7 @@ shared, lib, config   <──   features   <──   app
 ```bash
 npm run dev      # Geliştirme sunucusu, her zaman :5173 (backend CORS bu origin'e izin verir; port doluysa hata verir)
                  # VITE_API_URL yoksa http://localhost:5000
-npm run lint     # ESLint
-npm run build    # Production build (VITE_API_URL zorunlu)
+npm run lint       # ESLint
+npm run typecheck  # TypeScript tip kontrolü (tsc -b)
+npm run build      # Tip kontrolü + production build (VITE_API_URL zorunlu)
 ```

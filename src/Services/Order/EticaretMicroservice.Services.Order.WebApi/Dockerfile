@@ -33,4 +33,6 @@ RUN dotnet publish "EticaretMicroservice.Services.Order.WebApi.csproj" -c $BUILD
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+# Root olmayan kullanıcı (.NET 8 imajındaki "app", UID 1654); 8080 ayrıcalıksız port olduğu için başka ayar gerekmez
+USER $APP_UID
 ENTRYPOINT ["dotnet", "EticaretMicroservice.Services.Order.WebApi.dll"]

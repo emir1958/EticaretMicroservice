@@ -8,19 +8,16 @@ using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
-using OpenTelemetry.Logs;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-// 🟢 OpenTelemetry: Tracing ve Logging tek merkezden bağlanır
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Payment.Api");
 builder.Logging.AddSharedLogging(builder.Configuration, "Payment.Api");
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IPaymentService, FakePaymentService>();
 
-// 🟢 1. SQL Server & DbContext Kaydı
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection yapılandırması eksik!");
 
@@ -29,7 +26,6 @@ builder.Services.AddDbContext<PaymentDbContext>(options =>
     options.UseSqlServer(defaultConnection);
 });
 
-// 2. Health Check Kaydı (SQL + RabbitMQ)
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
 var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
 var rabbitPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
@@ -44,13 +40,11 @@ builder.Services.AddHealthChecks()
         name: "Payment-RabbitMQ",
         tags: new[] { "messagebus", "rabbitmq" });
 
-// 🟢 3. MassTransit & Transactional Outbox/Inbox Kaydı
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<StockReservedEventConsumer>();
     x.AddConsumer<RefundPaymentCommandConsumer>();
 
-    // Entity Framework Outbox & Inbox entegrasyonu
     x.AddEntityFrameworkOutbox<PaymentDbContext>(o =>
     {
         o.UseSqlServer();
@@ -75,7 +69,6 @@ builder.Services.AddMassTransit(x =>
             e.UseEntityFrameworkOutbox<PaymentDbContext>(context);
             e.ConfigureConsumer<StockReservedEventConsumer>(context);
 
-            // 🟢 KRİTİK BINDING: Exchange ile kuyruk arasındaki bağı garantiye alır
             e.Bind<StockReservedEvent>();
         });
 
@@ -87,14 +80,12 @@ builder.Services.AddMassTransit(x =>
             e.Bind<RefundPaymentCommand>();
         });
 
-        // 🟢 Diğer tüm endpoint'leri bağlar
         cfg.ConfigureEndpoints(context);
     });
 });
 
 var app = builder.Build();
 
-// 🟢 4. Otomatik Migration (Uygulama kalkarken PaymentDb'yi oluşturur)
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
@@ -110,7 +101,6 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 app.MapControllers();
 
-// 5. Health Check Uç Noktası
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = _ => true,

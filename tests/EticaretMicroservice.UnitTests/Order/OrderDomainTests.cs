@@ -9,7 +9,7 @@ namespace EticaretMicroservice.UnitTests.Order;
 public class OrderDomainTests
 {
     private static Address CreateSampleAddress() =>
-        new("İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1 Daire:5");
+        new("Test Alıcı", "", "İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1 Daire:5");
 
     private static Services.Order.Domain.Entities.Order CreateSampleOrder() =>
         new("buyer-123", CreateSampleAddress(), Guid.NewGuid());
@@ -55,7 +55,7 @@ public class OrderDomainTests
         var order = CreateSampleOrder();
 
         // Act
-        var result = order.TrySetStatusToCompleted();
+        var result = order.TrySetStatusToCompleted(DateTime.UtcNow);
 
         // Assert
         result.Should().BeTrue();
@@ -67,10 +67,10 @@ public class OrderDomainTests
     {
         // Arrange
         var order = CreateSampleOrder();
-        order.TrySetStatusToCanceled();
+        order.TrySetStatusToCanceled(DateTime.UtcNow);
 
         // Act
-        var result = order.TrySetStatusToCompleted();
+        var result = order.TrySetStatusToCompleted(DateTime.UtcNow);
 
         // Assert
         result.Should().BeFalse();
@@ -82,13 +82,148 @@ public class OrderDomainTests
     {
         // Arrange
         var order = CreateSampleOrder();
-        order.TrySetStatusToCompleted();
+        order.TrySetStatusToCompleted(DateTime.UtcNow);
 
         // Act
-        var result = order.TrySetStatusToCanceled();
+        var result = order.TrySetStatusToCanceled(DateTime.UtcNow);
 
         // Assert
         result.Should().BeFalse();
         order.OrderStatus.Should().Be(OrderStatus.Tamamlandı);
+    }
+
+    [Fact]
+    public void Order_WhenCreated_ShouldHaveAlinmadiPaymentStatus()
+    {
+        var order = CreateSampleOrder();
+
+        order.PaymentStatus.Should().Be(PaymentStatus.Alinmadi);
+        order.RefundedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryMarkRefunded_WhenPaymentReceived_ShouldSetRefundedAt()
+    {
+        var order = CreateSampleOrder();
+        order.TryMarkPaymentReceived(DateTime.UtcNow);
+        var refundedAt = new DateTime(2026, 11, 15, 10, 0, 0, DateTimeKind.Utc);
+
+        var result = order.TryMarkRefunded(refundedAt);
+
+        result.Should().BeTrue();
+        order.PaymentStatus.Should().Be(PaymentStatus.IadeEdildi);
+        order.RefundedAt.Should().Be(refundedAt);
+    }
+
+    // Alınmamış ödeme iade edilmiş sayılmaz
+    [Fact]
+    public void TryMarkRefunded_WhenPaymentNotReceived_ShouldReturnFalse()
+    {
+        var order = CreateSampleOrder();
+
+        var result = order.TryMarkRefunded(DateTime.UtcNow);
+
+        result.Should().BeFalse();
+        order.PaymentStatus.Should().Be(PaymentStatus.Alinmadi);
+        order.RefundedAt.Should().BeNull();
+    }
+
+    // Kopya iade bildirimi ilk iade tarihini ezmemeli
+    [Fact]
+    public void TryMarkRefunded_WhenAlreadyRefunded_ShouldKeepFirstRefundDate()
+    {
+        var order = CreateSampleOrder();
+        order.TryMarkPaymentReceived(DateTime.UtcNow);
+        var firstRefund = new DateTime(2026, 11, 15, 10, 0, 0, DateTimeKind.Utc);
+        order.TryMarkRefunded(firstRefund);
+
+        var result = order.TryMarkRefunded(firstRefund.AddMinutes(5));
+
+        result.Should().BeFalse();
+        order.RefundedAt.Should().Be(firstRefund);
+    }
+
+    [Fact]
+    public void TryMarkPaymentFailed_WhenPaymentReceived_ShouldReturnFalse()
+    {
+        var order = CreateSampleOrder();
+        order.TryMarkPaymentReceived(DateTime.UtcNow);
+
+        var result = order.TryMarkPaymentFailed(DateTime.UtcNow, null);
+
+        result.Should().BeFalse();
+        order.PaymentStatus.Should().Be(PaymentStatus.Alindi);
+    }
+
+    // --- Geçmiş ---
+
+    [Fact]
+    public void Order_WhenCreated_ShouldStartHistoryWithSiparisAlindi()
+    {
+        var order = CreateSampleOrder();
+
+        order.History.Should().ContainSingle()
+            .Which.Should().Match<OrderHistoryEntry>(h => h.Type == OrderHistoryType.SiparisAlindi && h.OccurredAt == order.CreatedDate);
+    }
+
+    [Fact]
+    public void SuccessfulFlow_ShouldRecordEachStepInOrder()
+    {
+        var order = CreateSampleOrder();
+        var at = DateTime.UtcNow;
+
+        order.TryMarkStockReserved(at);
+        order.TryMarkPaymentReceived(at);
+        order.TrySetStatusToCompleted(at);
+
+        order.History.Select(h => h.Type).Should().Equal(
+            OrderHistoryType.SiparisAlindi, OrderHistoryType.StokAyrildi, OrderHistoryType.OdemeAlindi, OrderHistoryType.Tamamlandi);
+    }
+
+    // Durumu değiştirmeyen çağrı (kopya event) geçmişe kayıt eklememeli
+    [Fact]
+    public void DuplicateCalls_ShouldNotAddDuplicateHistory()
+    {
+        var order = CreateSampleOrder();
+        var at = DateTime.UtcNow;
+
+        order.TryMarkStockReserved(at);
+        order.TryMarkStockReserved(at);
+        order.TryMarkPaymentReceived(at);
+        order.TryMarkPaymentReceived(at);
+        order.TrySetStatusToCompleted(at);
+        order.TrySetStatusToCanceled(at);
+
+        order.History.Should().HaveCount(4);
+    }
+
+    [Fact]
+    public void TryMarkStockFailed_ShouldKeepReasonAsNote()
+    {
+        var order = CreateSampleOrder();
+
+        order.TryMarkStockFailed(DateTime.UtcNow, "Yetersiz stok");
+
+        order.History.Last().Should().Match<OrderHistoryEntry>(h => h.Type == OrderHistoryType.StokYetersiz && h.Note == "Yetersiz stok");
+    }
+
+    // Ödeme stoktan önce işlenmişse stok sonucu tamamlanmış siparişe gelir ve yine kaydedilir
+    [Fact]
+    public void TryMarkStockReserved_AfterCompletion_ShouldRecord()
+    {
+        var order = CreateSampleOrder();
+        order.TrySetStatusToCompleted(DateTime.UtcNow);
+
+        order.TryMarkStockReserved(DateTime.UtcNow).Should().BeTrue();
+    }
+
+    [Fact]
+    public void TryMarkStockReserved_AfterCancel_ShouldNotRecord()
+    {
+        var order = CreateSampleOrder();
+        order.TrySetStatusToCanceled(DateTime.UtcNow, "Ödeme süresi doldu.");
+
+        order.TryMarkStockReserved(DateTime.UtcNow).Should().BeFalse();
+        order.History.Select(h => h.Type).Should().NotContain(OrderHistoryType.StokAyrildi);
     }
 }

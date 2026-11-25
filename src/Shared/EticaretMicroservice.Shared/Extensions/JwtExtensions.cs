@@ -1,25 +1,31 @@
-﻿using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 
 namespace EticaretMicroservice.Shared.Extensions;
 
-// EticaretMicroservice.Shared/Extensions/JwtExtensions.cs
 public static class JwtExtensions
 {
     public static IServiceCollection AddSharedJwtAuthentication(
         this IServiceCollection services,
         IConfiguration configuration,
-        string? signalRHubPath = null) // 👈 Opsiyonel SignalR rotası
+        string? signalRHubPath = null, // Opsiyonel SignalR rotası
+        SecurityKey? signingKey = null)
     {
-        var secretKey = configuration["Jwt:SecretKey"]
-            ?? throw new InvalidOperationException("JWT SecretKey yapılandırması eksik!");
         var issuer = configuration["Jwt:Issuer"] ?? "EticaretIdentityServer";
         var audience = configuration["Jwt:Audience"] ?? "EticaretGateway";
 
-        var key = Encoding.UTF8.GetBytes(secretKey);
+        var publicKeyPem = configuration["Jwt:PublicKey"];
+        var metadataAddress = configuration["Jwt:MetadataAddress"];
+
+        SecurityKey? staticKey = signingKey ?? (string.IsNullOrWhiteSpace(publicKeyPem) ? null : JwtKeys.LoadPublicKey(publicKeyPem));
+
+        if (staticKey is null && string.IsNullOrWhiteSpace(metadataAddress))
+        {
+            throw new InvalidOperationException(
+                "JWT doğrulama anahtarı yapılandırması eksik! Jwt:MetadataAddress (Identity'nin openid-configuration adresi) ya da Jwt:PublicKey verilmeli.");
+        }
 
         services.AddAuthentication(options =>
         {
@@ -28,12 +34,20 @@ public static class JwtExtensions
         })
         .AddJwtBearer(options =>
         {
+            // Servisler Docker ağı içinde HTTP ile konuşur; TLS'i dışarıdaki katman (load balancer) sonlandırır
             options.RequireHttpsMetadata = false;
             options.SaveToken = true;
+
+            if (staticKey is null)
+                options.MetadataAddress = metadataAddress!;
+
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
+                IssuerSigningKey = staticKey,
+                // Yalnızca RS256 kabul edilir. Kütüphane RSA anahtarına karşı HS256 doğrulamayı zaten reddeder (algoritma karıştırma
+                // saldırısı, Gateway testlerinde denenir); bu satır ek bir savunma katmanı ve niyeti açıkça belirtir.
+                ValidAlgorithms = new[] { SecurityAlgorithms.RsaSha256 },
                 ValidateIssuer = true,
                 ValidIssuer = issuer,
                 ValidateAudience = true,
@@ -42,12 +56,6 @@ public static class JwtExtensions
                 ClockSkew = TimeSpan.FromSeconds(30)
             };
 
-            // 🟢 WEBSOCKET / SIGNALR QUERY STRING YAKALAMA MANTIĞI:
-            // Standart HTTP isteklerinde header şöyledir: "Authorization: Bearer <token>"
-            // Ancak tarayıcılar (JavaScript WebSocket API) handshake sırasında custom header ekleyemez!
-            // Bu yüzden SignalR istemcisi token'ı mecbur URL sonuna "?access_token=..." olarak ekler.
-            // Buradaki kod gelen isteği dinler; eğer rota SignalR rotasıysa URL'den token'ı söker 
-            // ve JwtBearer middleware'ine "İşte doğrulanacak token bu" der.
             if (!string.IsNullOrWhiteSpace(signalRHubPath))
             {
                 options.Events = new JwtBearerEvents

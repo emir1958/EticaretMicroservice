@@ -368,3 +368,6 @@ FodyWeavers.xsd
 .env
 .env.*
 !.env.example
+
+# Playwright MCP çıktıları (ekran görüntüleri, konsol günlükleri)
+.playwright-mcp/

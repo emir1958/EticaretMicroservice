@@ -25,7 +25,10 @@ public class CompleteOrderActivity : IStateMachineActivity<OrderState, PaymentCo
         var order = await _orderRepository.GetByIdAsync(context.Saga.OrderId)
             ?? throw new InvalidOperationException($"OrderId {context.Saga.OrderId} için sipariş bulunamadı.");
 
-        if (order.TrySetStatusToCompleted())
+        var paidAt = context.Message.CreatedAt;
+        order.TryMarkPaymentReceived(paidAt);
+
+        if (order.TrySetStatusToCompleted(paidAt))
         {
             await _notifier.NotifyOrderStateAsync(context.Saga.BuyerId, order.Id, "Completed",
                 "Siparişiniz ve ödemeniz başarıyla onaylandı!", context.CancellationToken);

@@ -1,0 +1,48 @@
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+}
+
+.stepper button {
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text);
+  transition: background var(--transition);
+}
+
+.stepper button:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+}
+
+.stepper button:disabled {
+  cursor: not-allowed;
+  color: var(--color-border-strong);
+}
+
+.md button {
+  width: 50px;
+  height: 50px;
+}
+
+.sm button {
+  width: 34px;
+  height: 34px;
+}
+
+.value {
+  min-width: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.sm .value {
+  min-width: 22px;
+  font-size: var(--font-size-sm);
+}

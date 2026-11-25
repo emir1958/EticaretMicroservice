@@ -9,6 +9,10 @@
   <ItemGroup>
     <PackageReference Include="AspNetCore.HealthChecks.UI" Version="8.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.UI.InMemory.Storage" Version="8.0.0" />
+    <!-- AspNetCore.HealthChecks.UI'nin geçişli olarak çektiği KubernetesClient 12.x sürümünde sertifika doğrulama zafiyeti var (Kubernetes keşfi kullanılmıyor).
+         17.x'e çıkınca eski sürümün getirdiği IdentityModel düşüyor ve HealthChecks UI çalışma zamanında "IdentityModel yüklenemedi" ile çöküyor; bu yüzden ayrıca sabitlenir. -->
+    <PackageReference Include="KubernetesClient" Version="17.0.14" />
+    <PackageReference Include="IdentityModel" Version="5.2.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
   </ItemGroup>

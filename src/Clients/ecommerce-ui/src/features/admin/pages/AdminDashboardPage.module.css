@@ -1,0 +1,228 @@
+/* 6 sütun: grafik 4 + durumlar 2, en çok satanlar 3 + stok 3, son siparişler tam satır */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.grid > * {
+  grid-column: span 3;
+}
+
+.grid > .chartPanel {
+  grid-column: span 4;
+}
+
+.grid > .statusPanel {
+  grid-column: span 2;
+}
+
+.grid > .recentPanel {
+  grid-column: 1 / -1;
+}
+
+/* --- Durum dağılımı --- */
+
+.stack {
+  display: block;
+  width: 100%;
+  height: 14px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+}
+
+.segCompleted {
+  fill: var(--color-success);
+  background: var(--color-success);
+}
+
+.segPending {
+  fill: var(--color-chart-3);
+  background: var(--color-chart-3);
+}
+
+.segCanceled {
+  fill: var(--color-danger);
+  background: var(--color-danger);
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+}
+
+.legend li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.legendLabel {
+  color: var(--color-text-secondary);
+}
+
+.legendValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.legendShare {
+  min-width: 52px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* --- En çok satanlar --- */
+
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.top li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.topThumb {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+}
+
+.topBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.topRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.topName {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topBar {
+  display: block;
+  width: 100%;
+  height: 4px;
+  margin: 6px 0 2px;
+}
+
+.topTrack {
+  fill: var(--color-surface-sunken);
+}
+
+.topFill {
+  fill: var(--color-chart-1);
+}
+
+/* --- Stok uyarıları --- */
+
+.stockList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stockList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+
+.stockList li:last-child {
+  border-bottom: none;
+}
+
+.stockName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Son siparişler: panelin kenar boşluğuna yaslanan tablo --- */
+
+.recentTable {
+  position: relative;
+  margin: 0 calc(var(--space-6) * -1) calc(var(--space-6) * -1);
+  overflow-x: auto;
+}
+
+.recentTable th:first-child,
+.recentTable td:first-child {
+  padding-left: var(--space-6);
+}
+
+.recentTable th:last-child,
+.recentTable td:last-child {
+  padding-right: var(--space-6);
+}
+
+.note {
+  margin-top: var(--space-4);
+}
+
+.skeletonTitle {
+  width: 260px;
+  height: 40px;
+}
+
+.skeletonChart {
+  height: 340px;
+  border-radius: var(--radius-lg);
+}
+
+@media (max-width: 1200px) {
+  .grid > .chartPanel,
+  .grid > .statusPanel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .grid > * {
+    grid-column: 1 / -1;
+  }
+
+  .recentTable {
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-5) * -1);
+  }
+
+  .recentTable th:first-child,
+  .recentTable td:first-child {
+    padding-left: var(--space-4);
+  }
+}

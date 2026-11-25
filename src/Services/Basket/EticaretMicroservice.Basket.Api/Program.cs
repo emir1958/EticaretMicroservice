@@ -5,7 +5,6 @@ using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Logs;
-using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,7 +12,6 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSharedSwagger();
 
-// 1. OpenTelemetry
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Basket.Api");
 builder.Logging.AddOpenTelemetry(loggingOptions =>
 {
@@ -21,15 +19,10 @@ builder.Logging.AddOpenTelemetry(loggingOptions =>
     loggingOptions.IncludeScopes = true;
     loggingOptions.AddOtlpExporter(); // Logları OTLP üzerinden Aspire Dashboard'a gönderir
 });
-// 2. Redis Bağlantısı
 var redisConnString = builder.Configuration["Redis:ConnectionString"]
     ?? builder.Configuration.GetConnectionString("Redis")
     ?? "localhost:6379";
 
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-    ConnectionMultiplexer.Connect(redisConnString));
-
-// IDistributedCache kullanabilmek için StackExchangeRedisCache eklenir
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = redisConnString;
@@ -37,7 +30,6 @@ builder.Services.AddStackExchangeRedisCache(options =>
 
 builder.Services.AddScoped<IBasketService, BasketService>();
 
-// 3. Health Checks (Redis + RabbitMQ)
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
 var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
 var rabbitPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
@@ -52,7 +44,7 @@ builder.Services.AddHealthChecks()
         name: "Basket-RabbitMQ",
         tags: new[] { "messagebus", "rabbitmq" });
 
-// 4. MassTransit & RabbitMQ (Sipariş tamamlandığında sepeti temizleme tüketimi)
+// Ödeme tamamlanınca kullanıcının sepeti temizlenir
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<BasketPaymentCompletedEventConsumer>();
@@ -67,7 +59,6 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitPass);
         });
 
-        // Ortak Retry & DLQ politikası
         cfg.ConfigureSharedRetryAndDeadLetter(context);
 
         cfg.ReceiveEndpoint("basket-payment-completed-queue", e =>
@@ -79,12 +70,10 @@ builder.Services.AddMassTransit(x =>
 
 builder.Services.AddSharedCors();
 
-// 5. JWT Doğrulama (Issuer & Audience korumalı)
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
 var app = builder.Build();
 
-// 6. Global Exception Middleware
 app.UseCustomExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -99,7 +88,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// 7. Health Check Endpoint
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = _ => true,

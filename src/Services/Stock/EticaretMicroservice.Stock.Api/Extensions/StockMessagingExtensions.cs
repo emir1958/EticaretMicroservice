@@ -12,7 +12,6 @@ public static class StockMessagingExtensions
         x.AddConsumer<PaymentFailedEventConsumer>();
         x.AddConsumer<ReleaseStockCommandConsumer>();
         x.AddConsumer<ProductCreatedEventConsumer>();
-        x.AddConsumer<StockUpdatedEventConsumer>();
         x.AddConsumer<StockPaymentCompletedEventConsumer>();
 
         x.AddEntityFrameworkOutbox<StockDbContext>(o =>

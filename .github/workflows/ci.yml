@@ -5,6 +5,9 @@ on:
     branches: [master, Emir]
   pull_request:
     branches: [master]
+  # Haftalık çalışma, kodla ilgisiz yayımlanan yeni advisory'leri (dependencies job'ı) yakalar
+  schedule:
+    - cron: "0 6 * * 1"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -53,6 +56,14 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: dotnet test tests/EticaretMicroservice.Payment.IntegrationTests -c Release --no-build --logger trx --results-directory TestResults
 
+      - name: Gateway integration tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: dotnet test tests/EticaretMicroservice.Gateway.IntegrationTests -c Release --no-build --logger trx --results-directory TestResults
+
+      - name: Identity integration tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: dotnet test tests/EticaretMicroservice.Identity.IntegrationTests -c Release --no-build --logger trx --results-directory TestResults
+
       - name: Upload test results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -85,7 +96,45 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
         env:
           VITE_API_URL: http://localhost:5000
+
+  # Bilinen zafiyetli bağımlılık denetimi. Ayrı job: yeni bir advisory yayımlandığında kodla ilgisiz olarak
+  # kırmızı olabilir, bu yüzden test sonuçlarını gölgelemez.
+  dependencies:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/Clients/ecommerce-ui/package-lock.json
+
+      - name: NuGet vulnerabilities
+        run: |
+          dotnet restore EticaretMicroservice.sln
+          dotnet list EticaretMicroservice.sln package --vulnerable --include-transitive 2>&1 | tee vulnerable.txt
+          if grep -q "has the following vulnerable packages" vulnerable.txt; then
+            echo "::error::Zafiyetli NuGet paketi bulundu (ayrıntı yukarıda)"
+            exit 1
+          fi
+
+      - name: npm vulnerabilities (production)
+        working-directory: src/Clients/ecommerce-ui
+        run: |
+          npm ci
+          npm audit --omit=dev --audit-level=high

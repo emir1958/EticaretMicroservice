@@ -58,7 +58,7 @@ public class OrderSagaTestDriver
 
         var command = new CreateOrderCommand
         {
-            Address = new AddressDto { City = "İstanbul", District = "Kadıköy", Street = "Moda Cad.", ZipCode = "34710", Line = "No:1" },
+            Address = new AddressDto { ContactName = "Test Alıcı", City = "İstanbul", District = "Kadıköy", Street = "Moda Cad.", ZipCode = "34710", Line = "No:1" },
             Payment = new PaymentDto { PaymentToken = "tok_saga_test" },
             OrderItems = new List<OrderItemDto>
             {
@@ -85,7 +85,7 @@ public class OrderSagaTestDriver
     public async Task<CreatedOrder> CreateOrderWithoutSagaAsync()
     {
         var buyerId = $"saga-buyer-{Guid.NewGuid():N}";
-        var order = new Services.Order.Domain.Entities.Order(buyerId, new Address("İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1"), Guid.NewGuid());
+        var order = new Services.Order.Domain.Entities.Order(buyerId, new Address("Test Alıcı", "", "İstanbul", "Kadıköy", "Moda Cad.", "34710", "No:1"), Guid.NewGuid());
         order.AddOrderItem($"{ProductPrefix}{Guid.NewGuid():N}", "Saga Test Ürünü", ProductPrice, 1);
 
         using var scope = _factory.Services.CreateScope();
@@ -141,6 +141,48 @@ public class OrderSagaTestDriver
             BuyerId = order.BuyerId,
             Message = "Kart reddedildi"
         });
+
+    public Task PaymentRefundedAsync(CreatedOrder order, DateTime refundedAt) =>
+        Harness.Bus.Publish(new PaymentRefundedEvent
+        {
+            CorrelationId = order.CorrelationId,
+            OrderId = order.OrderId,
+            Amount = ProductPrice,
+            CreatedAt = refundedAt
+        });
+
+    public async Task<(PaymentStatus Status, DateTime? RefundedAt)> GetPaymentAsync(int orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var payment = await dbContext.Orders.AsNoTracking()
+            .Where(o => o.Id == orderId)
+            .Select(o => new { o.PaymentStatus, o.RefundedAt })
+            .SingleAsync();
+        return (payment.PaymentStatus, payment.RefundedAt);
+    }
+
+    public Task WaitForPaymentStatusAsync(CreatedOrder order, PaymentStatus expected) =>
+        WaitUntilAsync(async () => (await GetPaymentAsync(order.OrderId)).Status == expected,
+            $"OrderId {order.OrderId} ödeme durumu '{expected}' olmalı");
+
+    // API'nin gösterdiği sırayla: zamana göre, aynı andakiler eklenme sırasıyla
+    public async Task<List<(OrderHistoryType Type, string? Note)>> GetHistoryAsync(int orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var entries = await dbContext.Orders.AsNoTracking()
+            .Where(o => o.Id == orderId)
+            .SelectMany(o => o.History)
+            .OrderBy(h => h.OccurredAt).ThenBy(h => h.Id)
+            .Select(h => new { h.Type, h.Note })
+            .ToListAsync();
+        return entries.Select(h => (h.Type, h.Note)).ToList();
+    }
+
+    public Task WaitForHistoryAsync(CreatedOrder order, OrderHistoryType expected) =>
+        WaitUntilAsync(async () => (await GetHistoryAsync(order.OrderId)).Any(h => h.Type == expected),
+            $"OrderId {order.OrderId} geçmişinde '{expected}' olmalı");
 
     // Zamanlayıcı dışından gelen (token'sız) timeout mesajı: erken/başıboş teslimi simüle eder
     public Task PaymentTimeoutAsync(CreatedOrder order) =>

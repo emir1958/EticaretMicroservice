@@ -1,6 +1,7 @@
 using EticaretMicroservice.Payment.Api.Consumers;
 using EticaretMicroservice.Payment.Api.Data;
 using EticaretMicroservice.Payment.Api.Services;
+using EticaretMicroservice.Shared.Events;
 using MassTransit;
 using MassTransit.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,7 @@ public sealed class PaymentTestHost : IAsyncDisposable
         services.AddMassTransitTestHarness(x =>
         {
             x.AddConsumer<RefundPaymentCommandConsumer>();
+            x.AddConsumer<PaymentRefundedSink>();
             x.AddEntityFrameworkOutbox<PaymentDbContext>(o =>
             {
                 o.UseSqlServer();
@@ -47,6 +49,8 @@ public sealed class PaymentTestHost : IAsyncDisposable
                     e.UseEntityFrameworkOutbox<PaymentDbContext>(context);
                     e.ConfigureConsumer<RefundPaymentCommandConsumer>(context);
                 });
+
+                cfg.ReceiveEndpoint("payment-refunded-sink", e => e.ConfigureConsumer<PaymentRefundedSink>(context));
             });
         });
 
@@ -60,6 +64,11 @@ public sealed class PaymentTestHost : IAsyncDisposable
 
     public Task PublishAsync<T>(T message) where T : class =>
         Harness.Bus.Publish(message, ctx => ctx.MessageId = NewId.NextGuid());
+
+    // Outbox mesajları commit sonrası gönderildiği için harness'ın Published listesi bunları tanımaz;
+    // Order'a ulaşacak event, onun yerini tutan sink'in tükettikleri üzerinden sayılır.
+    public int RefundedEventCount(int orderId) =>
+        Harness.Consumed.Select<PaymentRefundedEvent>().Count(m => m.Context.Message.OrderId == orderId);
 
     public static async Task WaitUntilAsync(Func<Task<bool>> condition, string description)
     {

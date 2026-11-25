@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Services\Order\EticaretMicroservice.Services.Order.Application\EticaretMicroservice.Services.Order.Application.csproj" />
     <ProjectReference Include="..\..\src\Services\Order\EticaretMicroservice.Services.Order.Domain\EticaretMicroservice.Services.Order.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Services\Identity\EticaretMicroservice.Identity.Api\EticaretMicroservice.Identity.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Stock\EticaretMicroservice.Stock.Api\EticaretMicroservice.Stock.Api.csproj" />
   </ItemGroup>
 

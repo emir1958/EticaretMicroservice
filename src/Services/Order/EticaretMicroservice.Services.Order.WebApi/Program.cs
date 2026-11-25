@@ -8,6 +8,7 @@ using EticaretMicroservice.Services.Order.Infrastructure.Messaging;
 using EticaretMicroservice.Services.Order.Infrastructure.Notifications;
 using EticaretMicroservice.Services.Order.Infrastructure.Persistence;
 using EticaretMicroservice.Services.Order.Infrastructure.Repositories;
+using EticaretMicroservice.Services.Order.Infrastructure.Seed;
 using EticaretMicroservice.Shared.Extensions;
 using FluentValidation;
 using HealthChecks.UI.Client;
@@ -20,7 +21,6 @@ using Polly;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. DbContext Konfigürasyonu (SQL Server)
 builder.Services.AddDbContext<OrderDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), configure =>
@@ -29,11 +29,10 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
     });
 });
 
-// 2. Repository Injection
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IOrderReportRepository, OrderReportRepository>();
 builder.Services.AddScoped<IOrderNotifier, SignalROrderNotifier>();
 
-// 3. MediatR & FluentValidation Pipeline Behavior Kaydı
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(IOrderRepository).Assembly);
@@ -43,7 +42,6 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddValidatorsFromAssemblyContaining<CreateOrderCommandValidator>();
 
-// 4. MassTransit, RabbitMQ & Transactional Outbox
 builder.Services.Configure<OrderSagaOptions>(builder.Configuration.GetSection(OrderSagaOptions.SectionName));
 
 builder.Services.AddMassTransit(x =>
@@ -80,11 +78,9 @@ builder.Services.AddOptions<MassTransitHostOptions>()
         options.WaitUntilStarted = true;
     });
 
-// 🟢 5. OpenTelemetry Tracing & Aspire Dashboard Logging
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Order.WebApi");
 builder.Logging.AddSharedLogging(builder.Configuration, "Order.WebApi");
 
-// 6. CORS Yapılandırması (SignalR Credentials Desteği ile)
 builder.Services.AddSharedCors();
 
 builder.Services.AddControllers();
@@ -92,7 +88,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSharedSwagger();
 
-// 7. JWT Authentication + SignalR WebSockets Query Token Desteği
 builder.Services.AddSharedJwtAuthentication(builder.Configuration, signalRHubPath: "/orderhub");
 
 builder.Services.AddSignalR();
@@ -101,7 +96,11 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<OrderTimeoutSweeper>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<OrderTimeoutSweeper>());
 
-// 8. Health Check Servis Kaydı
+if (builder.Configuration.GetValue<bool>("Seed:SampleData"))
+{
+    builder.Services.AddHostedService<SampleOrderSeeder>();
+}
+
 var rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
 var rabbitUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
 var rabbitPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
@@ -117,7 +116,6 @@ builder.Services.AddHealthChecks()
         name: "Order-RabbitMQ",
         tags: new[] { "messagebus", "rabbitmq" });
 
-// 9. Catalog HttpClient + Polly Resilience Handler
 var catalogUrl = builder.Configuration["ServiceUrls:Catalog"] ?? "http://catalog.api:8080";
 
 builder.Services.AddHttpClient<ICatalogRepository, CatalogRepository>(client =>
@@ -170,5 +168,5 @@ using (var scope = app.Services.CreateScope())
 
 app.Run();
 
-// 🟢 Integration test projesinin WebApplicationFactory ile bu API'yi başlatabilmesi için zorunludur:
+// Integration testlerin WebApplicationFactory ile bu uygulamayı başlatabilmesi için
 public partial class Program { }
