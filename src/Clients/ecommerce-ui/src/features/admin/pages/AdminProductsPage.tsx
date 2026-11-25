@@ -12,6 +12,7 @@ import FilterTabs from "../../../shared/components/FilterTabs";
 import IconButton from "../../../shared/components/IconButton";
 import Picture from "../../../shared/components/Picture";
 import SearchInput from "../../../shared/components/SearchInput";
+import { useUrlSearchInput } from "../../../shared/hooks/useUrlSearchInput";
 import Skeleton from "../../../shared/components/Skeleton";
 import { deleteProduct, getProductsWithStock } from "../../catalog/api";
 import {
@@ -72,6 +73,8 @@ export default function AdminProductsPage() {
     setSearchParams(next, { replace: true });
   };
 
+  const search = useUrlSearchInput(query, (value) => setParam("q", value));
+
   const categories = listCategories(products);
   const terms = normalizeText(query).split(/\s+/).filter(Boolean);
   const searched = products.filter((p) => {
@@ -126,8 +129,8 @@ export default function AdminProductsPage() {
       <div className={ui.toolbar}>
         <SearchInput
           className={ui.toolbarSearch}
-          value={query}
-          onChange={(value) => setParam("q", value || null)}
+          value={search.value}
+          onChange={search.onChange}
           label="Ürünlerde ara"
           placeholder="Ürün adı veya kategori"
         />
@@ -180,7 +183,13 @@ export default function AdminProductsPage() {
           icon={SearchX}
           title="Eşleşen ürün yok"
           action={
-            <Button variant="secondary" onClick={() => setSearchParams({}, { replace: true })}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                search.clear();
+                setSearchParams({}, { replace: true });
+              }}
+            >
               Filtreleri temizle
             </Button>
           }

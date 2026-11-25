@@ -16,7 +16,6 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSharedSwagger();
 
-// 1. OpenTelemetry
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Identity.Api");
 builder.Logging.AddOpenTelemetry(loggingOptions =>
 {
@@ -24,7 +23,6 @@ builder.Logging.AddOpenTelemetry(loggingOptions =>
     loggingOptions.IncludeScopes = true;
     loggingOptions.AddOtlpExporter(); // Logları OTLP üzerinden Aspire Dashboard'a gönderir
 });
-// 2. DbContext (SQL Server)
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection yapılandırması eksik!");
 
@@ -33,27 +31,29 @@ builder.Services.AddDbContext<AppIdentityDbContext>(options =>
     options.UseSqlServer(defaultConnection);
 });
 
-// 3. Identity Servis Entegrasyonu (Custom BCrypt Auth)
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IValidator<RegisterDto>, RegisterDtoValidator>();
 builder.Services.AddScoped<IValidator<LoginDto>, LoginDtoValidator>();
 
-// 4. SQL Server Health Check
 builder.Services.AddHealthChecks()
     .AddSqlServer(
         connectionString: defaultConnection,
         name: "Identity-SqlServer",
         tags: new[] { "db", "sqlserver" });
 
-// 5. CORS
 builder.Services.AddSharedCors();
 
-// Kullanıcı listesi (api/users) yalnızca Admin rolüne açık: Identity kendi ürettiği token'ı doğrular
-builder.Services.AddSharedJwtAuthentication(builder.Configuration);
+// İmza anahtarı (RS256): özel anahtar yalnızca Identity'dedir. Diğer servisler genel kısmı /.well-known/jwks.json üzerinden alır.
+var privateKeyPem = builder.Configuration["Jwt:PrivateKey"]
+    ?? throw new InvalidOperationException("Jwt:PrivateKey yapılandırması eksik! Üretmek için: openssl genrsa 2048 | base64 | tr -d '\\n'");
+var signingKey = JwtKeys.LoadPrivateKey(privateKeyPem);
+builder.Services.AddSingleton(signingKey);
+
+// Kullanıcı listesi (api/users) yalnızca Admin rolüne açık: Identity kendi ürettiği token'ı kendi genel anahtarıyla doğrular
+builder.Services.AddSharedJwtAuthentication(builder.Configuration, signingKey: JwtKeys.ToPublicKey(signingKey));
 
 var app = builder.Build();
 
-// 6. Global Exception Middleware
 app.UseCustomExceptionHandler();
 
 // Otomatik Migration
@@ -119,7 +119,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// 7. Health Check Endpoint
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = _ => true,

@@ -2,6 +2,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ChevronRight, SearchX, ShoppingCart } from "lucide-react";
 import { getErrorMessage } from "../../../lib/apiClient";
 import { useAsync } from "../../../shared/hooks/useAsync";
+import { useDebouncedValue } from "../../../shared/hooks/useDebouncedValue";
+import { useUrlSearchInput } from "../../../shared/hooks/useUrlSearchInput";
 import Badge from "../../../shared/components/Badge";
 import Button from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
@@ -10,15 +12,15 @@ import Pagination from "../../../shared/components/Pagination";
 import SearchInput from "../../../shared/components/SearchInput";
 import Skeleton from "../../../shared/components/Skeleton";
 import { formatDate, formatPrice } from "../../../shared/utils/format";
-import { normalizeText } from "../../catalog/catalogView";
-import { getAllOrders } from "../../orders/api";
+import { searchOrders } from "../../orders/api";
 import OrderStatusBadge, { PaymentStatusBadge } from "../../orders/components/OrderStatusBadge";
-import type { Order, OrderStatus } from "../../orders/types";
+import type { OrderStatus } from "../../orders/types";
 import { getUsers, type UserSummary } from "../api";
-import { itemCountOf, usersById } from "../analytics";
+import { usersById } from "../analytics";
 import ui from "../admin.module.css";
 
 const PAGE_SIZE = 15;
+const SEARCH_DELAY_MS = 300;
 
 type StatusFilter = "all" | OrderStatus;
 
@@ -29,26 +31,31 @@ const STATUS_TABS: { value: StatusFilter; label: string }[] = [
   { value: "IptalEdildi", label: "İptal" },
 ];
 
-async function loadOrders() {
-  const [orders, users] = await Promise.all([getAllOrders(), getUsers().catch(() => [] as UserSummary[])]);
-  return { orders, users };
-}
-
-// Siparişi müşteri adı, e-postası, sipariş numarası veya teslimat ilinden bulur
-function matches(order: Order, user: UserSummary | undefined, terms: string[]) {
-  const haystack = normalizeText(
-    [`#${order.id}`, order.id, user?.username, user?.email, order.address?.contactName, order.address?.city].join(" "),
-  );
-  return terms.every((term) => haystack.includes(term));
-}
-
 export default function AdminOrdersPage() {
-  const { data, error, isLoading, reload } = useAsync(loadOrders, []);
-  // Arama ve filtre adres çubuğunda: sipariş detayına gidip geri dönünce liste aynı yerde kalır
+  // Arama, filtre ve sayfa adres çubuğunda: sipariş detayına gidip geri dönünce liste aynı yerde kalır
   const [searchParams, setSearchParams] = useSearchParams();
 
   const query = searchParams.get("q") ?? "";
   const status = (STATUS_TABS.find((t) => t.value === searchParams.get("status"))?.value ?? "all") as StatusFilter;
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DELAY_MS);
+
+  // Filtreleme, arama ve sayfalama sunucuda; tarayıcıya yalnızca bu sayfanın satırları gelir
+  const { data, error, isLoading, reload } = useAsync(
+    () =>
+      searchOrders({
+        q: debouncedQuery,
+        status: status === "all" ? undefined : status,
+        page,
+        pageSize: PAGE_SIZE,
+      }),
+    [debouncedQuery, status, page],
+  );
+
+  // Müşteri adı/e-postası Identity'de; alınamazsa listede teslimat adresindeki isim gösterilir
+  const { data: users } = useAsync(() => getUsers().catch(() => [] as UserSummary[]), []);
+  const userMap = usersById(users ?? []);
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -58,20 +65,15 @@ export default function AdminOrdersPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const orders = data?.orders ?? [];
-  const userMap = usersById(data?.users ?? []);
-  const terms = normalizeText(query).split(/\s+/).filter(Boolean);
-  const searched = orders.filter((order) => matches(order, userMap.get(order.buyerId), terms));
-  const visible = status === "all" ? searched : searched.filter((order) => order.orderStatus === status);
+  // Kutu yerel state'te (harf düşmez), URL anında güncellenir, sunucu isteği ise yazma durunca gider (debouncedQuery)
+  const search = useUrlSearchInput(query, (value) => setParam("q", value));
 
-  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
-  const page = Math.min(Math.max(1, Number(searchParams.get("page")) || 1), pageCount);
-  const pageItems = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const counts = data?.statusCounts;
+  const allCount = counts ? Object.values(counts).reduce((sum, n) => sum + n, 0) : undefined;
+  const tabs = STATUS_TABS.map((tab) => ({ ...tab, count: tab.value === "all" ? allCount : counts?.[tab.value] }));
 
-  const tabs = STATUS_TABS.map((tab) => ({
-    ...tab,
-    count: tab.value === "all" ? searched.length : searched.filter((o) => o.orderStatus === tab.value).length,
-  }));
+  const pageCount = data ? Math.max(1, Math.ceil(data.totalCount / PAGE_SIZE)) : 1;
+  const hasFilters = Boolean(debouncedQuery) || status !== "all";
 
   return (
     <>
@@ -85,10 +87,10 @@ export default function AdminOrdersPage() {
       <div className={ui.toolbar}>
         <SearchInput
           className={ui.toolbarSearch}
-          value={query}
-          onChange={(value) => setParam("q", value || null)}
+          value={search.value}
+          onChange={search.onChange}
           label="Siparişlerde ara"
-          placeholder="Sipariş no, müşteri veya il"
+          placeholder="Sipariş no, alıcı adı veya il"
         />
         <FilterTabs label="Durum" tabs={tabs} value={status} onChange={(value) => setParam("status", value === "all" ? null : value)} />
       </div>
@@ -99,22 +101,28 @@ export default function AdminOrdersPage() {
             <Skeleton key={i} className={ui.skeletonRow} />
           ))}
         </div>
-      ) : error ? (
+      ) : error || !data ? (
         <EmptyState
           icon={ShoppingCart}
           title="Siparişler yüklenemedi"
           text={getErrorMessage(error, "Sipariş servisine ulaşılamıyor.")}
           action={<Button onClick={reload}>Tekrar dene</Button>}
         />
-      ) : orders.length === 0 ? (
+      ) : data.items.length === 0 && !hasFilters ? (
         <EmptyState icon={ShoppingCart} title="Henüz sipariş yok" text="Müşteriler sipariş verdiğinde burada görünecek." />
-      ) : visible.length === 0 ? (
+      ) : data.items.length === 0 ? (
         <EmptyState
           icon={SearchX}
           title="Eşleşen sipariş yok"
           text="Arama terimini veya durum filtresini değiştirmeyi deneyin."
           action={
-            <Button variant="secondary" onClick={() => setSearchParams({}, { replace: true })}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                search.clear();
+                setSearchParams({}, { replace: true });
+              }}
+            >
               Filtreleri temizle
             </Button>
           }
@@ -138,14 +146,13 @@ export default function AdminOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((order) => {
+                {data.items.map((order) => {
                   const user = userMap.get(order.buyerId);
                   return (
                     <tr key={order.id}>
                       <td className={ui.cellTitle}>#{order.id}</td>
                       <td>
-                        {/* Müşteri adı Identity'de; listesi alınamazsa teslimat adresindeki isim gösterilir */}
-                        <div className={ui.cellTitle}>{user?.username ?? order.address?.contactName ?? "—"}</div>
+                        <div className={ui.cellTitle}>{user?.username ?? order.contactName ?? "—"}</div>
                         <div className={ui.cellSub}>
                           {user?.email ?? <span className={ui.mono}>{order.buyerId.slice(0, 8)}…</span>}
                           {user?.isSample && (
@@ -157,7 +164,7 @@ export default function AdminOrdersPage() {
                         </div>
                       </td>
                       <td className={`${ui.muted} ${ui.nowrap}`}>{formatDate(order.createdDate)}</td>
-                      <td className={ui.num}>{itemCountOf(order)} adet</td>
+                      <td className={ui.num}>{order.itemCount} adet</td>
                       <td>
                         <PaymentStatusBadge status={order.paymentStatus} />
                       </td>
@@ -178,7 +185,7 @@ export default function AdminOrdersPage() {
           </div>
           <div className={ui.tableFooter}>
             <span>
-              {visible.length} siparişten {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, visible.length)} arası
+              {data.totalCount} siparişten {(page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + data.items.length} arası
             </span>
             <Pagination page={page} pageCount={pageCount} onChange={(next) => setParam("page", next > 1 ? String(next) : null)} />
           </div>

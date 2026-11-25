@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import CustomerLayout from "./layouts/CustomerLayout";
 import NotFoundPage from "./NotFoundPage";
-import PageLoader from "./PageLoader";
+import PageLoader from "../shared/components/PageLoader";
 import ProtectedRoute from "../features/auth/components/ProtectedRoute";
 import AdminRoute from "../features/auth/components/AdminRoute";
 import AuthPage from "../features/auth/pages/AuthPage";
@@ -27,11 +27,7 @@ const AdminCustomersPage = lazy(() => import("../features/admin/pages/AdminCusto
 const AdminPromotionsPage = lazy(() => import("../features/admin/pages/AdminPromotionsPage"));
 const AdminSystemPage = lazy(() => import("../features/admin/pages/AdminSystemPage"));
 
-// Uygulamanın tüm adresleri tek yerde. Yeni sayfa: features/<feature>/pages altına yaz, buraya ekle.
-//
-// path'i olmayan <Route element={...}> bir "layout route"tur: adres eklemez, çocuklarını sarar.
-// İçindeki bileşen <Outlet /> ile eşleşen çocuğun yerini belirler. Bu yüzden layout'lar ve guard'lar
-// (ProtectedRoute, AdminRoute) sayfaların içine değil, route ağacına bir kez yazılır.
+// Layout'lar ve guard'lar (ProtectedRoute, AdminRoute) path'siz layout route olarak ağaçta bir kez yazılır
 export default function AppRoutes() {
   return (
     <Routes>

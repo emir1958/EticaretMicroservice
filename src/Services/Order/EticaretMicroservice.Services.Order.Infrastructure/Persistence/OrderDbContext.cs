@@ -1,18 +1,13 @@
 ﻿using EticaretMicroservice.Services.Order.Domain.Entities;
-using MassTransit; // 👈 Bu using tanımının eklendiğinden emin olun
+using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
 {
     public class OrderDbContext : DbContext
     {
-        public const string DEFAULT_SCHEMA = "ordering";
+        public const string DefaultSchema = "ordering";
 
         public OrderDbContext(DbContextOptions<OrderDbContext> options) : base(options)
         {
@@ -24,24 +19,24 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.HasDefaultSchema(DEFAULT_SCHEMA);
+            modelBuilder.HasDefaultSchema(DefaultSchema);
 
-            // Order Entity Konfigürasyonu
             modelBuilder.Entity<Domain.Entities.Order>(b =>
             {
                 b.ToTable("Orders");
                 b.HasKey(o => o.Id);
-                // 🟢 RowVersion kolonu SQL Server tarafında rowversion/timestamp tipinde eşlenir
-                b.Property(o => o.RowVersion)
-                      .IsRowVersion();
+                b.Property(o => o.RowVersion).IsRowVersion();
 
-                // Index optimizasyonu (Kullanıcının sipariş geçmişi ve timeout sorguları için)
+                // Kullanıcının sipariş geçmişi ve timeout taraması için
                 b.HasIndex(o => new { o.BuyerId, o.CreatedDate });
                 b.HasIndex(o => new { o.OrderStatus, o.CreatedDate });
+                // Admin listesi ("en yeni siparişler") ve dönem raporları CreatedDate'e göre sıralar/filtreler
+                b.HasIndex(o => o.CreatedDate);
 
                 // Saga anahtarı: her siparişin süreci tekil olarak bu değerle bulunur
                 b.HasIndex(o => o.CorrelationId).IsUnique();
-                // Value Object (Address) konfigürasyonu - Single table (OwnsOne)
+
+                // Address value object'i Orders tablosunun kolonlarında tutulur
                 b.OwnsOne(o => o.Address, a =>
                 {
                     a.Property(p => p.ContactName).HasColumnName("ContactName").HasMaxLength(100);
@@ -53,7 +48,6 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
                     a.Property(p => p.Line).HasColumnName("Line").HasMaxLength(250);
                 });
 
-                // OrderItems ilişkisi (Backing Field için)
                 b.HasMany(o => o.OrderItems)
                  .WithOne()
                  .HasForeignKey("OrderId")
@@ -73,7 +67,6 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
                 b.Property(h => h.Note).HasMaxLength(500);
             });
 
-            // OrderItem Entity Konfigürasyonu
             modelBuilder.Entity<OrderItem>(b =>
             {
                 b.ToTable("OrderItems");
@@ -86,9 +79,10 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Persistence
             {
                 b.ToTable("IdempotentRequests", "ordering");
                 b.HasKey(x => x.Id);
-                b.Property(x => x.OperationName).HasMaxLength(500).IsRequired(); 
+                b.Property(x => x.OperationName).HasMaxLength(500).IsRequired();
             });
-            // 🔹 MassTransit 8.x Transactional Outbox Entity Mapping
+
+            // MassTransit transactional outbox/inbox tabloları
             modelBuilder.AddInboxStateEntity();
             modelBuilder.AddOutboxMessageEntity();
             modelBuilder.AddOutboxStateEntity();

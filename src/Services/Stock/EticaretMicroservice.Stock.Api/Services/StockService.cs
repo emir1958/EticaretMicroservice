@@ -79,7 +79,7 @@ public class StockService : IStockService
         return ReservationResult.Reserved;
     }
 
-    // 2. Kesinleştirme - ödeme başarılı: rezerve havuzundan düşülür, müsait stoğa geri dönmez
+    // Ödeme alındı: rezerve havuzundan düşülür, müsait stoğa geri dönmez
     public async Task<int> ConfirmForOrderAsync(int orderId, CancellationToken cancellationToken = default)
     {
         var reservations = await LockActiveReservationsAsync(orderId, cancellationToken);
@@ -94,7 +94,7 @@ public class StockService : IStockService
         return reservations.Count;
     }
 
-    // 3. İade - ödeme başarısız: yalnızca BU siparişin aktif rezervasyonu geri verilir
+    // Ödeme başarısız: yalnızca bu siparişin aktif rezervasyonu geri verilir
     public async Task<int> ReleaseForOrderAsync(int orderId, CancellationToken cancellationToken = default)
     {
         var reservations = await LockActiveReservationsAsync(orderId, cancellationToken);
@@ -109,7 +109,7 @@ public class StockService : IStockService
         return reservations.Count;
     }
 
-    // 4. İade - Order saga'sı siparişi iptal etti (ödeme süresi doldu): kesinleşmiş rezervasyonlar da geri verilir.
+    // Order saga'sı siparişi iptal etti (ödeme süresi doldu): kesinleşmiş rezervasyonlar da geri verilir.
     // Timeout ile ödeme yarışırsa PaymentCompleted bu komuttan önce işlenip rezervasyonu Confirmed yapmış olabilir;
     // sipariş iptal edilip ödeme iade edildiği için o stok da müsait stoğa döner. Released satırlara dokunulmaz (idempotent).
     public async Task<int> ReleaseForCanceledOrderAsync(int orderId, CancellationToken cancellationToken = default)
@@ -128,7 +128,6 @@ public class StockService : IStockService
         return reservations.Count;
     }
 
-    // 4. Yeni Ürün Stok Kaydı
     public async Task<bool> CreateStockAsync(string productId, int initialStock)
     {
         var exists = await _context.ProductStocks.AnyAsync(x => x.ProductId == productId);

@@ -8,6 +8,7 @@ public static class RateLimitingExtensions
     public const string AuthPolicy = "auth-policy";
     public const string BasketPolicy = "basket-policy";
     public const string OrderPolicy = "order-policy";
+    public const string ReadPolicy = "read-policy";
 
     // Her policy kendi partition'ını (kovasını) kullanıcı ya da IP başına üretir: bir istemcinin limiti doldurması
     // başkasını etkilemez. Partition'sız limiter (AddFixedWindowLimiter) tüm istemciler için tek kova olur.
@@ -26,6 +27,16 @@ public static class RateLimitingExtensions
 
             // Sepet her adet değişikliğinde yazılır, bu yüzden auth'tan çok daha geniş
             options.AddPolicy(BasketPolicy, context =>
+                RateLimitPartition.GetFixedWindowLimiter(UserOrIp(context), _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 120,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
+
+            // Sipariş OLUŞTURMA (POST) sıkı sınırlanır; sipariş listeleri ve admin raporları (GET) tek sayfada birkaç paralel
+            // istek atar, bu yüzden okumalar için ayrı ve geniş bir limit vardır
+            options.AddPolicy(ReadPolicy, context =>
                 RateLimitPartition.GetFixedWindowLimiter(UserOrIp(context), _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = 120,

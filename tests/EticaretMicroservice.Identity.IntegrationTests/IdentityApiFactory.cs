@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Testcontainers.MsSql;
@@ -13,13 +15,16 @@ public class IdentityApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         .WithPassword("Strong_P@ssw0rd123!")
         .Build();
 
+    // Her test çalıştırmasında yeni bir RSA anahtar çifti: yapılandırma değeri PEM'in base64'üdür (üretimdeki biçimle aynı)
+    public static readonly string PrivateKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(RSA.Create(2048).ExportPkcs8PrivateKeyPem()));
+
     public async Task InitializeAsync() => await _dbContainer.StartAsync();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // appsettings.json secret içermediği için testin ihtiyaç duyduğu değerler burada verilir
         builder.UseSetting("ConnectionStrings:DefaultConnection", _dbContainer.GetConnectionString());
-        builder.UseSetting("Jwt:SecretKey", "identity-tests-only-signing-key-0123456789");
+        builder.UseSetting("Jwt:PrivateKey", PrivateKeyBase64);
         builder.UseSetting("AdminSeed:Email", AdminEmail);
         builder.UseSetting("AdminSeed:Password", AdminPassword);
     }

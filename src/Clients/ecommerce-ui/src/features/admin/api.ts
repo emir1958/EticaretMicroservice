@@ -15,6 +15,20 @@ export async function getUsers() {
   return data;
 }
 
+export interface PagedUsers {
+  items: UserSummary[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getCustomers({ q, page = 1, pageSize = 20 }: { q?: string; page?: number; pageSize?: number } = {}) {
+  const { data } = await apiClient.get<PagedUsers>("/api/users/customers", {
+    params: { q: q || undefined, page, pageSize },
+  });
+  return data;
+}
+
 export type HealthStatus = "Healthy" | "Degraded" | "Unhealthy";
 
 export interface ServiceHealth {

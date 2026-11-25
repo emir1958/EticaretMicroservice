@@ -1,4 +1,13 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { parseJwt } from "../../lib/jwt";
+import {
+  getAccessToken,
+  hasSessionHint,
+  msUntilRefresh,
+  refreshAccessToken,
+  setAccessToken,
+  subscribe,
+} from "../../lib/session";
 import * as authApi from "./api";
 
 export type Role = "Admin" | "User";
@@ -15,6 +24,8 @@ interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  // Sayfa açılırken refresh cookie'si ile oturum geri yükleniyor: guard'lar bu sırada yönlendirme yapmamalı
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -31,20 +42,11 @@ interface JwtPayload {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const TOKEN_KEY = "token";
-
-function parseJwt(token: string): JwtPayload | null {
-  try {
-    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    return null;
-  }
-}
+// Eski sürüm 7 günlük token'ı localStorage'da tutuyordu; artık kullanılmadığı için bırakılmaz
+localStorage.removeItem("token");
 
 function userFromToken(token: string | null): User | null {
-  const payload = token ? parseJwt(token) : null;
+  const payload = token ? parseJwt<JwtPayload>(token) : null;
   if (!payload || payload.exp * 1000 <= Date.now()) return null;
 
   return {
@@ -56,19 +58,36 @@ function userFromToken(token: string | null): User | null {
   };
 }
 
-function readStoredToken() {
-  const stored = localStorage.getItem(TOKEN_KEY);
-  if (stored && !userFromToken(stored)) {
-    localStorage.removeItem(TOKEN_KEY);
-    return null;
-  }
-  return stored;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState(readStoredToken);
+  // Access token bellekte (lib/session) durur; değişince arayüz yeniden çizilir
+  const token = useSyncExternalStore(subscribe, getAccessToken);
+  // Daha önce giriş yapılmışsa ilk yenileme bitene kadar "yükleniyor"; hiç giriş yapılmamışsa beklenecek bir şey yok
+  const [isLoading, setIsLoading] = useState(hasSessionHint);
 
   const user = useMemo(() => userFromToken(token), [token]);
+
+  // Sayfa (yeniden) açılınca bellekteki token yoktur: cookie'deki refresh token ile oturum geri yüklenir
+  useEffect(() => {
+    if (!hasSessionHint()) return;
+
+    let ignore = false;
+    refreshAccessToken().finally(() => {
+      if (!ignore) setIsLoading(false);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // Oturum, süresi dolmadan önce kendini yeniler (sekme açık kaldıkça ve uyku sonrası uyanınca da)
+  useEffect(() => {
+    if (!token) return;
+    const delay = msUntilRefresh(token);
+    if (delay === null) return;
+
+    const timer = setTimeout(() => void refreshAccessToken(), delay);
+    return () => clearTimeout(timer);
+  }, [token]);
 
   const login = async (email: string, password: string) => {
     const receivedToken = await authApi.login(email, password);
@@ -77,14 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Token alınamadı.");
     }
 
-    localStorage.setItem(TOKEN_KEY, receivedToken);
-    setToken(receivedToken);
+    setAccessToken(receivedToken);
     return loggedUser;
   };
 
   const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
+    // Sunucudaki refresh token iptal edilir; arayüz yanıtı beklemeden oturumu kapatır
+    authApi.logout().catch((err: unknown) => console.warn("Çıkış isteği başarısız:", err));
+    setAccessToken(null);
   };
 
   return (
@@ -93,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated: user !== null,
         isAdmin: user?.isAdmin ?? false,
+        isLoading,
         login,
         register: authApi.register,
         logout,

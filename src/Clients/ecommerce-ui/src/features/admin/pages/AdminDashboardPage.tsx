@@ -13,10 +13,10 @@ import Skeleton from "../../../shared/components/Skeleton";
 import { formatCompactPrice, formatDate, formatNumber, formatPrice } from "../../../shared/utils/format";
 import { getProductsWithStock } from "../../catalog/api";
 import { stockStateOf } from "../../catalog/catalogView";
-import { getAllOrders } from "../../orders/api";
+import { getDailySales, getProductSales, getSalesSummary, searchOrders } from "../../orders/api";
 import OrderStatusBadge from "../../orders/components/OrderStatusBadge";
 import { getUsers } from "../api";
-import { dailySeries, inPeriod, percentChange, periodsFor, productSales, summarize, usersById } from "../analytics";
+import { percentChange, periodsFor, toDailyPoints, usersById } from "../analytics";
 import RevenueChart from "../components/RevenueChart";
 import StatCard from "../components/StatCard";
 import ui from "../admin.module.css";
@@ -30,21 +30,26 @@ const RANGES: { value: RangeKey; label: string }[] = [
   { value: "90", label: "90 gün" },
 ];
 
-// Müşteri adları ve ürün görselleri ek bilgi: o servisler yanıt vermezse panel yine açılır
-async function loadDashboard() {
-  const [orders, users, products] = await Promise.all([
-    getAllOrders(),
+// Rakamlar Order servisinde SQL ile hesaplanır; müşteri adları ve ürün görselleri ek bilgi: o servisler yanıt vermezse panel yine açılır
+async function loadDashboard(days: number) {
+  const { current, previous } = periodsFor(days);
+  const [now, before, daily, topProducts, recent, users, products] = await Promise.all([
+    getSalesSummary(current),
+    getSalesSummary(previous),
+    getDailySales(current),
+    getProductSales(current, 5),
+    searchOrders({ pageSize: 6 }),
     getUsers().catch(() => []),
     getProductsWithStock().catch(() => []),
   ]);
-  return { orders, users, products };
+  return { now, before, daily, topProducts, recentOrders: recent.items, users, products };
 }
 
 const percent = (value: number) => value.toLocaleString("tr-TR", { style: "percent", maximumFractionDigits: 1 });
 
 export default function AdminDashboardPage() {
-  const { data, error, isLoading, reload } = useAsync(loadDashboard, []);
   const [range, setRange] = useState<RangeKey>("30");
+  const { data, error, isLoading, reload } = useAsync(() => loadDashboard(Number(range)), [range]);
 
   if (isLoading) return <DashboardSkeleton />;
 
@@ -59,12 +64,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const { orders, users, products } = data;
-  const { current, previous } = periodsFor(Number(range));
-  const currentOrders = inPeriod(orders, current);
-  const now = summarize(currentOrders);
-  const before = summarize(inPeriod(orders, previous));
-
+  const { now, before, daily, topProducts, recentOrders, users, products } = data;
   const statusTotal = now.completedCount + now.pendingCount + now.canceledCount;
   // offset: yığılmış çubukta parçanın başladığı yer (öncekilerin toplamı)
   const statusParts = [
@@ -79,7 +79,6 @@ export default function AdminDashboardPage() {
     },
   ];
 
-  const topProducts = productSales(currentOrders).slice(0, 5);
   const topRevenue = topProducts[0]?.revenue ?? 1;
   const imageById = new Map(products.map((p) => [p.id, p.imageUrl]));
 
@@ -89,7 +88,6 @@ export default function AdminDashboardPage() {
     .slice(0, 6);
 
   const userMap = usersById(users);
-  const recentOrders = orders.slice(0, 6);
 
   return (
     <>
@@ -130,7 +128,7 @@ export default function AdminDashboardPage() {
             <h2 className={ui.panelTitle}>Günlük ciro</h2>
             <span className={ui.muted}>{formatNumber(now.itemsSold)} ürün satıldı</span>
           </div>
-          <RevenueChart points={dailySeries(orders, current)} />
+          <RevenueChart points={toDailyPoints(daily)} />
         </section>
 
         <section className={`${ui.panel} ${styles.statusPanel}`}>
@@ -244,7 +242,7 @@ export default function AdminDashboardPage() {
                           #{order.id}
                         </Link>
                       </td>
-                      <td>{userMap.get(order.buyerId)?.username ?? order.address?.contactName ?? "—"}</td>
+                      <td>{userMap.get(order.buyerId)?.username ?? order.contactName ?? "—"}</td>
                       <td className={`${ui.muted} ${ui.nowrap}`}>{formatDate(order.createdDate)}</td>
                       <td>
                         <OrderStatusBadge status={order.orderStatus} />

@@ -9,10 +9,9 @@ import { getAvailableStock, updateStock } from "../../stock/api";
 import type { ProductWithStock } from "../../catalog/types";
 import styles from "./ProductForm.module.css";
 
-// Ürün ekleme / düzenleme formu.
-// product: düzenlenecek ürün (null → yeni ürün). Sayfa bu bileşeni ürünün id'siyle key'ler:
-// başka ürüne geçilince React formu sıfırdan oluşturur, state'i elle sıfırlamak gerekmez.
+// Sayfa bu bileşeni ürün id'siyle key'ler: başka ürüne geçilince form state'i sıfırdan kurulur
 interface ProductFormProps {
+  // null: yeni ürün
   product: ProductWithStock | null;
   // Mevcut kategoriler: yazarken öneri olarak gösterilir, yeni kategori de yazılabilir
   categories: string[];
@@ -28,7 +27,6 @@ export default function ProductForm({ product, categories, formId, onSaved, onSa
   const productId = product?.id;
   const categoryListId = useId();
 
-  // useState başlangıç değeri yalnızca ilk render'da okunur; key değişimi bu yüzden önemli.
   const [name, setName] = useState(product?.name ?? "");
   const [category, setCategory] = useState(product?.category ?? "");
   const [price, setPrice] = useState(product?.price?.toString() ?? "");

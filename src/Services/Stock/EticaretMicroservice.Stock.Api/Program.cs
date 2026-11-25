@@ -6,22 +6,18 @@ using HealthChecks.UI.Client;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
-using OpenTelemetry.Logs;
-using OpenTelemetry.Resources;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// 🟢 OpenTelemetry: Tracing ve Logging tek merkezden bağlanır
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Stock.Api");
 builder.Logging.AddSharedLogging(builder.Configuration, "Stock.Api");
 
 builder.Services.AddSharedSwagger();
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
-// 🟢 CORS: İsim standardizasyonu
 builder.Services.AddSharedCors();
 
 builder.Services.AddDbContext<StockDbContext>(options =>
@@ -46,7 +42,6 @@ builder.Services.AddHealthChecks()
         name: "Stock-RabbitMQ",
         tags: new[] { "messagebus", "rabbitmq" });
 
-// 🟢 MassTransit: Consumer'ların kuyruğa bağlanması
 builder.Services.AddMassTransit(x =>
 {
     x.AddStockMessaging();
@@ -61,7 +56,6 @@ builder.Services.AddMassTransit(x =>
 
         cfg.ConfigureSharedRetryAndDeadLetter(context);
 
-        // 🟢 KRİTİK: Kayıtlı tüm consumer'lar için kuyrukları otomatik açıp bağlar
         cfg.ConfigureEndpoints(context);
     });
 });

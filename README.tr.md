@@ -39,7 +39,7 @@ flowchart LR
 | Servis | Sorumluluk | Veri |
 |---|---|---|
 | **Gateway** | Tek giriş noktası (YARP), rate limiting, CORS, sağlık paneli | — |
-| **Identity** | Kayıt, giriş, JWT üretimi (rol tabanlı: `Admin`, `User`) | SQL Server |
+| **Identity** | Kayıt, giriş, RS256 JWT üretimi (rol tabanlı: `Admin`, `User`), refresh token cookie'si, JWKS | SQL Server |
 | **Catalog** | Ürünler; ürün ve stok event'lerini yayınlar | MongoDB |
 | **Basket** | Kullanıcı sepeti (girişte misafir sepetiyle birleştirilir) | Redis |
 | **Order** | Siparişler (Clean Architecture + CQRS), sipariş saga'sı, SignalR ile canlı durum | SQL Server |
@@ -47,6 +47,8 @@ flowchart LR
 | **Payment** | Ödeme ve iade (sağlayıcı değiştirilebilir; iyzico entegrasyonu planlı) | SQL Server |
 
 Dışarıya API açan servisler JWT'yi kendileri doğrular, yani güvenlik yalnızca gateway'e bağlı değildir.
+İmza (özel) anahtarı yalnızca Identity'dedir; diğer servisler token'ı Identity'nin JWKS uç noktasından aldıkları genel anahtarla
+doğrular, bu yüzden ele geçirilen bir servis token üretemez.
 Payment'ın dışarıya açık bir API'si yoktur; yalnızca bus'tan gelen mesajları işler.
 
 ## Sipariş akışı
@@ -80,6 +82,13 @@ stateDiagram-v2
   - Stok tek bir koşullu `UPDATE` ile rezerve ediliyor, bu yüzden asla eksiye düşmüyor.
 - **Zaman aşımı için emniyet ağı:** zamanlanmış mesajı kaybolan zaman aşımlarını arka plandaki bir sweeper yeniden tetikliyor.
 - **Dayanıklılık:** Order → Catalog HTTP çağrısında Polly (standard resilience handler); bus'ta retry ve dead-letter kuyrukları.
+
+**Kimlik doğrulama**
+- Kısa ömürlü access token (15 dk, RS256) yalnızca tarayıcı belleğinde durur. Oturumu, `HttpOnly; SameSite=Strict` cookie'deki
+  (yol: `/api/auth`) **refresh token** sürdürür. Farklı `aud` taşıyan imzalı bir JWT'dir (access token olarak kullanılamaz) ve
+  kullanıcının `TokenVersion` değerini taşır; çıkışta bu sürüm artar ve token başına bir şey saklamadan kullanıcının tüm refresh
+  token'ları geçersiz olur. Takas: cihaz bazında çıkış ve yeniden kullanım (replay) tespiti yok.
+- Gateway'de hız sınırları kullanıcı / IP başınadır.
 
 **Domain ve API tasarımı**
 - Order servisi **Clean Architecture** (Domain / Application / Infrastructure / WebApi), **MediatR ile CQRS** ve **FluentValidation** kullanıyor.

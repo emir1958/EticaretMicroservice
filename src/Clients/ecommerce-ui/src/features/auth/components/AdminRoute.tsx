@@ -3,11 +3,15 @@ import { ShieldAlert } from "lucide-react";
 import { useAuth } from "../AuthContext";
 import { ButtonLink } from "../../../shared/components/Button";
 import EmptyState from "../../../shared/components/EmptyState";
+import PageLoader from "../../../shared/components/PageLoader";
 import styles from "./AdminRoute.module.css";
 
 export default function AdminRoute() {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, isLoading } = useAuth();
   const location = useLocation();
+
+  // Oturum cookie'den geri yüklenirken yönlendirme yapılmaz (bkz. ProtectedRoute)
+  if (isLoading) return <PageLoader />;
 
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;

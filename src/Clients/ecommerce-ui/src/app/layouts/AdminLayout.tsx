@@ -17,7 +17,7 @@ import { useAuth } from "../../features/auth/AuthContext";
 import Dialog from "../../shared/components/Dialog";
 import IconButton from "../../shared/components/IconButton";
 import Logo from "../../shared/components/Logo";
-import PageLoader from "../PageLoader";
+import PageLoader from "../../shared/components/PageLoader";
 import styles from "./AdminLayout.module.css";
 
 // Menü, yöneticinin günlük akışına göre gruplanır: önce genel bakış, sonra satış, katalog ve sistem
@@ -52,7 +52,6 @@ export default function AdminLayout() {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // NavLink aktif route'u kendisi bilir: /admin/orders/5 açıkken "Siparişler" de aktif görünür.
   // end: "/admin" yalnızca tam eşleşmede aktif olsun, her admin sayfasında değil.
   const linkClass = ({ isActive }: NavLinkRenderProps) => `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`;
 

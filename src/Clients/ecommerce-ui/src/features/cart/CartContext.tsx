@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../../shared/toast/ToastContext";
 import * as basketApi from "./api";
@@ -14,6 +14,8 @@ interface CartContextValue {
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => Promise<void>;
+  // Sipariş iptal olunca sepeti sipariş anındaki haline döndürür
+  restoreCart: (items: CartItem[]) => void;
   totalAmount: number;
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
@@ -97,16 +99,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
   }, [userId]);
 
-  const commitCart = (nextItems: CartItem[]) => {
-    if (userId) {
-      setUserCart({ userId, items: nextItems });
-      writeStoredCart(userKey(userId), nextItems);
-      pushBasket(userId, nextItems);
-    } else {
-      setGuestCart(nextItems);
-      writeStoredCart(GUEST_KEY, nextItems);
-    }
-  };
+  const commitCart = useCallback(
+    (nextItems: CartItem[]) => {
+      if (userId) {
+        setUserCart({ userId, items: nextItems });
+        writeStoredCart(userKey(userId), nextItems);
+        pushBasket(userId, nextItems);
+      } else {
+        setGuestCart(nextItems);
+        writeStoredCart(GUEST_KEY, nextItems);
+      }
+    },
+    [userId],
+  );
 
   const getCartQuantity = (id: string) => cart.find((item) => item.id === id)?.quantity ?? 0;
 
@@ -155,6 +160,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const restoreCart = commitCart;
+
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
@@ -166,6 +173,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         removeFromCart,
         updateQuantity,
         clearCart,
+        restoreCart,
         totalAmount,
         isCartOpen,
         setIsCartOpen,

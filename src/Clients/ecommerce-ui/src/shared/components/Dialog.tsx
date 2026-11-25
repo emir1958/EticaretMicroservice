@@ -34,7 +34,7 @@ export default function Dialog({
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
-  // React state'i ile tarayıcının dialog durumu eşitlenir (dış sistemle senkronizasyon)
+  // React state'i ile tarayıcının dialog durumu eşitlenir
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace EticaretMicroservice.Shared.Events
+﻿namespace EticaretMicroservice.Shared.Events
 {
     public record StockReservedEvent : IntegrationEvent
     {
@@ -12,7 +6,7 @@ namespace EticaretMicroservice.Shared.Events
         public string BuyerId { get; init; }
         public decimal TotalPrice { get; init; }
         public string PaymentToken { get; init; } = string.Empty;
-        public List<OrderItemMessage> OrderItems { get; init; } = new(); // 👈 Eksikse ekleyin
+        public List<OrderItemMessage> OrderItems { get; init; } = new();
     }
 
 }

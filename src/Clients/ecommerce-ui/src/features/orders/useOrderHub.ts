@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as signalR from "@microsoft/signalr";
 import { env } from "../../config/env";
+import { getValidAccessToken } from "../../lib/session";
 
 export interface OrderStateMessage {
   orderId: number;
@@ -21,7 +22,8 @@ export function useOrderHub() {
 
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(env.orderHubUrl, {
-        accessTokenFactory: () => localStorage.getItem("token") ?? "",
+        // Bağlanırken ve yeniden bağlanırken çağrılır; token süresi dolmaya yakınsa önce yenilenir
+        accessTokenFactory: async () => (await getValidAccessToken()) ?? "",
       })
       .withAutomaticReconnect()
       // Kütüphanenin kendi logları kapalı: bağlantı hataları aşağıda start() içinde ele alınır.

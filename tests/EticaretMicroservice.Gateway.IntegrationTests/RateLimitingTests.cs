@@ -82,6 +82,52 @@ public class RateLimitingTests : IClassFixture<GatewayFactory>
         statuses.Last().Should().Be(HttpStatusCode.TooManyRequests);
     }
 
+    [Fact]
+    public async Task OrderReads_AreNotSubjectToTheOrderCreationLimit()
+    {
+        // Admin panelindeki bir sayfa birkaç okuma isteğini PARALEL atar; sipariş oluşturma limiti (10 istek / 10 sn, kuyruk 2)
+        // okumaya uygulansaydı fazlası 429 alırdı. (Sıralı göndermek burada işe yaramaz: fazla istek tek tek kuyruğa girip geçerdi.)
+        var token = CreateToken(Guid.NewGuid().ToString());
+
+        var statuses = await Task.WhenAll(
+            Enumerable.Range(0, 40).Select(_ => SendAsync(_client, HttpMethod.Get, "/api/orders/stats/summary", token)));
+
+        statuses.Should().NotContain(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task OrderCreation_IsStillLimitedPerUser()
+    {
+        var token = CreateToken(Guid.NewGuid().ToString());
+
+        // 10 istek hemen geçer, 2'si sıraya girer (pencere yenilenince geçer), fazlası 429 alır
+        var statuses = await Task.WhenAll(
+            Enumerable.Range(0, 14).Select(_ => SendAsync(_client, HttpMethod.Post, "/api/orders", token)));
+
+        statuses.Count(s => s == HttpStatusCode.TooManyRequests).Should().BeGreaterThan(0);
+        statuses.Count(s => s != HttpStatusCode.TooManyRequests).Should().BeGreaterThanOrEqualTo(10);
+    }
+
+    [Theory]
+    [InlineData("baska-rsa-anahtari")]
+    [InlineData("hs256-genel-anahtar-ile")]
+    public async Task Basket_TokensNotSignedByIdentity_AreTreatedAsAnonymous(string attack)
+    {
+        // Doğrulanamayan token kullanıcı sayılsaydı her istekte farklı kullanıcıyla limit aşılırdı;
+        // hepsi tek (IP) kovasına düşmeli ve 121. istek 429 almalı
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 121; i++)
+        {
+            var userId = $"{attack}-{i}";
+            var forged = attack == "baska-rsa-anahtari"
+                ? CreateTokenSignedByAnotherKey(userId)
+                : CreateHs256TokenSignedWithPublicKey(userId);
+            statuses.Add(await SendAsync(_client, HttpMethod.Get, "/api/basket", forged));
+        }
+
+        statuses.Last().Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
     private async Task<List<HttpStatusCode>> SendManyAsync(HttpMethod method, string path, int count, string? token = null)
     {
         var statuses = new List<HttpStatusCode>();

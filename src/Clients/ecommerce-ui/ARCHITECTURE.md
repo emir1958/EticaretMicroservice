@@ -14,24 +14,27 @@ src/
   config/env.ts         Ortam ayarları (VITE_API_URL). import.meta.env yalnızca burada okunur
   config/brand.ts       Marka adı ve sloganı (header, footer, sayfa başlıkları)
   lib/apiClient.ts      Tek HTTP istemcisi (axios + interceptor'lar), getErrorMessage ve getErrorStatus
+  lib/session.ts        Access token'ın bellekteki tek sahibi + refresh (aynı anda gelen çağrılar tek isteğe birleşir)
+  lib/jwt.ts            JWT payload okuma (imza doğrulamaz; yalnızca arayüz kararları için)
   shared/               Hiçbir feature'a ait olmayan, herkesin kullandığı parçalar
     components/         İş mantığı içermeyen arayüz parçaları:
                           Button/ButtonLink, IconButton, FormField/TextAreaField/SelectField, Alert, Badge, EmptyState,
-                          Skeleton, Dialog (modal + çekmece), Menu, Pagination, FilterTabs, SearchInput, Breadcrumb,
+                          Skeleton, PageLoader, Dialog (modal + çekmece), Menu, Pagination, FilterTabs, SearchInput, Breadcrumb,
                           Picture (boyutlu görsel + yer tutucu), QuantityStepper, Logo
     toast/              ToastProvider + useToast: kısa ömürlü geri bildirim ("sepete eklendi")
-    hooks/              useAsync (veri çekme kalıbı)
+    hooks/              useAsync (veri çekme kalıbı), useDebouncedValue (arama kutusunda her tuşta istek atmamak için)
     utils/              formatPrice, formatDate ..., sizedImageUrl (görseli gösterileceği genişlikte ister)
   styles/               tokens.css (tasarım token'ları), global.css (temel stiller)
   features/             İş alanlarına göre bölünmüş kod
-    auth/               Giriş, kayıt, token, korumalı route'lar
+    auth/               Giriş, kayıt, çıkış, korumalı route'lar. Oturum: access token (15 dk) yalnızca bellekte (lib/session),
+                          sayfa açılınca ve süre dolmadan önce HttpOnly refresh cookie'si ile yenilenir; localStorage'da token yoktur
     cart/               Sepet (misafir + Redis), sepet çekmecesi, sepetin stok kontrolü (useCartStock)
     catalog/            Ana sayfa, ürün listesi (arama/filtre/sıralama) ve detay; catalogView.ts saf filtre/sıralama fonksiyonları
     stock/              Stock servisinin istemcisi (yalnızca api.ts): stok okuma ve güncelleme
     orders/             Ödeme, siparişlerim, canlı sipariş durumu (SignalR)
     account/            Müşterinin hesap sayfası
     admin/              Yönetim paneli: gösterge paneli, siparişler, müşteriler, indirimler, ürünler, kategoriler, stok, sistem
-                          api.ts (kullanıcı listesi, servis sağlığı), analytics.ts (rapor hesapları, saf fonksiyonlar),
+                          api.ts (kullanıcı listesi, servis sağlığı), analytics.ts (dönem sınırları, yüzde değişim, sunucu verisini kullanıcılarla birleştirme; ciro/sipariş/çok satan raporları Order servisinde SQL ile hesaplanır, bkz. orders/api.ts),
                           admin.module.css (admin sayfalarının ortak başlık/panel/tablo stilleri)
 ```
 

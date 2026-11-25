@@ -3,75 +3,71 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ChevronRight, Repeat, SearchX, UserPlus, Users, Wallet } from "lucide-react";
 import { getErrorMessage } from "../../../lib/apiClient";
 import { useAsync } from "../../../shared/hooks/useAsync";
+import { useDebouncedValue } from "../../../shared/hooks/useDebouncedValue";
+import { useUrlSearchInput } from "../../../shared/hooks/useUrlSearchInput";
 import Badge from "../../../shared/components/Badge";
 import Button from "../../../shared/components/Button";
 import Dialog from "../../../shared/components/Dialog";
 import EmptyState from "../../../shared/components/EmptyState";
-import FilterTabs from "../../../shared/components/FilterTabs";
+import Pagination from "../../../shared/components/Pagination";
 import SearchInput from "../../../shared/components/SearchInput";
 import Skeleton from "../../../shared/components/Skeleton";
 import { formatDate, formatDay, formatNumber, formatPrice } from "../../../shared/utils/format";
-import { normalizeText } from "../../catalog/catalogView";
-import { getAllOrders } from "../../orders/api";
+import { getCustomerStats, getCustomerSummary, searchOrders } from "../../orders/api";
 import OrderStatusBadge from "../../orders/components/OrderStatusBadge";
-import type { Order } from "../../orders/types";
-import { getUsers } from "../api";
+import { getCustomers } from "../api";
 import { customerStats, type CustomerStats } from "../analytics";
 import StatCard from "../components/StatCard";
 import ui from "../admin.module.css";
 import styles from "./AdminCustomersPage.module.css";
 
-type Segment = "all" | "buyers" | "repeat" | "new";
+const PAGE_SIZE = 20;
+const SEARCH_DELAY_MS = 300;
 
-const SEGMENTS: { value: Segment; label: string }[] = [
-  { value: "all", label: "Tümü" },
-  { value: "buyers", label: "Sipariş verenler" },
-  { value: "repeat", label: "Tekrar alanlar" },
-  { value: "new", label: "Henüz sipariş vermeyenler" },
-];
-
-const inSegment = (customer: CustomerStats, segment: Segment) => {
-  if (segment === "buyers") return customer.completedCount > 0;
-  if (segment === "repeat") return customer.completedCount > 1;
-  if (segment === "new") return customer.orderCount === 0;
-  return true;
-};
-
-async function loadCustomers() {
-  const [users, orders] = await Promise.all([getUsers(), getAllOrders()]);
-  return { customers: customerStats(users, orders), orders };
+async function loadOverview() {
+  const [customers, summary] = await Promise.all([getCustomers({ pageSize: 1 }), getCustomerSummary()]);
+  return { customerCount: customers.totalCount, ...summary };
 }
 
+// Liste Identity'den sayfalanır; sipariş özeti yalnızca bu sayfadaki müşteriler için Order'dan istenir
+async function loadCustomerPage(q: string, page: number) {
+  const users = await getCustomers({ q, page, pageSize: PAGE_SIZE });
+  const stats = users.items.length > 0 ? await getCustomerStats(users.items.map((u) => u.id)) : [];
+  return { customers: customerStats(users.items, stats), totalCount: users.totalCount };
+}
+
+const percentOf = (part: number, whole: number) => Math.round((part / whole) * 100);
+
 export default function AdminCustomersPage() {
-  const { data, error, isLoading, reload } = useAsync(loadCustomers, []);
   const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState<CustomerStats | null>(null);
 
   const query = searchParams.get("q") ?? "";
-  const segment = SEGMENTS.find((s) => s.value === searchParams.get("segment"))?.value ?? "all";
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DELAY_MS);
+
+  const overview = useAsync(loadOverview, []);
+  const list = useAsync(() => loadCustomerPage(debouncedQuery, page), [debouncedQuery, page]);
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(key, value);
     else next.delete(key);
+    if (key !== "page") next.delete("page");
     setSearchParams(next, { replace: true });
   };
 
-  const customers = data?.customers ?? [];
-  const terms = normalizeText(query).split(/\s+/).filter(Boolean);
-  const searched = customers.filter((c) => {
-    const haystack = normalizeText(`${c.user.username} ${c.user.email} ${c.city ?? ""}`);
-    return terms.every((term) => haystack.includes(term));
-  });
-  const visible = searched
-    .filter((c) => inSegment(c, segment))
-    .sort((a, b) => b.totalSpent - a.totalSpent || a.user.username.localeCompare(b.user.username, "tr"));
+  const search = useUrlSearchInput(query, (value) => setParam("q", value));
 
-  const buyers = customers.filter((c) => c.completedCount > 0);
-  const repeatBuyers = customers.filter((c) => c.completedCount > 1);
-  const totalSpent = buyers.reduce((sum, c) => sum + c.totalSpent, 0);
+  const selectedId = selected?.user.id ?? null;
+  const { data: selectedOrdersPage, isLoading: ordersLoading } = useAsync(
+    () => (selectedId ? searchOrders({ buyerId: selectedId, pageSize: 20 }) : Promise.resolve(null)),
+    [selectedId],
+  );
+  const selectedOrders = selectedOrdersPage?.items ?? [];
 
-  const selectedOrders: Order[] = selected ? (data?.orders ?? []).filter((o) => o.buyerId === selected.user.id) : [];
+  const stats = overview.data;
+  const pageCount = list.data ? Math.max(1, Math.ceil(list.data.totalCount / PAGE_SIZE)) : 1;
 
   return (
     <>
@@ -82,114 +78,119 @@ export default function AdminCustomersPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div aria-busy="true" aria-label="Müşteriler yükleniyor">
-          <div className={ui.stats}>
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className={ui.skeletonStat} />
-            ))}
-          </div>
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className={ui.skeletonRow} />
+      {overview.isLoading ? (
+        <div className={ui.stats} aria-busy="true" aria-label="Özet yükleniyor">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className={ui.skeletonStat} />
           ))}
         </div>
-      ) : error ? (
-        <EmptyState
-          icon={Users}
-          title="Müşteriler yüklenemedi"
-          text={getErrorMessage(error, "Identity veya Order servisine ulaşılamıyor.")}
-          action={<Button onClick={reload}>Tekrar dene</Button>}
-        />
       ) : (
-        <>
+        stats && (
           <div className={ui.stats}>
-            <StatCard icon={Users} label="Kayıtlı müşteri" value={formatNumber(customers.length)} />
+            <StatCard icon={Users} label="Kayıtlı müşteri" value={formatNumber(stats.customerCount)} />
             <StatCard
               icon={UserPlus}
               label="Sipariş veren"
-              value={formatNumber(buyers.length)}
-              hint={customers.length > 0 ? `Müşterilerin %${Math.round((buyers.length / customers.length) * 100)}'i` : undefined}
+              value={formatNumber(stats.buyerCount)}
+              hint={stats.customerCount > 0 ? `Müşterilerin %${percentOf(stats.buyerCount, stats.customerCount)}'i` : undefined}
             />
             <StatCard
               icon={Repeat}
               label="Tekrar alan"
-              value={formatNumber(repeatBuyers.length)}
-              hint={buyers.length > 0 ? `Alıcıların %${Math.round((repeatBuyers.length / buyers.length) * 100)}'i` : undefined}
+              value={formatNumber(stats.repeatBuyerCount)}
+              hint={stats.buyerCount > 0 ? `Alıcıların %${percentOf(stats.repeatBuyerCount, stats.buyerCount)}'i` : undefined}
             />
             <StatCard
               icon={Wallet}
               label="Müşteri başına harcama"
-              value={formatPrice(buyers.length > 0 ? totalSpent / buyers.length : 0)}
+              value={formatPrice(stats.buyerCount > 0 ? stats.totalSpent / stats.buyerCount : 0)}
               hint="Sipariş veren müşteriler"
             />
           </div>
+        )
+      )}
 
-          <div className={ui.toolbar}>
-            <SearchInput
-              className={ui.toolbarSearch}
-              value={query}
-              onChange={(value) => setParam("q", value || null)}
-              label="Müşterilerde ara"
-              placeholder="Ad, e-posta veya il"
-            />
-            <FilterTabs
-              label="Segment"
-              tabs={SEGMENTS.map((s) => ({ ...s, count: searched.filter((c) => inSegment(c, s.value)).length }))}
-              value={segment}
-              onChange={(value) => setParam("segment", value === "all" ? null : value)}
-            />
-          </div>
+      <div className={ui.toolbar}>
+        <SearchInput
+          className={ui.toolbarSearch}
+          value={search.value}
+          onChange={search.onChange}
+          label="Müşterilerde ara"
+          placeholder="Ad veya e-posta"
+        />
+      </div>
 
-          {visible.length === 0 ? (
-            <EmptyState icon={SearchX} title="Eşleşen müşteri yok" text="Arama terimini veya segmenti değiştirmeyi deneyin." />
-          ) : (
-            <div className={ui.tableWrap}>
-              <table className={ui.table}>
-                <thead>
-                  <tr>
-                    <th>Müşteri</th>
-                    <th>İl</th>
-                    <th className={ui.alignRight}>Sipariş</th>
-                    <th className={ui.alignRight}>Toplam harcama</th>
-                    <th>Son sipariş</th>
-                    <th>
-                      <span className="visually-hidden">İşlem</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((customer) => (
-                    <tr key={customer.user.id}>
-                      <td>
-                        <div className={styles.person}>
-                          <span className={styles.avatar} aria-hidden="true">
-                            {customer.user.username.charAt(0)}
-                          </span>
-                          <div>
-                            <div className={ui.cellTitle}>
-                              {customer.user.username} {customer.user.isSample && <Badge>Örnek</Badge>}
-                            </div>
-                            <div className={ui.cellSub}>{customer.user.email}</div>
+      {list.isLoading ? (
+        <div aria-busy="true" aria-label="Müşteriler yükleniyor">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className={ui.skeletonRow} />
+          ))}
+        </div>
+      ) : list.error || !list.data ? (
+        <EmptyState
+          icon={Users}
+          title="Müşteriler yüklenemedi"
+          text={getErrorMessage(list.error, "Identity veya Order servisine ulaşılamıyor.")}
+          action={<Button onClick={list.reload}>Tekrar dene</Button>}
+        />
+      ) : list.data.customers.length === 0 && !debouncedQuery ? (
+        <EmptyState icon={Users} title="Henüz müşteri yok" text="Kayıt olan müşteriler burada görünecek." />
+      ) : list.data.customers.length === 0 ? (
+        <EmptyState icon={SearchX} title="Eşleşen müşteri yok" text="Farklı bir ad veya e-posta ile aramayı deneyin." />
+      ) : (
+        <>
+          <div className={ui.tableWrap}>
+            <table className={ui.table}>
+              <thead>
+                <tr>
+                  <th>Müşteri</th>
+                  <th>İl</th>
+                  <th className={ui.alignRight}>Sipariş</th>
+                  <th className={ui.alignRight}>Toplam harcama</th>
+                  <th>Son sipariş</th>
+                  <th>
+                    <span className="visually-hidden">İşlem</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.data.customers.map((customer) => (
+                  <tr key={customer.user.id}>
+                    <td>
+                      <div className={styles.person}>
+                        <span className={styles.avatar} aria-hidden="true">
+                          {customer.user.username.charAt(0)}
+                        </span>
+                        <div>
+                          <div className={ui.cellTitle}>
+                            {customer.user.username} {customer.user.isSample && <Badge>Örnek</Badge>}
                           </div>
+                          <div className={ui.cellSub}>{customer.user.email}</div>
                         </div>
-                      </td>
-                      <td className={ui.muted}>{customer.city ?? "—"}</td>
-                      <td className={`${ui.alignRight} ${ui.num}`}>{customer.orderCount}</td>
-                      <td className={`${ui.alignRight} ${ui.num} ${ui.strong}`}>{formatPrice(customer.totalSpent)}</td>
-                      <td className={`${ui.muted} ${ui.nowrap}`}>
-                        {customer.lastOrderAt ? formatDay(customer.lastOrderAt.toISOString()) : "—"}
-                      </td>
-                      <td className={ui.alignRight}>
-                        <button type="button" className={`${ui.rowLink} ${styles.rowButton}`} onClick={() => setSelected(customer)}>
-                          Siparişler <ChevronRight size={16} aria-hidden="true" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      </div>
+                    </td>
+                    <td className={ui.muted}>{customer.city ?? "—"}</td>
+                    <td className={`${ui.alignRight} ${ui.num}`}>{customer.orderCount}</td>
+                    <td className={`${ui.alignRight} ${ui.num} ${ui.strong}`}>{formatPrice(customer.totalSpent)}</td>
+                    <td className={`${ui.muted} ${ui.nowrap}`}>
+                      {customer.lastOrderAt ? formatDay(customer.lastOrderAt.toISOString()) : "—"}
+                    </td>
+                    <td className={ui.alignRight}>
+                      <button type="button" className={`${ui.rowLink} ${styles.rowButton}`} onClick={() => setSelected(customer)}>
+                        Siparişler <ChevronRight size={16} aria-hidden="true" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className={ui.tableFooter}>
+            <span>
+              {list.data.totalCount} müşteriden {(page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + list.data.customers.length} arası
+            </span>
+            <Pagination page={page} pageCount={pageCount} onChange={(next) => setParam("page", next > 1 ? String(next) : null)} />
+          </div>
         </>
       )}
 
@@ -210,7 +211,13 @@ export default function AdminCustomersPage() {
                 <dd>{formatPrice(selected.totalSpent)}</dd>
               </div>
             </dl>
-            {selectedOrders.length === 0 ? (
+            {ordersLoading ? (
+              <div aria-busy="true" aria-label="Siparişler yükleniyor">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <Skeleton key={i} className={ui.skeletonRow} />
+                ))}
+              </div>
+            ) : selectedOrders.length === 0 ? (
               <EmptyState variant="plain" title="Henüz sipariş yok" text="Bu müşteri kayıt oldu ancak sipariş vermedi." />
             ) : (
               <ul className={styles.orders}>

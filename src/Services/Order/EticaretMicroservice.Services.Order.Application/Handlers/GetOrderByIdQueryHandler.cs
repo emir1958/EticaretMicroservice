@@ -1,57 +1,57 @@
-﻿using EticaretMicroservice.Services.Order.Application.Dtos;
-using EticaretMicroservice.Services.Order.Application.Interfaces;
-using EticaretMicroservice.Services.Order.Application.Queries;
-using MediatR;
-
-namespace EticaretMicroservice.Services.Order.Application.Handlers;
-
-public class GetOrderByIdQueryHandler : IRequestHandler<GetOrderByIdQuery, OrderDto?>
-{
-    private readonly IOrderRepository _orderRepository;
-
-    public GetOrderByIdQueryHandler(IOrderRepository orderRepository)
-    {
-        _orderRepository = orderRepository;
-    }
-
-    public async Task<OrderDto?> Handle(GetOrderByIdQuery request, CancellationToken cancellationToken)
-    {
-        var order = await _orderRepository.GetByIdAsync(request.Id);
-
-        if (order == null) return null;
-
-        return new OrderDto
-        {
-            Id = order.Id,
-            BuyerId = order.BuyerId,
-            CreatedDate = order.CreatedDate,
-            TotalPrice = order.GetTotalPrice,
-            OrderStatus = order.OrderStatus.ToString(),
-            PaymentStatus = order.PaymentStatus.ToString(),
-            RefundedAt = order.RefundedAt,
-            Address = new AddressDto
-            {
-                ContactName = order.Address.ContactName,
-                Phone = order.Address.Phone,
-                City = order.Address.City,
-                District = order.Address.District,
-                Street = order.Address.Street,
-                ZipCode = order.Address.ZipCode,
-                Line = order.Address.Line
-            },
-            OrderItems = order.OrderItems?.Select(i => new OrderItemDto
-            {
-                ProductId = i.ProductId,
-                ProductName = i.ProductName,
-                Price = i.Price,
-                Quantity = i.Quantity
-            }).ToList() ?? new(),
-            // Aynı andaki kayıtlar (örn. ödeme alındı → tamamlandı) eklenme sırasıyla gösterilir
-            History = order.History
-                .OrderBy(h => h.OccurredAt)
-                .ThenBy(h => h.Id)
-                .Select(h => new OrderHistoryDto { Type = h.Type.ToString(), OccurredAt = h.OccurredAt, Note = h.Note })
-                .ToList()
-        };
-    }
+﻿using EticaretMicroservice.Services.Order.Application.Dtos;
+using EticaretMicroservice.Services.Order.Application.Interfaces;
+using EticaretMicroservice.Services.Order.Application.Queries;
+using MediatR;
+
+namespace EticaretMicroservice.Services.Order.Application.Handlers;
+
+public class GetOrderByIdQueryHandler : IRequestHandler<GetOrderByIdQuery, OrderDto?>
+{
+    private readonly IOrderRepository _orderRepository;
+
+    public GetOrderByIdQueryHandler(IOrderRepository orderRepository)
+    {
+        _orderRepository = orderRepository;
+    }
+
+    public async Task<OrderDto?> Handle(GetOrderByIdQuery request, CancellationToken cancellationToken)
+    {
+        var order = await _orderRepository.GetByIdAsync(request.Id);
+
+        if (order == null) return null;
+
+        return new OrderDto
+        {
+            Id = order.Id,
+            BuyerId = order.BuyerId,
+            CreatedDate = order.CreatedDate,
+            TotalPrice = order.GetTotalPrice,
+            OrderStatus = order.OrderStatus.ToString(),
+            PaymentStatus = order.PaymentStatus.ToString(),
+            RefundedAt = order.RefundedAt,
+            Address = new AddressDto
+            {
+                ContactName = order.Address.ContactName,
+                Phone = order.Address.Phone,
+                City = order.Address.City,
+                District = order.Address.District,
+                Street = order.Address.Street,
+                ZipCode = order.Address.ZipCode,
+                Line = order.Address.Line
+            },
+            OrderItems = order.OrderItems?.Select(i => new OrderItemDto
+            {
+                ProductId = i.ProductId,
+                ProductName = i.ProductName,
+                Price = i.Price,
+                Quantity = i.Quantity
+            }).ToList() ?? new(),
+            // Aynı andaki kayıtlar (örn. ödeme alındı → tamamlandı) eklenme sırasıyla gösterilir
+            History = order.History
+                .OrderBy(h => h.OccurredAt)
+                .ThenBy(h => h.Id)
+                .Select(h => new OrderHistoryDto { Type = h.Type.ToString(), OccurredAt = h.OccurredAt, Note = h.Note })
+                .ToList()
+        };
+    }
 }

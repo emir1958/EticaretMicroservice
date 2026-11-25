@@ -3,13 +3,12 @@ using EticaretMicroservice.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. RATE LIMITER: kullanıcı/IP başına kovalar (ayrıntı RateLimitingExtensions.cs içinde)
+// Kullanıcı/IP başına kovalar (ayrıntı RateLimitingExtensions.cs içinde)
 builder.Services.AddGatewayRateLimiting();
 
 // Limiter kullanıcıyı partition anahtarı yapar; bu yüzden token burada da doğrulanır (servislerle aynı Jwt ayarları)
 builder.Services.AddSharedJwtAuthentication(builder.Configuration);
 
-// 2. YARP PROXY
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
@@ -17,7 +16,6 @@ builder.Services.AddSharedCors();
 
 builder.Services.AddSharedOpenTelemetry(builder.Configuration, "Gateway.Api");
 
-// 3. HEALTH CHECKS UI
 builder.Services.AddHealthChecksUI(options =>
 {
     options.SetEvaluationTimeInSeconds(15);
@@ -28,7 +26,7 @@ builder.Services.AddHealthChecksUI(options =>
 var app = builder.Build();
 app.UseCors(CorsExtensions.PolicyName);
 
-// 🟢 4. CORRELATION ID MIDDLEWARE (YARP'a taşınacak temiz Guid zinciri)
+// Geçerli bir X-Correlation-ID gelmediyse üretilir; servislere iletilen istek ve yanıt aynı id'yi taşır
 app.Use(async (context, next) =>
 {
     const string correlationIdHeaderKey = "X-Correlation-ID";

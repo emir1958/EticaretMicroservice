@@ -11,16 +11,15 @@ import Skeleton from "../../../shared/components/Skeleton";
 import { formatPrice } from "../../../shared/utils/format";
 import { getProductsWithStock } from "../../catalog/api";
 import { categoryOf, listCategories, UNCATEGORIZED } from "../../catalog/catalogView";
-import { getAllOrders } from "../../orders/api";
-import { inPeriod, periodsFor, productSales } from "../analytics";
+import { getProductSales } from "../../orders/api";
+import { periodsFor } from "../analytics";
 import ui from "../admin.module.css";
 import styles from "./AdminCategoriesPage.module.css";
 
 async function loadCategories() {
-  const [products, orders] = await Promise.all([getProductsWithStock(), getAllOrders().catch(() => [])]);
-  const revenueByProduct = new Map(
-    productSales(inPeriod(orders, periodsFor(30).current)).map((sale) => [sale.productId, sale.revenue]),
-  );
+  // Gelir son 30 günün çok satanlar raporundan (Order servisi SQL ile hesaplar); servis yanıt vermezse sayfa yine açılır
+  const [products, sales] = await Promise.all([getProductsWithStock(), getProductSales(periodsFor(30).current).catch(() => [])]);
+  const revenueByProduct = new Map(sales.map((sale) => [sale.productId, sale.revenue]));
 
   return listCategories(products).map((category) => {
     const own = products.filter((p) => categoryOf(p) === category.name);

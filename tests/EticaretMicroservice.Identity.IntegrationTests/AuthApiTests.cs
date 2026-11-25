@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 
 namespace EticaretMicroservice.Identity.IntegrationTests;
@@ -83,6 +84,23 @@ public class AuthApiTests : IClassFixture<IdentityApiFactory>
     }
 
     [Fact]
+    public async Task Customers_SearchesNameAndEmail_PagesResults_AndExcludesAdmins()
+    {
+        var adminToken = await LoginAsync(IdentityApiFactory.AdminEmail, IdentityApiFactory.AdminPassword);
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        foreach (var suffix in new[] { "A", "B", "C" })
+            await _client.PostAsJsonAsync("/api/auth/register", new { username = $"Çağlar {tag} {suffix}", email = NewEmail(), password = Password });
+
+        var page2 = await GetJsonAsync($"/api/users/customers?q=caglar%20{tag}&pageSize=2&page=2", adminToken);
+        var admins = await GetJsonAsync($"/api/users/customers?q={Uri.EscapeDataString(IdentityApiFactory.AdminEmail)}", adminToken);
+
+        page2.GetProperty("totalCount").GetInt32().Should().Be(3, "arama aksan ve büyük/küçük harf duyarsız olmalı");
+        page2.GetProperty("items").EnumerateArray().Select(u => u.GetProperty("username").GetString())
+            .Should().Equal($"Çağlar {tag} C");
+        admins.GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
     public async Task Login_WithInvalidBody_Returns400WithFieldErrors()
     {
         var response = await _client.PostAsJsonAsync("/api/auth/login", new { });
@@ -120,6 +138,15 @@ public class AuthApiTests : IClassFixture<IdentityApiFactory>
         if (token is not null)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return _client.SendAsync(request);
+    }
+
+    private async Task<JsonElement> GetJsonAsync(string url, string token)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     private sealed record LoginResponse(string Token);

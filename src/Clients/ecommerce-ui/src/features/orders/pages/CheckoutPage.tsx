@@ -1,4 +1,4 @@
-import { useState, useRef, type SubmitEvent } from "react";
+import { useEffect, useRef, useState, type SubmitEvent } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { useCart } from "../../cart/CartContext";
+import type { CartItem } from "../../cart/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useCartStock } from "../../cart/useCartStock";
 import { useOrderHub } from "../useOrderHub";
@@ -47,12 +48,11 @@ const trimAddress = (address: Address): Address => ({
 });
 
 export default function CheckoutPage() {
-  const { cart, totalAmount, clearCart, setIsCartOpen } = useCart();
+  const { cart, totalAmount, clearCart, restoreCart, setIsCartOpen } = useCart();
   const { hasStockIssue } = useCartStock();
   const { isAdmin } = useAuth();
   const { orderStatus } = useOrderHub();
 
-  // Kart Form State'leri
   const [cardHolder, setCardHolder] = useState("");
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
@@ -63,6 +63,15 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Sepet sipariş anında temizlenir (sonuç beklenirken ikinci bir sipariş verilemesin). Sipariş iptal olursa
+  // (ödeme reddi, stok yetersizliği) kullanıcı her şeyi yeniden eklemek zorunda kalmasın diye bu kopyadan geri yüklenir.
+  const placedItemsRef = useRef<CartItem[]>([]);
+  const orderWasCanceled = createdOrderId !== null && orderStatus?.orderId === createdOrderId && orderStatus.status === "Canceled";
+
+  useEffect(() => {
+    if (orderWasCanceled) restoreCart(placedItemsRef.current);
+  }, [orderWasCanceled, restoreCart]);
 
   const formatCardNumber = (val: string) => {
     const raw = val.replace(/\D/g, "").slice(0, 16);
@@ -75,7 +84,7 @@ export default function CheckoutPage() {
     return raw;
   };
 
-  // 🟢 2. YÖNETİCİ BLOKAJI: Admin hesabı bu sayfada sipariş veremez
+  // Admin hesabıyla sipariş verilemez (Order API de reddeder)
   if (isAdmin) {
     return (
       <EmptyState
@@ -94,7 +103,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // 🟢 3. SEPET BOŞ VE SİPARİŞ HENÜZ VERİLMEDİYSE UYARI
   if (cart.length === 0 && !createdOrderId) {
     return (
       <EmptyState
@@ -128,6 +136,7 @@ export default function CheckoutPage() {
         { address: trimAddress(address), paymentToken, items: cart },
         idempotencyKeyRef.current,
       );
+      placedItemsRef.current = cart;
       setCreatedOrderId(orderId);
       clearCart();
     } catch (err) {
@@ -144,6 +153,14 @@ export default function CheckoutPage() {
       setErrorMessage(getErrorMessage(err, "Sipariş oluşturulurken bir hata meydana geldi."));
       setIsSubmitting(false);
     }
+  };
+
+  // İptalden sonra formu (adres ve kart bilgileri durur) yeni bir istek olarak yeniden açar
+  const retryOrder = () => {
+    idempotencyKeyRef.current = crypto.randomUUID();
+    setCreatedOrderId(null);
+    setIsSubmitting(false);
+    setErrorMessage(null);
   };
 
   // Sipariş verildi: SignalR'dan gelen canlı duruma göre sonuç ekranı
@@ -173,7 +190,10 @@ export default function CheckoutPage() {
         </p>
         <span className={styles.orderNo}>Sipariş No #{createdOrderId}</span>
         <div className={styles.resultActions}>
-          <ButtonLink to={`/orders/${createdOrderId}`}>Sipariş detayına git</ButtonLink>
+          {isCanceled && <Button onClick={retryOrder}>Tekrar dene</Button>}
+          <ButtonLink to={`/orders/${createdOrderId}`} variant={isCanceled ? "secondary" : "primary"}>
+            Sipariş detayına git
+          </ButtonLink>
           <ButtonLink to="/" variant="secondary">
             Alışverişe devam et
           </ButtonLink>

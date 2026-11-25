@@ -8,7 +8,7 @@ import Button from "../../../shared/components/Button";
 import Skeleton from "../../../shared/components/Skeleton";
 import { formatDate, formatNumber } from "../../../shared/utils/format";
 import { getProducts } from "../../catalog/api";
-import { getAllOrders } from "../../orders/api";
+import { getCustomerStats } from "../../orders/api";
 import { getServiceHealth, getUsers, HEALTH_DASHBOARD_URL, type HealthStatus } from "../api";
 import ui from "../admin.module.css";
 import styles from "./AdminSystemPage.module.css";
@@ -27,12 +27,15 @@ const DEV_TOOLS = [
 
 // Örnek veriyle gerçek veriyi ayırt etmek için: kaç kaydın seed'den geldiği
 async function loadDataSummary() {
-  const [products, users, orders] = await Promise.all([getProducts(), getUsers(), getAllOrders()]);
+  const [products, users, customerStats] = await Promise.all([getProducts(), getUsers(), getCustomerStats()]);
   const sampleUserIds = new Set(users.filter((u) => u.isSample).map((u) => u.id));
+  // Sipariş sayıları müşteri başına özetlerin toplamından gelir: tüm siparişleri indirmek gerekmez
+  const totalOrders = customerStats.reduce((sum, c) => sum + c.orderCount, 0);
+  const sampleOrders = customerStats.filter((c) => sampleUserIds.has(c.buyerId)).reduce((sum, c) => sum + c.orderCount, 0);
   return [
     { label: "Ürün", total: products.length, sample: products.filter((p) => p.isSample).length },
     { label: "Müşteri", total: users.filter((u) => u.role !== "Admin").length, sample: sampleUserIds.size },
-    { label: "Sipariş", total: orders.length, sample: orders.filter((o) => sampleUserIds.has(o.buyerId)).length },
+    { label: "Sipariş", total: totalOrders, sample: sampleOrders },
   ];
 }
 

@@ -40,7 +40,7 @@ flowchart LR
 | Service | Responsibility | Storage |
 |---|---|---|
 | **Gateway** | Single entry point (YARP), rate limiting, CORS, health dashboard | — |
-| **Identity** | Registration, login, JWT issuing (role-based: `Admin`, `User`) | SQL Server |
+| **Identity** | Registration, login, RS256 JWT issuing (role-based: `Admin`, `User`), refresh-token cookie, JWKS | SQL Server |
 | **Catalog** | Products; publishes product and stock events | MongoDB |
 | **Basket** | Per-user basket (the guest basket is merged into it on login) | Redis |
 | **Order** | Orders (Clean Architecture + CQRS), the order saga, live status via SignalR | SQL Server |
@@ -48,6 +48,8 @@ flowchart LR
 | **Payment** | Charges and refunds (pluggable provider; iyzico integration planned) | SQL Server |
 
 Services with a public API validate the JWT themselves, so the gateway is not the only line of defence.
+Only Identity holds the signing (private) key; every other service verifies tokens with the public key it fetches
+from Identity's JWKS endpoint, so a compromised service cannot mint tokens.
 Payment has no public API: it only consumes messages from the bus.
 
 ## The order flow
@@ -79,6 +81,13 @@ stateDiagram-v2
 - **Concurrency**: the saga uses pessimistic row locks (an earlier optimistic setup caused SQL deadlocks under concurrent events). Stock is reserved with a single conditional `UPDATE`, so it can never go negative.
 - **Timeout safety net**: a background sweeper re-triggers timeouts whose delayed message was lost.
 - **Resilience**: Polly (standard resilience handler) on the Order → Catalog HTTP call; retries and dead-letter queues on the bus.
+
+**Authentication**
+- Short-lived access tokens (15 min, RS256) live only in the browser's memory. The session is kept alive by a **refresh token**
+  in an `HttpOnly; SameSite=Strict` cookie (path `/api/auth`). It is a signed JWT with a different audience (so it cannot be used
+  as an access token) and carries the user's `TokenVersion`; signing out bumps that version, which invalidates every refresh token
+  of the user without storing anything per token. Trade-off: no per-device sign-out and no replay detection.
+- Rate limits are per user / per IP at the gateway.
 
 **Domain and API design**
 - The Order service follows **Clean Architecture** (Domain / Application / Infrastructure / WebApi) with **CQRS via MediatR** and **FluentValidation**.

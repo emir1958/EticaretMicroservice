@@ -30,6 +30,9 @@ public class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         .WithPassword("Strong_P@ssw0rd123!")
         .Build();
 
+    private static readonly string TestPublicKeyBase64 =
+        Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(System.Security.Cryptography.RSA.Create(2048).ExportSubjectPublicKeyInfoPem()));
+
     public readonly Mock<ICatalogRepository> CatalogRepoMock = new();
 
     private readonly Lazy<WebApplicationFactory<Program>> _shortTimeoutApi;
@@ -50,7 +53,6 @@ public class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // 1. SQL Server konteynerini başlat
         await _dbContainer.StartAsync();
     }
 
@@ -58,15 +60,14 @@ public class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
         // appsettings.json secret içermediği için testin ihtiyaç duyduğu değerler burada verilir
         builder.UseSetting("ConnectionStrings:DefaultConnection", _dbContainer.GetConnectionString());
-        builder.UseSetting("Jwt:SecretKey", "integration-tests-only-signing-key-0123456789");
+        // Kimlik doğrulama TestAuthHandler ile değiştirilir; Program yine de geçerli bir JWT doğrulama anahtarı ister
+        builder.UseSetting("Jwt:PublicKey", TestPublicKeyBase64);
         builder.UseSetting("OrderSaga:PaymentTimeout", PaymentTimeout.ToString());
 
         builder.ConfigureTestServices(services =>
         {
-            // Mevcut SQL DbContext ayarını kaldır
             services.RemoveAll(typeof(DbContextOptions<OrderDbContext>));
 
-            // Konteynerin ürettiği dinamik bağlantı dizesi ile DB'yi bağla
             services.AddDbContext<OrderDbContext>(options =>
             {
                 options.UseSqlServer(_dbContainer.GetConnectionString(), sqlOptions =>

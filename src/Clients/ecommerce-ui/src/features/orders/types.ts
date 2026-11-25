@@ -55,3 +55,71 @@ export interface NewOrder {
   paymentToken: string;
   items: CartItem[];
 }
+
+// Admin sipariş listesi satırı: tam sipariş değil, listede gösterilenler (kalemler ve adres özetlenmiştir)
+export interface OrderListItem {
+  id: number;
+  buyerId: string;
+  contactName: string;
+  createdDate: string;
+  itemCount: number;
+  paymentStatus: PaymentStatus;
+  orderStatus: OrderStatus;
+  totalPrice: number;
+}
+
+export interface PagedOrders {
+  items: OrderListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  // Arama/müşteri filtresine uyan siparişlerin durum dağılımı (durum filtresinden bağımsız)
+  statusCounts: Record<OrderStatus, number>;
+}
+
+export interface OrderSearchParams {
+  q?: string;
+  status?: OrderStatus;
+  buyerId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface SalesSummary {
+  revenue: number;
+  orderCount: number;
+  completedCount: number;
+  pendingCount: number;
+  canceledCount: number;
+  averageOrderValue: number;
+  cancelRate: number;
+  itemsSold: number;
+}
+
+export interface DailySales {
+  date: string;
+  revenue: number;
+  orders: number;
+}
+
+export interface ProductSales {
+  productId: string;
+  name: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface CustomerOrderStats {
+  buyerId: string;
+  orderCount: number;
+  completedCount: number;
+  totalSpent: number;
+  lastOrderAt: string;
+  city: string | null;
+}
+
+export interface CustomerSummary {
+  buyerCount: number;
+  repeatBuyerCount: number;
+  totalSpent: number;
+}

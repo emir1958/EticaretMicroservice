@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -7,26 +7,19 @@ namespace EticaretMicroservice.Services.Order.Application.Hubs;
 [Authorize]
 public class OrderHub : Hub
 {
-    // İstemciden buyerId parametresi ALMIYORUZ; doğrudan doğrulanmış token'dan okuyoruz
+    // Grup adı istemciden alınmaz, doğrulanmış token'dan okunur: kimse başkasının bildirimlerine abone olamaz
     public async Task JoinOrderGroup()
     {
-        var buyerId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                      ?? Context.User?.FindFirst("sub")?.Value;
-
-        if (!string.IsNullOrEmpty(buyerId))
-        {
+        if (BuyerId is { Length: > 0 } buyerId)
             await Groups.AddToGroupAsync(Context.ConnectionId, buyerId);
-        }
     }
 
     public async Task LeaveOrderGroup()
     {
-        var buyerId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                      ?? Context.User?.FindFirst("sub")?.Value;
-
-        if (!string.IsNullOrEmpty(buyerId))
-        {
+        if (BuyerId is { Length: > 0 } buyerId)
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, buyerId);
-        }
     }
+
+    private string? BuyerId =>
+        Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Context.User?.FindFirst("sub")?.Value;
 }

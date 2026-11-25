@@ -132,6 +132,8 @@ namespace EticaretMicroservice.Services.Order.Infrastructure.Migrations
                     b.HasIndex("CorrelationId")
                         .IsUnique();
 
+                    b.HasIndex("CreatedDate");
+
                     b.HasIndex("BuyerId", "CreatedDate");
 
                     b.HasIndex("OrderStatus", "CreatedDate");
